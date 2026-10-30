@@ -9,14 +9,37 @@ import {
   ChevronRight,
   Check,
 } from "lucide-react";
+import {
+  getSystemDateWithDay,
+  getSystemTimeFormatted,
+  getSystemDateFormatted,
+  getOffsetDateFormatted,
+  MONTH_NAMES,
+  FULL_MONTH_NAMES,
+} from "@/utils";
 
 export const DateFilterDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState("Today");
-  const [selectedDate, setSelectedDate] = useState("Mon, 26 Oct 2026");
-  const [selectedTime, setSelectedTime] = useState("09:30 AM");
-  const [activeDay, setActiveDay] = useState(26);
+
+  // System dynamic dates
+  const [selectedDate, setSelectedDate] = useState(() => getSystemDateWithDay());
+  const [selectedTime, setSelectedTime] = useState(() => getSystemTimeFormatted());
+  const [activeDay, setActiveDay] = useState(() => new Date().getDate());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sync with real-time system clock on mount
+  useEffect(() => {
+    const now = new Date();
+    setSelectedDate(getSystemDateWithDay(now));
+    setSelectedTime(getSystemTimeFormatted(now));
+    setActiveDay(now.getDate());
+    setCalendarMonth(now.getMonth());
+    setCalendarYear(now.getFullYear());
+  }, []);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -29,11 +52,40 @@ export const DateFilterDropdown: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const now = new Date();
   const presets = [
-    { label: "Today", date: "Mon, 26 Oct 2026", time: "09:30 AM", day: 26 },
-    { label: "Yesterday", date: "Sun, 25 Oct 2026", time: "10:00 PM", day: 25 },
-    { label: "Last 7 Days", date: "20 Oct – 26 Oct 2026", time: "Custom Range", day: 26 },
-    { label: "This Month", date: "01 Oct – 31 Oct 2026", time: "Full Month", day: 26 },
+    {
+      label: "Today",
+      date: getSystemDateWithDay(now),
+      time: getSystemTimeFormatted(now),
+      day: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
+    },
+    {
+      label: "Yesterday",
+      date: getSystemDateWithDay(new Date(now.getTime() - 86400000)),
+      time: "10:00 PM",
+      day: new Date(now.getTime() - 86400000).getDate(),
+      month: new Date(now.getTime() - 86400000).getMonth(),
+      year: new Date(now.getTime() - 86400000).getFullYear(),
+    },
+    {
+      label: "Last 7 Days",
+      date: `${getOffsetDateFormatted(-6)} – ${getSystemDateFormatted(now)}`,
+      time: "Custom Range",
+      day: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
+    },
+    {
+      label: "This Month",
+      date: `01 ${MONTH_NAMES[now.getMonth()]} – ${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()} ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`,
+      time: "Full Month",
+      day: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
+    },
   ];
 
   const handleSelectPreset = (p: (typeof presets)[0]) => {
@@ -41,18 +93,38 @@ export const DateFilterDropdown: React.FC = () => {
     setSelectedDate(p.date);
     setSelectedTime(p.time);
     setActiveDay(p.day);
+    setCalendarMonth(p.month);
+    setCalendarYear(p.year);
   };
 
   const handleSelectDay = (day: number) => {
     setActiveDay(day);
     setSelectedPreset("Custom");
-    // Format selected day in October 2026
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const d = new Date(2026, 9, day); // October is month index 9
-    const dayStr = dayNames[d.getDay()];
-    setSelectedDate(`${dayStr}, ${day} Oct 2026`);
-    setSelectedTime("09:30 AM");
+    const d = new Date(calendarYear, calendarMonth, day);
+    setSelectedDate(getSystemDateWithDay(d));
+    setSelectedTime(getSystemTimeFormatted());
   };
+
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear((y) => y - 1);
+    } else {
+      setCalendarMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear((y) => y + 1);
+    } else {
+      setCalendarMonth((m) => m + 1);
+    }
+  };
+
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(calendarYear, calendarMonth, 1).getDay(); // 0 = Sun
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -100,7 +172,7 @@ export const DateFilterDropdown: React.FC = () => {
             </span>
           </div>
 
-          {/* Quick Preset Buttons */}
+          {/* Presets List */}
           <div className="grid grid-cols-2 gap-1.5 my-3">
             {presets.map((p) => {
               const isActive = selectedPreset === p.label;
@@ -122,13 +194,16 @@ export const DateFilterDropdown: React.FC = () => {
             })}
           </div>
 
-          {/* Mini Calendar (August 2025) */}
+          {/* Dynamic Calendar */}
           <div className="p-3 rounded-2xl bg-slate-50/70 border border-slate-100 mb-3">
             <div className="flex items-center justify-between mb-2 px-1">
-              <span className="text-xs font-bold text-slate-800">October 2026</span>
+              <span className="text-xs font-bold text-slate-800">
+                {FULL_MONTH_NAMES[calendarMonth]} {calendarYear}
+              </span>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
+                  onClick={handlePrevMonth}
                   className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500"
                   title="Previous month"
                 >
@@ -136,6 +211,7 @@ export const DateFilterDropdown: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={handleNextMonth}
                   className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500"
                   title="Next month"
                 >
@@ -155,17 +231,22 @@ export const DateFilterDropdown: React.FC = () => {
               <span>Sa</span>
             </div>
 
-            {/* Days Grid (October 2026 starts on Thursday, 1 Oct) */}
+            {/* Days Grid */}
             <div className="grid grid-cols-7 gap-1 text-center text-xs">
-              {/* Empty offset for Thu (4 empty cells: Su, Mo, Tu, We) */}
-              <span className="p-1"></span>
-              <span className="p-1"></span>
-              <span className="p-1"></span>
-              <span className="p-1"></span>
+              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                <span key={`empty-${i}`} className="p-1"></span>
+              ))}
 
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-                const isSelected = activeDay === day;
-                const isToday = day === 26;
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+                const isSelected =
+                  activeDay === day &&
+                  calendarMonth === now.getMonth() &&
+                  calendarYear === now.getFullYear();
+                const isSystemToday =
+                  day === now.getDate() &&
+                  calendarMonth === now.getMonth() &&
+                  calendarYear === now.getFullYear();
+
                 return (
                   <button
                     key={day}
@@ -174,7 +255,7 @@ export const DateFilterDropdown: React.FC = () => {
                     className={`h-7 w-7 mx-auto rounded-lg font-medium transition-colors flex items-center justify-center text-[11px] ${
                       isSelected
                         ? "bg-[#00875a] text-white font-bold shadow-xs"
-                        : isToday
+                        : isSystemToday
                         ? "bg-[#eaf8f0] text-[#00875a] font-bold border border-[#bbf7d0]"
                         : "hover:bg-slate-200/70 text-slate-700"
                     }`}
@@ -186,7 +267,7 @@ export const DateFilterDropdown: React.FC = () => {
             </div>
           </div>
 
-          {/* Today's Order Cut-Off banner matching PDF Page 3 & 9 */}
+          {/* Today's Order Cut-Off banner */}
           <div className="p-3 rounded-2xl bg-[#eaf8f0] border border-[#bbf7d0] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-white border border-[#bbf7d0] flex items-center justify-center text-[#00875a] flex-shrink-0">
@@ -200,7 +281,7 @@ export const DateFilterDropdown: React.FC = () => {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#00875a] animate-pulse"></span>
                 </div>
                 <span className="text-[10px] text-[#00875a] font-semibold">
-                  12h 30m remaining today
+                  Store Operations Open Today
                 </span>
               </div>
             </div>

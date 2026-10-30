@@ -44,8 +44,6 @@ export const ProcurementAnalyticsWidgets: React.FC<
   const radius = 58;
   const circumference = 2 * Math.PI * radius; // ~364.42
 
-  let accumulatedPercent = 0;
-
   const dateBadgeText =
     dateFilter === "26 Aug 2025"
       ? "Tomorrow (26 Aug)"
@@ -136,7 +134,10 @@ export const ProcurementAnalyticsWidgets: React.FC<
                 />
 
                 {/* Slices */}
-                {categories.map((cat) => {
+                {categories.map((cat, idx) => {
+                  const accumulatedPercent = categories
+                    .slice(0, idx)
+                    .reduce((sum, c) => sum + c.percentage, 0);
                   const strokeDasharray = `${
                     (cat.percentage / 100) * circumference
                   } ${circumference}`;
@@ -144,7 +145,6 @@ export const ProcurementAnalyticsWidgets: React.FC<
                     (accumulatedPercent / 100) *
                     circumference
                   );
-                  accumulatedPercent += cat.percentage;
                   const isHovered = hoveredCategory === cat.category;
 
                   return (

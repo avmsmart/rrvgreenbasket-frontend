@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Check, AlertCircle } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout";
 import {
@@ -24,6 +24,7 @@ import {
   CategoryProcurementSummary,
   ProcurementSummary,
 } from "@/types";
+import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
 
 export default function ProcurementManagementPage() {
   const [items, setItems] = useState<ProcurementItem[]>([]);
@@ -43,7 +44,7 @@ export default function ProcurementManagementPage() {
 
   // Tabs & Dates state
   const [activeTab, setActiveTab] = useState<ProcurementTabType>("Procurement Plan");
-  const [selectedDate, setSelectedDate] = useState<string>("26 Oct 2026");
+  const [selectedDate, setSelectedDate] = useState<string>(() => getSystemDateFormatted());
 
   // Filters & Search state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -64,6 +65,8 @@ export default function ProcurementManagementPage() {
   const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ProcurementItem | null>(null);
+
+  const tableSectionRef = useRef<HTMLDivElement>(null);
 
   // Notification Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -336,23 +339,20 @@ export default function ProcurementManagementPage() {
             Procurement Plan: <span className="text-[#00875a] font-black">{selectedDate}</span>
           </span>
           <span className="text-slate-500 hidden md:inline">
-            {selectedDate === "26 Oct 2026"
+            {selectedDate === getSystemDateFormatted() || selectedDate === "26 Oct 2026"
               ? "• Today's execution (planned yesterday night from cutoff orders)"
-              : selectedDate === "27 Oct 2026"
+              : selectedDate === getOffsetDateFormatted(1) || selectedDate === "27 Oct 2026"
               ? "• Tomorrow's morning plan (consolidating requirements for mandi purchase)"
               : "• Historical procurement plan (fulfilled & closed)"}
           </span>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <span className="text-[11px] font-bold text-[#00875a] bg-white px-2.5 py-0.5 rounded-lg border border-[#bbf7d0] shadow-3xs">
-            {selectedDate === "27 Oct 2026"
+            {selectedDate === getOffsetDateFormatted(1) || selectedDate === "27 Oct 2026"
               ? "Planning Stage"
-              : selectedDate === "26 Oct 2026"
+              : selectedDate === getSystemDateFormatted() || selectedDate === "26 Oct 2026"
               ? "In Progress"
               : "Completed History"}
-          </span>
-          <span className="text-[10px] text-slate-400 font-medium">
-            Backend API: <code className="bg-white/80 px-1.5 py-0.5 rounded text-slate-600 font-mono">?date={selectedDate}</code>
           </span>
         </div>
       </div>
@@ -382,23 +382,26 @@ export default function ProcurementManagementPage() {
       />
 
       {/* Main Procurement Table */}
-      <ProcurementTable
-        items={paginatedItems}
-        selectedItemIds={selectedItemIds}
-        onToggleSelectItem={handleToggleSelectItem}
-        onToggleSelectAll={handleToggleSelectAll}
-        onViewItem={handleViewItem}
-        onEditItem={handleEditItem}
-        onStatusChange={handleStatusChange}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        totalItems={filteredItems.length}
-        onPageChange={(page) => setCurrentPage(page)}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setCurrentPage(1);
-        }}
-      />
+      <div ref={tableSectionRef}>
+        <ProcurementTable
+          items={paginatedItems}
+          selectedItemIds={selectedItemIds}
+          onToggleSelectItem={handleToggleSelectItem}
+          onToggleSelectAll={handleToggleSelectAll}
+          onClearSelection={() => setSelectedItemIds([])}
+          onViewItem={handleViewItem}
+          onEditItem={handleEditItem}
+          onStatusChange={handleStatusChange}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalItems={filteredItems.length}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
+      </div>
 
       {/* Bottom 3 Analytics Cards (Category Donut, Supplier Orders, Pending Items) */}
       <ProcurementAnalyticsWidgets
@@ -407,16 +410,22 @@ export default function ProcurementManagementPage() {
         pendingItems={pendingItems}
         dateFilter={selectedDate}
         onViewSupplierOrders={() => setActiveTab("Supplier Orders")}
-        onViewPendingItems={() => setActiveTab("Pending Items")}
+        onViewPendingItems={() => {
+          setActiveTab("Pending Items");
+          tableSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+        }}
         onSelectPendingItem={handleSelectPendingItem}
       />
 
       {/* Modals & Drawers */}
-      <CreateProcurementModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateItem}
-      />
+      {isCreateModalOpen && (
+        <CreateProcurementModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSubmit={handleCreateItem}
+          targetDate={selectedDate}
+        />
+      )}
 
       <EditProcurementModal
         item={selectedItem}

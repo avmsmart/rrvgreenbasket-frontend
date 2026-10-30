@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
-import { ChevronDown, ShoppingBag, ShoppingCart, Leaf } from "lucide-react";
+import { ShoppingBag, ShoppingCart, Leaf } from "lucide-react";
 import { OrderStatsSummary } from "@/types";
 import { MOCK_DATE_ANALYTICS } from "@/data";
 import { ProduceImage } from "@/components/common";
+import { getSystemDateFormatted } from "@/utils";
 
 interface OrderAnalyticsWidgetsProps {
   dateFilter: string;
@@ -16,23 +17,72 @@ interface OrderAnalyticsWidgetsProps {
 export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
   dateFilter,
   stats,
-  onDateChange,
 }) => {
-  const [timelineDropdown, setTimelineDropdown] = useState(false);
+  const systemToday = getSystemDateFormatted();
 
   // Normalize date string to lookup analytics accurately
   const normalizedKey =
-    dateFilter.includes("24") || dateFilter.toLowerCase().includes("yesterday")
+    dateFilter === systemToday || dateFilter.includes("25") || dateFilter.toLowerCase().includes("today")
+      ? "25 Aug 2025"
+      : dateFilter.includes("24") || dateFilter.toLowerCase().includes("yesterday")
       ? "24 Aug 2025"
       : dateFilter.includes("23")
       ? "23 Aug 2025"
       : dateFilter.includes("22")
       ? "22 Aug 2025"
-      : "25 Aug 2025";
+      : dateFilter;
 
-  const analytics =
-    MOCK_DATE_ANALYTICS[normalizedKey] ||
-    MOCK_DATE_ANALYTICS["25 Aug 2025"];
+  // Compute or select timeline analytics for the selected date
+  const analytics = useMemo(() => {
+    // 1. Check pre-baked dataset in MOCK_DATE_ANALYTICS
+    if (MOCK_DATE_ANALYTICS[normalizedKey]) {
+      const base = MOCK_DATE_ANALYTICS[normalizedKey];
+      const peakIdx = base.hourlyTimeline.findIndex((s) => s.peak);
+      return {
+        ...base,
+        peakIndex: peakIdx !== -1 ? peakIdx : 6,
+      };
+    }
+
+    // 2. Fallback for any arbitrary day selected from the calendar
+    const dayMatch = dateFilter.match(/(\d+)/);
+    const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : 25;
+    
+    const hours = ["6AM", "7AM", "8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM", "6PM", "7PM", "8PM", "9PM"];
+    const peakIdx = 2 + (dayNum % 8); // Peak between 8AM and 3PM
+    const peakHour = hours[peakIdx];
+    const peakOrders = 8 + (dayNum % 10);
+    const peakTime = peakHour.includes("AM") ? `${peakHour.replace("AM", "")}:00 AM` : `${peakHour.replace("PM", "")}:00 PM`;
+
+    const hourlyTimeline = hours.map((time, idx) => {
+      const distFromPeak = Math.abs(idx - peakIdx);
+      const orders = Math.max(1, Math.round(peakOrders * Math.exp(-0.16 * distFromPeak * distFromPeak)));
+      const heightPercent = Math.min(98, Math.max(16, Math.round((orders / peakOrders) * 98)));
+      return {
+        time,
+        orders,
+        height: `${heightPercent}%`,
+        peak: idx === peakIdx,
+      };
+    });
+
+    const topProducts = [
+      { rank: 1, name: "Tomato", unit: "1 kg", category: "Vegetables", orders: Math.round(stats.totalOrders * 0.45) || 28, icon: "🍅" },
+      { rank: 2, name: "Onion", unit: "1 kg", category: "Vegetables", orders: Math.round(stats.totalOrders * 0.38) || 22, icon: "🧅" },
+      { rank: 3, name: "Potato", unit: "1 kg", category: "Vegetables", orders: Math.round(stats.totalOrders * 0.30) || 18, icon: "🥔" },
+      { rank: 4, name: "Carrot", unit: "1 kg", category: "Vegetables", orders: Math.round(stats.totalOrders * 0.25) || 14, icon: "🥕" },
+      { rank: 5, name: "Spinach", unit: "1 bunch", category: "Leafy Greens", orders: Math.round(stats.totalOrders * 0.20) || 12, icon: "🥬" },
+    ];
+
+    return {
+      peakText: `Peak: ${peakOrders} orders @ ${peakTime}`,
+      peakOrders,
+      peakTime,
+      hourlyTimeline,
+      topProducts,
+      peakIndex: peakIdx,
+    };
+  }, [normalizedKey, dateFilter, stats.totalOrders]);
 
   const total = stats.totalOrders || 1;
   const deliveredPct = Math.round((stats.delivered / total) * 100) || 0;
@@ -48,14 +98,6 @@ export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
   const processingLength = (processingPct / 100) * C;
   const pendingLength = (pendingPct / 100) * C;
   const cancelledLength = (cancelledPct / 100) * C;
-
-  // Timeline dropdown label matching screenshot
-  const timelineLabel =
-    normalizedKey === "25 Aug 2025"
-      ? "Today"
-      : normalizedKey === "24 Aug 2025"
-      ? "Yesterday"
-      : normalizedKey;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -77,9 +119,9 @@ export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
         </div>
 
         {/* Side-by-Side: Donut on Left, Legend on Right */}
-        <div className="flex items-center justify-between gap-4 py-2">
+        <div className="flex items-center justify-between gap-3 sm:gap-4 py-2">
           {/* Donut Chart with All Status Colors matching screenshot */}
-          <div className="relative w-36 h-36 flex-shrink-0 flex items-center justify-center">
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex-shrink-0 flex items-center justify-center">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
               {/* Background ring */}
               <circle
@@ -164,138 +206,109 @@ export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
 
             {/* Center Label */}
             <div className="absolute flex flex-col items-center">
-              <span className="text-2xl font-black text-slate-900 leading-none">
+              <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
                 {stats.totalOrders}
               </span>
-              <span className="text-xs text-slate-500 font-semibold mt-1">
+              <span className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-0.5">
                 Orders
               </span>
             </div>
           </div>
 
           {/* Legend List on Right Matching Reference Screenshot */}
-          <div className="space-y-2.5 text-xs font-medium flex-1 pl-1">
-            <div className="flex items-center justify-between text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#00875a]"></span>
-                <span>Delivered</span>
+          <div className="space-y-2 sm:space-y-2.5 text-xs font-medium flex-1 min-w-0 pl-1">
+            <div className="flex items-center justify-between text-slate-700 gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#00875a] flex-shrink-0" />
+                <span className="truncate text-[11px] sm:text-xs font-semibold">Delivered</span>
               </div>
-              <span className="font-medium text-slate-700">
-                {stats.delivered} ({deliveredPct}%)
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex-shrink-0 whitespace-nowrap">
+                {stats.delivered} <span className="text-slate-400 font-normal">({deliveredPct}%)</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e]"></span>
-                <span>Out for Delivery</span>
+
+            <div className="flex items-center justify-between text-slate-700 gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] flex-shrink-0" />
+                <span className="truncate text-[11px] sm:text-xs font-semibold">Out for Delivery</span>
               </div>
-              <span className="font-medium text-slate-700">
-                {stats.outForDelivery} ({outForDeliveryPct}%)
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex-shrink-0 whitespace-nowrap">
+                {stats.outForDelivery} <span className="text-slate-400 font-normal">({outForDeliveryPct}%)</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#facc15]"></span>
-                <span>Processing</span>
+
+            <div className="flex items-center justify-between text-slate-700 gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#facc15] flex-shrink-0" />
+                <span className="truncate text-[11px] sm:text-xs font-semibold">Processing</span>
               </div>
-              <span className="font-medium text-slate-700">
-                {stats.processing} ({processingPct}%)
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex-shrink-0 whitespace-nowrap">
+                {stats.processing} <span className="text-slate-400 font-normal">({processingPct}%)</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#f97316]"></span>
-                <span>Pending</span>
+
+            <div className="flex items-center justify-between text-slate-700 gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] flex-shrink-0" />
+                <span className="truncate text-[11px] sm:text-xs font-semibold">Pending</span>
               </div>
-              <span className="font-medium text-slate-700">
-                {stats.pending} ({pendingPct}%)
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex-shrink-0 whitespace-nowrap">
+                {stats.pending} <span className="text-slate-400 font-normal">({pendingPct}%)</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span>
-                <span>Cancelled</span>
+
+            <div className="flex items-center justify-between text-slate-700 gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] flex-shrink-0" />
+                <span className="truncate text-[11px] sm:text-xs font-semibold">Cancelled</span>
               </div>
-              <span className="font-medium text-slate-700">
-                {stats.cancelled} ({cancelledPct}%)
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex-shrink-0 whitespace-nowrap">
+                {stats.cancelled} <span className="text-slate-400 font-normal">({cancelledPct}%)</span>
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Today's Order Timeline Card - Matching Screenshot Exactly */}
+      {/* 2. Orders Timeline Card - Matching Screenshot Exactly */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-3xs flex flex-col justify-between">
-        {/* Header with Shopping Cart Icon & Dropdown */}
+        {/* Header with Shopping Cart Icon & Active Date Badge (No Dropdown) */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-[#00875a]" />
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              Today&apos;s Order Timeline
+              Orders Timeline
             </h3>
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setTimelineDropdown((prev) => !prev)}
-              className="flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-3xs"
-            >
-              <span>{timelineLabel}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {timelineDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-20"
-                  onClick={() => setTimelineDropdown(false)}
-                />
-                <div className="absolute right-0 top-9 z-30 w-44 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
-                  {[
-                    { label: "Today (25 Aug)", value: "25 Aug 2025" },
-                    { label: "Yesterday (24 Aug)", value: "24 Aug 2025" },
-                    { label: "23 Aug 2025", value: "23 Aug 2025" },
-                    { label: "22 Aug 2025", value: "22 Aug 2025" },
-                  ].map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => {
-                        onDateChange?.(item.value);
-                        setTimelineDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 rounded-xl font-medium transition-colors ${
-                        normalizedKey === item.value
-                          ? "bg-[#eefcf2] text-[#00875a] font-bold"
-                          : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <span className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200/90 px-2.5 py-1 rounded-xl">
+            {dateFilter === systemToday || dateFilter === "25 Aug 2025"
+              ? `Today (${systemToday})`
+              : dateFilter}
+          </span>
         </div>
 
         {/* Timeline Chart Body with Floating Peak Tooltip & Mint Bars */}
         <div className="pt-2">
           {/* Chart Graphic Area */}
           <div className="relative h-28 flex items-end justify-between gap-1 px-2 pb-1">
-            {/* Floating Tooltip directly above the peak bar */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-0 z-10 flex flex-col items-center">
-              <div className="bg-white border border-slate-100 rounded-xl shadow-md px-3 py-1.5 text-center min-w-[76px]">
-                <span className="text-xs font-bold text-slate-900 block leading-tight">
-                  {analytics.peakOrders || 12} orders
+            {/* Dynamic Floating Tooltip directly above the peak bar */}
+            <div
+              style={{
+                left: `${((analytics.peakIndex + 0.5) / analytics.hourlyTimeline.length) * 100}%`,
+              }}
+              className="absolute -translate-x-1/2 top-0 z-10 flex flex-col items-center transition-all duration-300 pointer-events-none"
+            >
+              <div className="bg-white border border-slate-200/90 rounded-xl shadow-md px-3 py-1 text-center min-w-[76px] whitespace-nowrap">
+                <span className="text-xs font-black text-slate-900 block leading-tight">
+                  {analytics.peakOrders} orders
                 </span>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  {analytics.peakTime || "12:00 PM"}
+                <span className="text-[10px] text-emerald-700 font-bold">
+                  {analytics.peakTime}
                 </span>
               </div>
               {/* Downward Caret */}
-              <div className="w-2 h-2 bg-white border-r border-b border-slate-100 transform rotate-45 -mt-1 shadow-xs" />
+              <div className="w-2 h-2 bg-white border-r border-b border-slate-200/90 transform rotate-45 -mt-1 shadow-3xs" />
             </div>
 
             {/* Vertical Rounded Bars Matching Screenshot */}
@@ -306,9 +319,9 @@ export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
               >
                 <div
                   style={{ height: slot.height }}
-                  className={`w-full max-w-[12px] rounded-t-sm sm:rounded-t-md transition-all ${
+                  className={`w-full max-w-[12px] rounded-t-sm sm:rounded-t-md transition-all duration-500 ease-out ${
                     slot.peak
-                      ? "bg-[#10b981] shadow-3xs"
+                      ? "bg-[#10b981] shadow-xs ring-2 ring-[#10b981]/30"
                       : "bg-[#6ee7b7]/80 group-hover:bg-[#10b981]"
                   }`}
                   title={`${slot.time}: ${slot.orders} orders`}

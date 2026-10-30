@@ -8,3 +8,4 @@ export * from "./ProfileDetailsModal";
 export * from "./DateFilterDropdown";
 export * from "./SearchModal";
 export * from "./AdminLayout";
+export * from "./MobileBottomNav";

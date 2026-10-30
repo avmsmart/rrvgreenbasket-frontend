@@ -1,30 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { X, Plus, Sparkles } from "lucide-react";
 import { ProcurementItem, ProcurementStatus } from "@/types";
 import { ProduceImage } from "@/components/common";
+import { getSystemDateFormatted } from "@/utils";
 
 interface CreateProcurementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (item: Omit<ProcurementItem, "id">) => void;
+  targetDate?: string;
 }
 
 export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  targetDate,
 }) => {
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("Vegetables");
-  const [requiredQty, setRequiredQty] = useState<number>(50);
+  const [requiredQty, setRequiredQty] = useState<number | "">("");
   const [procuredQty, setProcuredQty] = useState<number>(0);
   const [unit, setUnit] = useState("kg");
   const [supplier, setSupplier] = useState("Raju Traders");
-  const [estimatedCost, setEstimatedCost] = useState<number>(1500);
+  const [estimatedCost, setEstimatedCost] = useState<number | "">("");
   const [priority, setPriority] = useState<"High Priority" | "Medium" | "Low">("Medium");
   const [notes, setNotes] = useState("");
+
+  const resetForm = useCallback(() => {
+    setProductName("");
+    setCategory("Vegetables");
+    setRequiredQty("");
+    setProcuredQty(0);
+    setUnit("kg");
+    setSupplier("Raju Traders");
+    setEstimatedCost("");
+    setPriority("Medium");
+    setNotes("");
+  }, []);
+
+  // Reset form every time modal opens or closes
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
+
+  // Handle escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        resetForm();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, resetForm, onClose]);
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -32,29 +72,32 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
     e.preventDefault();
     if (!productName.trim()) return;
 
-    const pendingQty = Math.max(0, requiredQty - procuredQty);
+    const numRequired = Number(requiredQty) || 0;
+    const numProcured = Number(procuredQty) || 0;
+    const pendingQty = Math.max(0, numRequired - numProcured);
     const status: ProcurementStatus =
       pendingQty === 0
         ? "Completed"
-        : procuredQty > 0
+        : numProcured > 0
         ? "Partial"
         : "Not Started";
 
     onSubmit({
       productName: productName.trim(),
       category,
-      requiredQty,
-      procuredQty,
+      requiredQty: numRequired,
+      procuredQty: numProcured,
       pendingQty,
       unit,
       supplier,
       status,
-      estimatedCost,
+      estimatedCost: Number(estimatedCost) || 0,
       priority,
       notes,
-      date: "26 Aug 2025",
+      date: targetDate || getSystemDateFormatted(),
     });
 
+    resetForm();
     onClose();
   };
 
@@ -69,7 +112,12 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
@@ -88,8 +136,8 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            onClick={handleClose}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -167,7 +215,12 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
                 min="1"
                 required
                 value={requiredQty}
-                onChange={(e) => setRequiredQty(Number(e.target.value))}
+                onChange={(e) =>
+                  setRequiredQty(
+                    e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                  )
+                }
+                placeholder="e.g. 50"
                 className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#00875a]/20 focus:border-[#00875a]"
               />
             </div>
@@ -180,7 +233,7 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
                 type="number"
                 min="0"
                 value={procuredQty}
-                onChange={(e) => setProcuredQty(Number(e.target.value))}
+                onChange={(e) => setProcuredQty(Math.max(0, Number(e.target.value)))}
                 className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#00875a]/20 focus:border-[#00875a]"
               />
             </div>
@@ -214,7 +267,12 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
                 min="0"
                 required
                 value={estimatedCost}
-                onChange={(e) => setEstimatedCost(Number(e.target.value))}
+                onChange={(e) =>
+                  setEstimatedCost(
+                    e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                  )
+                }
+                placeholder="e.g. 1500"
                 className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#00875a]/20 focus:border-[#00875a]"
               />
             </div>
@@ -261,8 +319,8 @@ export const CreateProcurementModal: React.FC<CreateProcurementModalProps> = ({
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              onClick={handleClose}
+              className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
             >
               Cancel
             </button>

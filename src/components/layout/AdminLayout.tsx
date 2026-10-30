@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
 import { SearchModal } from "./SearchModal";
+import { MobileBottomNav } from "./MobileBottomNav";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -70,13 +71,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           onOpenSearch={() => setSearchOpen(true)}
         />
 
-        {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        {/* Scrollable Page Content with mobile bottom nav spacing */}
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
+          <div className="p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Mobile App Bottom Navigation Bar matching PDF design */}
+      <MobileBottomNav onOpenMore={() => setMobileOpen(true)} />
 
       {/* Global Command Palette / Search Dialog */}
       <SearchModal

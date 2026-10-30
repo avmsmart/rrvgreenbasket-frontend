@@ -17,6 +17,8 @@ import {
   Ban,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/types";
+import { SelectionToolbar, IndeterminateCheckbox, PaginationBar } from "@/components/common";
+import { exportToCsv, exportToPdf } from "@/utils";
 
 interface OrdersTableProps {
   orders: Order[];
@@ -51,23 +53,87 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const totalPages = Math.ceil(totalOrders / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalOrders);
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(orders.map((o) => o.id));
+  const isAllSelected = orders.length > 0 && orders.every((o) => selectedIds.includes(o.id));
+  const isIndeterminate = orders.some((o) => selectedIds.includes(o.id)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    const pageIds = orders.map((o) => o.id);
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
     } else {
-      setSelectedIds([]);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
     }
   };
 
-  const handleToggleRow = (id: string) => {
+  const handleToggleRow = (id: string, e?: React.SyntheticEvent) => {
+    if (e) e.stopPropagation();
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleExportSelected = () => {
+    const selectedOrders = orders.filter((o) => selectedIds.includes(o.id));
+    if (selectedOrders.length === 0) return;
+
+    exportToCsv<Order>(
+      "selected-orders.csv",
+      [
+        { header: "Order ID", accessor: (o) => o.id },
+        { header: "Customer Name", accessor: (o) => o.customerName },
+        { header: "Customer Phone", accessor: (o) => o.customerPhone },
+        { header: "Delivery Address", accessor: (o) => o.customerAddress },
+        { header: "Order Date", accessor: (o) => o.orderDate },
+        { header: "Order Time", accessor: (o) => o.orderTime },
+        { header: "Items Count", accessor: (o) => o.itemsCount },
+        { header: "Total Amount (INR)", accessor: (o) => o.amount },
+        { header: "Payment Method", accessor: (o) => o.paymentMethod },
+        { header: "Payment Status", accessor: (o) => o.paymentStatus },
+        { header: "Order Status", accessor: (o) => o.status },
+        { header: "Delivery Slot", accessor: (o) => o.deliveryTime || "-" },
+        { header: "Delivery Partner", accessor: (o) => o.deliveryPartner || "Unassigned" },
+      ],
+      selectedOrders
+    );
+
+    setToastMessage(`Exported ${selectedOrders.length} order(s) to selected-orders.csv`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleExportPdf = () => {
+    const selectedOrders = orders.filter((o) => selectedIds.includes(o.id));
+    if (selectedOrders.length === 0) return;
+
+    exportToPdf<Order>(
+      "selected-orders.pdf",
+      "Orders Management Report",
+      [
+        { header: "Order ID", accessor: (o) => o.id },
+        { header: "Customer Name", accessor: (o) => o.customerName },
+        { header: "Phone", accessor: (o) => o.customerPhone },
+        { header: "Amount", accessor: (o) => `INR ${o.amount}` },
+        { header: "Items", accessor: (o) => o.itemsCount },
+        { header: "Payment Method", accessor: (o) => o.paymentMethod },
+        { header: "Payment Status", accessor: (o) => o.paymentStatus },
+        { header: "Order Status", accessor: (o) => o.status },
+        { header: "Delivery Slot", accessor: (o) => o.deliveryTime || "-" },
+        { header: "Delivery Partner", accessor: (o) => o.deliveryPartner || "Unassigned" },
+      ],
+      selectedOrders
+    );
+
+    setToastMessage(`Exported ${selectedOrders.length} order(s) to selected-orders.pdf`);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const getStatusBadge = (status: OrderStatus) => {
@@ -142,17 +208,44 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-3xs overflow-hidden">
+      {/* Selection Toolbar when 1+ records are selected */}
+      {selectedIds.length > 0 && (
+        <div className="p-3 border-b border-slate-200/90 bg-emerald-50/40">
+          <SelectionToolbar
+            selectedCount={selectedIds.length}
+            entityName="orders"
+            onExportSelected={handleExportSelected}
+            onExportPdf={handleExportPdf}
+            onClearSelection={handleClearSelection}
+          />
+        </div>
+      )}
+
+      {/* Export Toast Feedback */}
+      {toastMessage && (
+        <div className="mx-4 my-2.5 px-3.5 py-2 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between shadow-3xs animate-in fade-in">
+          <span>✓ {toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <th className="py-3 px-4 w-10">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length === orders.length && orders.length > 0}
+                <IndeterminateCheckbox
+                  checked={isAllSelected}
+                  indeterminate={isIndeterminate}
                   onChange={handleSelectAll}
-                  className="rounded border-slate-300 text-[#00875a] focus:ring-[#00875a] cursor-pointer"
+                  aria-label="Select all orders on this page"
                 />
               </th>
               <th className="py-3 px-4">Order ID</th>
@@ -229,12 +322,13 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                       isChecked ? "bg-[#f2faf5]" : ""
                     }`}
                   >
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => handleToggleRow(order.id)}
+                        onChange={(e) => handleToggleRow(order.id, e)}
                         className="rounded border-slate-300 text-[#00875a] focus:ring-[#00875a] cursor-pointer"
+                        aria-label={`Select order ${order.id}`}
                       />
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-[#00875a]">
@@ -373,83 +467,15 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         </table>
       </div>
 
-      {/* Pagination Footer matching Page 5 */}
-      <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-        <span className="text-slate-500 font-medium">
-          Showing <span className="font-bold text-slate-800">{totalOrders > 0 ? startIndex : 0}</span> to{" "}
-          <span className="font-bold text-slate-800">{endIndex}</span> of{" "}
-          <span className="font-bold text-slate-800">{totalOrders}</span> orders
-        </span>
-
-        <div className="flex items-center gap-3">
-          {/* Page buttons */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => onPageChange(currentPage - 1)}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const p = i + 1;
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => onPageChange(p)}
-                  className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                    currentPage === p
-                      ? "bg-[#00875a] text-white shadow-3xs"
-                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-
-            {totalPages > 5 && (
-              <>
-                <span className="px-1 text-slate-400">...</span>
-                <button
-                  type="button"
-                  onClick={() => onPageChange(totalPages)}
-                  className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                    currentPage === totalPages
-                      ? "bg-[#00875a] text-white shadow-3xs"
-                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {totalPages}
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => onPageChange(currentPage + 1)}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Page size dropdown */}
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#00875a]"
-          >
-            <option value={10}>10 per page</option>
-            <option value={20}>20 per page</option>
-            <option value={50}>50 per page</option>
-          </select>
-        </div>
-      </div>
+      {/* Dynamic Pagination Bar (No 'Showing X to Y' text) */}
+      <PaginationBar
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 20, 50]}
+        onPageSizeChange={onPageSizeChange}
+      />
     </div>
   );
 };

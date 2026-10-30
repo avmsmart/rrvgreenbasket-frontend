@@ -1,6 +1,7 @@
 import { apiClient } from "./api-client";
 import { Order, OrderStatus, OrderStatsSummary, PaymentStatus, PaymentMethod } from "@/types";
 import { MOCK_ORDERS_DATA, MOCK_ORDER_STATS_BY_DATE, MOCK_DATE_ANALYTICS } from "@/data";
+import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
 
 export interface OrderQueryParams {
   status?: OrderStatus | "All";
@@ -19,27 +20,66 @@ export const orderService = {
    * Fetch customer orders list with rich filtering & sorting
    */
   async getOrders(params?: OrderQueryParams): Promise<Order[]> {
-    let filtered = [...MOCK_ORDERS_DATA];
+    const systemToday = getSystemDateFormatted();
+    const systemYesterday = getOffsetDateFormatted(-1);
+    const day2Formatted = getOffsetDateFormatted(-2);
+    const day3Formatted = getOffsetDateFormatted(-3);
+    const rawDate = params?.date?.trim() || systemToday;
 
-    const rawDate = params?.date;
-    const normalizedDate = rawDate
-      ? rawDate.includes("24") || rawDate.toLowerCase().includes("yesterday")
-        ? "24 Aug 2025"
-        : rawDate.includes("23")
-        ? "23 Aug 2025"
-        : rawDate.includes("22")
-        ? "22 Aug 2025"
-        : rawDate.includes("7")
-        ? "Last 7 Days"
-        : rawDate.includes("All")
-        ? "All Dates"
-        : "25 Aug 2025"
-      : undefined;
+    const isAllDates = rawDate === "All Dates" || rawDate === "All" || rawDate === "Last 7 Days";
 
-    if (normalizedDate && normalizedDate !== "All Dates") {
-      if (normalizedDate !== "Last 7 Days") {
-        filtered = filtered.filter((o) => o.orderDate === normalizedDate);
-      }
+    const isToday =
+      rawDate === systemToday ||
+      rawDate.toLowerCase().includes("today") ||
+      rawDate === "25 Aug 2025" ||
+      rawDate === "26 Oct 2026";
+
+    const isYesterday =
+      rawDate === systemYesterday ||
+      rawDate.toLowerCase().includes("yesterday") ||
+      rawDate === "24 Aug 2025";
+
+    let filtered: Order[] = [];
+
+    if (isAllDates) {
+      filtered = MOCK_ORDERS_DATA.map((o) => {
+        if (o.orderDate === "25 Aug 2025") return { ...o, orderDate: systemToday };
+        if (o.orderDate === "24 Aug 2025") return { ...o, orderDate: systemYesterday };
+        if (o.orderDate === "23 Aug 2025") return { ...o, orderDate: day2Formatted };
+        if (o.orderDate === "22 Aug 2025") return { ...o, orderDate: day3Formatted };
+        return o;
+      });
+    } else if (isToday) {
+      filtered = MOCK_ORDERS_DATA.filter(
+        (o) => o.orderDate === "25 Aug 2025" || o.orderDate === "Today" || o.orderDate === systemToday
+      ).map((o) => ({ ...o, orderDate: systemToday }));
+    } else if (isYesterday) {
+      filtered = MOCK_ORDERS_DATA.filter(
+        (o) => o.orderDate === "24 Aug 2025" || o.orderDate === "Yesterday" || o.orderDate === systemYesterday
+      ).map((o) => ({ ...o, orderDate: systemYesterday }));
+    } else if (rawDate === day2Formatted || rawDate.includes("23")) {
+      filtered = MOCK_ORDERS_DATA.filter(
+        (o) => o.orderDate === "23 Aug 2025" || o.orderDate === day2Formatted
+      ).map((o) => ({ ...o, orderDate: day2Formatted }));
+    } else if (rawDate === day3Formatted || rawDate.includes("22")) {
+      filtered = MOCK_ORDERS_DATA.filter(
+        (o) => o.orderDate === "22 Aug 2025" || o.orderDate === day3Formatted
+      ).map((o) => ({ ...o, orderDate: day3Formatted }));
+    } else {
+      // Custom date from calendar (e.g. 15 Oct 2026)
+      filtered = MOCK_ORDERS_DATA.slice(0, 6).map((o, idx) => ({
+        ...o,
+        id: `#ORD00${8200 + idx}`,
+        orderDate: rawDate,
+        status:
+          idx % 4 === 0
+            ? "Delivered"
+            : idx % 4 === 1
+            ? "Processing"
+            : idx % 4 === 2
+            ? "Out for Delivery"
+            : "Pending",
+      }));
     }
 
     if (params?.status && params.status !== "All") {
@@ -86,7 +126,7 @@ export const orderService = {
           paymentStatus: params?.paymentStatus === "All" ? undefined : params?.paymentStatus,
           paymentMethod: params?.paymentMethod === "All" ? undefined : params?.paymentMethod,
           search: params?.search,
-          date: normalizedDate,
+          date: rawDate,
           page: params?.page,
           pageSize: params?.pageSize,
           sortBy: params?.sortBy,
@@ -100,19 +140,27 @@ export const orderService = {
   /**
    * Fetch 6-card summary statistics matching Page 5 of UI/UX PDF for a specific date
    */
-  async getOrderStats(date: string = "25 Aug 2025"): Promise<OrderStatsSummary> {
-    const normalized =
-      date.includes("24") || date.toLowerCase().includes("yesterday")
-        ? "24 Aug 2025"
-        : date.includes("23")
-        ? "23 Aug 2025"
-        : date.includes("22")
-        ? "22 Aug 2025"
-        : date.includes("Last 7")
-        ? "Last 7 Days"
-        : date.includes("All")
-        ? "All Dates"
-        : "25 Aug 2025";
+  async getOrderStats(date?: string): Promise<OrderStatsSummary> {
+    const systemToday = getSystemDateFormatted();
+    const systemYesterday = getOffsetDateFormatted(-1);
+    const targetDate = date?.trim() || systemToday;
+
+    const isYesterday =
+      targetDate.includes("24") ||
+      targetDate.toLowerCase().includes("yesterday") ||
+      targetDate === systemYesterday;
+
+    const normalized = isYesterday
+      ? "24 Aug 2025"
+      : targetDate.includes("23")
+      ? "23 Aug 2025"
+      : targetDate.includes("22")
+      ? "22 Aug 2025"
+      : targetDate.includes("Last 7")
+      ? "Last 7 Days"
+      : targetDate.includes("All")
+      ? "All Dates"
+      : "25 Aug 2025";
 
     const fallback =
       MOCK_ORDER_STATS_BY_DATE[normalized] ||
@@ -128,15 +176,23 @@ export const orderService = {
   /**
    * Fetch hourly timeline & top products for a specific date
    */
-  async getDateAnalytics(date: string = "25 Aug 2025") {
-    const normalized =
-      date.includes("24") || date.toLowerCase().includes("yesterday")
-        ? "24 Aug 2025"
-        : date.includes("23")
-        ? "23 Aug 2025"
-        : date.includes("22")
-        ? "22 Aug 2025"
-        : "25 Aug 2025";
+  async getDateAnalytics(date?: string) {
+    const systemToday = getSystemDateFormatted();
+    const systemYesterday = getOffsetDateFormatted(-1);
+    const targetDate = date?.trim() || systemToday;
+
+    const isYesterday =
+      targetDate.includes("24") ||
+      targetDate.toLowerCase().includes("yesterday") ||
+      targetDate === systemYesterday;
+
+    const normalized = isYesterday
+      ? "24 Aug 2025"
+      : targetDate.includes("23")
+      ? "23 Aug 2025"
+      : targetDate.includes("22")
+      ? "22 Aug 2025"
+      : "25 Aug 2025";
 
     const fallback =
       MOCK_DATE_ANALYTICS[normalized] ||
@@ -196,7 +252,7 @@ export const orderService = {
       paymentStatus: newOrder.paymentStatus || "Pending",
       status: "Pending",
       orderTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      orderDate: "Today",
+      orderDate: newOrder.orderDate || "25 Aug 2025",
       items: newOrder.items || [],
       subtotal: newOrder.subtotal || newOrder.amount || 150,
       deliveryCharge: newOrder.deliveryCharge || 0,
@@ -209,6 +265,9 @@ export const orderService = {
         },
       ],
     };
+
+    // Store in central array so it persists across views
+    MOCK_ORDERS_DATA.unshift(created);
 
     return apiClient.post<Order>(
       "/admin/orders",

@@ -4,7 +4,6 @@ import React from "react";
 import { Menu, Search, PanelLeftClose, PanelLeft } from "lucide-react";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { ProfileDropdown } from "./ProfileDropdown";
-import { DateFilterDropdown } from "./DateFilterDropdown";
 
 interface AdminHeaderProps {
   collapsed: boolean;
@@ -60,13 +59,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         </button>
       </div>
 
-      {/* Right Section: Date & Time, Notifications, Admin Profile */}
+      {/* Right Section: Notifications, Admin Profile */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Interactive Date & Time Widget (Matching PDF Pages) */}
-        <div className="hidden lg:block">
-          <DateFilterDropdown />
-        </div>
-
         {/* Notifications Dropdown */}
         <NotificationDropdown />
 

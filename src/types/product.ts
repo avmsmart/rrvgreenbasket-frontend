@@ -1,5 +1,7 @@
 export type ProductCategory =
   | "Vegetables"
+  | "English Vegetables"
+  | "Indian Vegetables"
   | "Fruits"
   | "Leafy Greens"
   | "Groceries"
@@ -11,11 +13,14 @@ export type ProductCategory =
 
 export interface Product {
   id: string;
+  erpCode?: string;
   name: string;
+  excelName?: string;
   category: ProductCategory;
   price: number;
   originalPrice?: number;
-  unit: string; // "1 kg", "1 bunch", "500 g", etc.
+  unit: string; // "Kg", "Nos", "Pkt", "1 kg", "1 bunch", etc.
+  hsnCode?: string;
   stock: number;
   minStock?: number;
   status: "In Stock" | "Low Stock" | "Out of Stock";

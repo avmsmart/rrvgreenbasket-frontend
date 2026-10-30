@@ -14,6 +14,8 @@ import {
 } from "@/components/orders";
 import { orderService } from "@/services/order.service";
 import { Order, OrderStatus, OrderStatsSummary } from "@/types";
+import { getSystemDateFormatted } from "@/utils";
+import { recordCouponRedemption } from "@/data/shared-store";
 
 export default function OrdersManagementPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -33,7 +35,7 @@ export default function OrdersManagementPage() {
   const [paymentFilter, setPaymentFilter] = useState<string>("All");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("All");
   const [amountFilter, setAmountFilter] = useState<string>("All");
-  const [dateFilter, setDateFilter] = useState<string>("25 Aug 2025");
+  const [dateFilter, setDateFilter] = useState<string>(() => getSystemDateFormatted());
 
   // Sorting state
   const [sortBy, setSortBy] = useState<"orderTime" | "amount" | "itemsCount" | "customerName">("orderTime");
@@ -51,6 +53,7 @@ export default function OrdersManagementPage() {
   // Load orders & stats asynchronously on mount and whenever dateFilter changes
   useEffect(() => {
     let isMounted = true;
+    setLoading(true);
     Promise.all([
       orderService.getOrders({ date: dateFilter }),
       orderService.getOrderStats(dateFilter),
@@ -61,6 +64,14 @@ export default function OrdersManagementPage() {
         setStats(statsData);
         setLoading(false);
         setCurrentPage(1);
+
+        if (typeof window !== "undefined") {
+          const s = new URLSearchParams(window.location.search).get("search");
+          if (s) {
+            setSearchQuery(s);
+            setStatusFilter("All");
+          }
+        }
       })
       .catch((err) => {
         console.error("Failed to fetch orders:", err);
@@ -75,21 +86,6 @@ export default function OrdersManagementPage() {
   // Client-side filtering & sorting for instant snappy interactivity
   const filteredOrders = useMemo(() => {
     let result = [...orders];
-
-    // Filter by Date
-    if (dateFilter && dateFilter !== "All Dates" && dateFilter !== "All") {
-      if (dateFilter !== "Last 7 Days") {
-        const normalizedDate =
-          dateFilter.includes("24") || dateFilter.toLowerCase().includes("yesterday")
-            ? "24 Aug 2025"
-            : dateFilter.includes("23")
-            ? "23 Aug 2025"
-            : dateFilter.includes("22")
-            ? "22 Aug 2025"
-            : "25 Aug 2025";
-        result = result.filter((o) => o.orderDate === normalizedDate);
-      }
-    }
 
     if (statusFilter && statusFilter !== "All") {
       result = result.filter((o) => o.status === statusFilter);
@@ -136,7 +132,22 @@ export default function OrdersManagementPage() {
       if (sortBy === "customerName") {
         return a.customerName.localeCompare(b.customerName) * order;
       }
-      return a.orderTime.localeCompare(b.orderTime) * order;
+      if (sortBy === "orderTime") {
+        const toMinutes = (timeStr: string) => {
+          if (!timeStr) return 0;
+          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (!match) return 0;
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const period = match[3]?.toUpperCase();
+          if (period === "PM" && hours < 12) hours += 12;
+          if (period === "AM" && hours === 12) hours = 0;
+          return hours * 60 + minutes;
+        };
+        const diff = toMinutes(a.orderTime) - toMinutes(b.orderTime);
+        if (diff !== 0) return diff * order;
+      }
+      return 0;
     });
 
     return result;
@@ -175,7 +186,7 @@ export default function OrdersManagementPage() {
     setPaymentFilter("All");
     setPaymentMethodFilter("All");
     setAmountFilter("All");
-    setDateFilter("25 Aug 2025");
+    setDateFilter(getSystemDateFormatted());
     setCurrentPage(1);
   };
 
@@ -218,8 +229,32 @@ export default function OrdersManagementPage() {
   // Manual Order Creation
   const handleCreateOrder = async (newOrderData: Partial<Order>) => {
     try {
-      const created = await orderService.createManualOrder(newOrderData);
+      const activeDate =
+        dateFilter && dateFilter !== "All Dates" && dateFilter !== "Last 7 Days"
+          ? dateFilter
+          : getSystemDateFormatted();
+      const created = await orderService.createManualOrder({
+        ...newOrderData,
+        orderDate: activeDate,
+      });
+
+      // Cross-page link: if coupon was applied, record its redemption in shared-store
+      if (newOrderData.couponCode && newOrderData.discount) {
+        recordCouponRedemption(
+          newOrderData.couponCode,
+          newOrderData.discount,
+          created.id,
+          newOrderData.customerName || "Customer"
+        );
+      }
+
       setOrders((prev) => [created, ...prev]);
+      setStatusFilter("All");
+      setPaymentFilter("All");
+      setPaymentMethodFilter("All");
+      setAmountFilter("All");
+      setSearchQuery("");
+      setCurrentPage(1);
       setSelectedOrder(created);
       setIsDetailsDrawerOpen(true);
       setStats((prev) => ({

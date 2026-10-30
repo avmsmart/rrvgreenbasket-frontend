@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+*.zip
+powershell.cmd
+powershell.bat
 
 # debug
 npm-debug.log*

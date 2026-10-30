@@ -20,6 +20,7 @@ export interface OrderItem {
   quantity: number;
   totalPrice: number;
   imageUrl?: string;
+  hsnCode?: string;
 }
 
 export interface OrderTimelineEvent {
@@ -47,6 +48,7 @@ export interface Order {
   subtotal?: number;
   deliveryCharge?: number;
   discount?: number;
+  couponCode?: string;
   timeline?: OrderTimelineEvent[];
 }
 

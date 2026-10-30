@@ -13,13 +13,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { ProcurementItem, ProcurementStatus } from "@/types";
-import { ProduceImage } from "@/components/common";
+import { ProduceImage, SelectionToolbar, IndeterminateCheckbox, PaginationBar } from "@/components/common";
+import { exportToCsv, exportToPdf } from "@/utils";
 
 interface ProcurementTableProps {
   items: ProcurementItem[];
   selectedItemIds: string[];
   onToggleSelectItem: (id: string) => void;
   onToggleSelectAll: () => void;
+  onClearSelection?: () => void;
   onViewItem: (item: ProcurementItem) => void;
   onEditItem: (item: ProcurementItem) => void;
   onStatusChange: (id: string, status: ProcurementStatus) => void;
@@ -35,6 +37,7 @@ export const ProcurementTable: React.FC<ProcurementTableProps> = ({
   selectedItemIds,
   onToggleSelectItem,
   onToggleSelectAll,
+  onClearSelection,
   onViewItem,
   onEditItem,
   onStatusChange,
@@ -63,6 +66,59 @@ export const ProcurementTable: React.FC<ProcurementTableProps> = ({
   const endItem = Math.min(currentPage * pageSize, totalItems);
   const isAllSelected =
     items.length > 0 && items.every((i) => selectedItemIds.includes(i.id));
+  const isIndeterminate =
+    items.some((i) => selectedItemIds.includes(i.id)) && !isAllSelected;
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleExportSelected = () => {
+    const selected = items.filter((i) => selectedItemIds.includes(i.id));
+    if (selected.length === 0) return;
+
+    exportToCsv<ProcurementItem>(
+      "selected-procurement.csv",
+      [
+        { header: "Item ID", accessor: (i) => i.id },
+        { header: "Product Name", accessor: (i) => i.productName },
+        { header: "Category", accessor: (i) => i.category },
+        { header: "Supplier", accessor: (i) => i.supplier },
+        { header: "Required Qty", accessor: (i) => i.requiredQty },
+        { header: "Procured Qty", accessor: (i) => i.procuredQty },
+        { header: "Pending Qty", accessor: (i) => i.pendingQty },
+        { header: "Unit", accessor: (i) => i.unit },
+        { header: "Estimated Cost (INR)", accessor: (i) => i.estimatedCost },
+        { header: "Status", accessor: (i) => i.status },
+      ],
+      selected
+    );
+
+    setToastMessage(`Exported ${selected.length} procurement item(s) to selected-procurement.csv`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleExportPdf = () => {
+    const selected = items.filter((i) => selectedItemIds.includes(i.id));
+    if (selected.length === 0) return;
+
+    exportToPdf<ProcurementItem>(
+      "selected-procurement.pdf",
+      "Procurement Items Report",
+      [
+        { header: "Item ID", accessor: (i) => i.id },
+        { header: "Product Name", accessor: (i) => i.productName },
+        { header: "Category", accessor: (i) => i.category },
+        { header: "Supplier", accessor: (i) => i.supplier },
+        { header: "Required", accessor: (i) => `${i.requiredQty} ${i.unit}` },
+        { header: "Procured", accessor: (i) => `${i.procuredQty} ${i.unit}` },
+        { header: "Pending", accessor: (i) => `${i.pendingQty} ${i.unit}` },
+        { header: "Est. Cost", accessor: (i) => `INR ${i.estimatedCost}` },
+        { header: "Status", accessor: (i) => i.status },
+      ],
+      selected
+    );
+
+    setToastMessage(`Exported ${selected.length} procurement item(s) to selected-procurement.pdf`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // Category badge colors
   const getCategoryBadgeClass = (category: string) => {
@@ -108,17 +164,43 @@ export const ProcurementTable: React.FC<ProcurementTableProps> = ({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden flex flex-col">
+      {/* Selection Toolbar */}
+      {selectedItemIds.length > 0 && (
+        <div className="p-3 sm:px-4 bg-slate-50 border-b border-slate-200">
+          <SelectionToolbar
+            selectedCount={selectedItemIds.length}
+            entityName="procurement records"
+            onExportSelected={handleExportSelected}
+            onExportPdf={handleExportPdf}
+            onClearSelection={onClearSelection || (() => {})}
+          />
+        </div>
+      )}
+
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="mx-4 mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-[#00875a] text-xs font-semibold rounded-xl flex items-center justify-between animate-in fade-in slide-in-from-top-1">
+          <span>{toastMessage}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Table Content */}
       <div className="overflow-x-auto min-h-[360px]">
         <table className="w-full text-left text-xs sm:text-sm text-slate-700 border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200/90 text-slate-500 font-bold text-xs uppercase tracking-wider">
               <th className="py-3.5 px-3 sm:px-4 w-10 text-center">
-                <input
-                  type="checkbox"
+                <IndeterminateCheckbox
                   checked={isAllSelected}
+                  indeterminate={isIndeterminate}
                   onChange={onToggleSelectAll}
-                  className="rounded border-slate-300 text-[#00875a] focus:ring-[#00875a] cursor-pointer"
+                  ariaLabel="Select all procurement items on page"
                 />
               </th>
               <th className="py-3.5 px-2 w-10 text-center">#</th>
@@ -170,12 +252,16 @@ export const ProcurementTable: React.FC<ProcurementTableProps> = ({
                     }`}
                   >
                     {/* Checkbox */}
-                    <td className="py-3.5 px-3 sm:px-4 text-center">
+                    <td
+                      className="py-3.5 px-3 sm:px-4 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelectItem(item.id)}
                         className="rounded border-slate-300 text-[#00875a] focus:ring-[#00875a] cursor-pointer"
+                        aria-label={`Select ${item.productName}`}
                       />
                     </td>
 
@@ -345,64 +431,15 @@ export const ProcurementTable: React.FC<ProcurementTableProps> = ({
         </table>
       </div>
 
-      {/* Pagination & Controls Bar */}
-      <div className="px-4 py-3.5 border-t border-slate-200/90 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm text-slate-600">
-        <div>
-          Showing{" "}
-          <span className="font-bold text-slate-900">{startItem}</span> to{" "}
-          <span className="font-bold text-slate-900">{endItem}</span> of{" "}
-          <span className="font-bold text-slate-900">{totalItems}</span> items
-        </div>
-
-        {/* Page Buttons */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4 text-slate-600" />
-          </button>
-
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onPageChange(page)}
-              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                currentPage === page
-                  ? "bg-[#00875a] text-white shadow-3xs"
-                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              {page}
-            </button>
-          ))}
-
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => onPageChange(currentPage + 1)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="w-4 h-4 text-slate-600" />
-          </button>
-        </div>
-
-        {/* Page Size Select */}
-        <div className="flex items-center gap-2">
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-[#00875a] cursor-pointer"
-          >
-            <option value={10}>10 per page</option>
-            <option value={20}>20 per page</option>
-            <option value={35}>35 per page</option>
-          </select>
-        </div>
-      </div>
+      {/* Dynamic Pagination Bar (No 'Showing X to Y' text) */}
+      <PaginationBar
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 20, 35]}
+        onPageSizeChange={onPageSizeChange}
+      />
     </div>
   );
 };

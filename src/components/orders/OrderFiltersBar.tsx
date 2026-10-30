@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { OrderStatus, PaymentStatus } from "@/types";
+import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
 
 interface OrderFiltersBarProps {
   searchQuery: string;
@@ -32,18 +33,6 @@ interface OrderFiltersBarProps {
   isFiltered: boolean;
 }
 
-const DATE_PRESETS = [
-  { label: "Today (25 Aug 2025)", value: "25 Aug 2025" },
-  { label: "Yesterday (24 Aug 2025)", value: "24 Aug 2025" },
-  { label: "23 Aug 2025", value: "23 Aug 2025" },
-  { label: "22 Aug 2025", value: "22 Aug 2025" },
-  { label: "Last 7 Days", value: "Last 7 Days" },
-  { label: "All Dates", value: "All Dates" },
-];
-
-// Available order dates in mock data
-const AVAILABLE_ORDER_DATES = ["22 Aug 2025", "23 Aug 2025", "24 Aug 2025", "25 Aug 2025"];
-
 export const OrderFiltersBar: React.FC<OrderFiltersBarProps> = ({
   searchQuery,
   onSearchChange,
@@ -60,10 +49,24 @@ export const OrderFiltersBar: React.FC<OrderFiltersBarProps> = ({
   onReset,
   isFiltered,
 }) => {
+  const todayFormatted = getSystemDateFormatted();
+  const yesterdayFormatted = getOffsetDateFormatted(-1);
+  const day2Formatted = getOffsetDateFormatted(-2);
+  const day3Formatted = getOffsetDateFormatted(-3);
+
+  const DATE_PRESETS = [
+    { label: `Today (${todayFormatted})`, value: todayFormatted },
+    { label: `Yesterday (${yesterdayFormatted})`, value: yesterdayFormatted },
+    { label: day2Formatted, value: day2Formatted },
+    { label: day3Formatted, value: day3Formatted },
+    { label: "Last 7 Days", value: "Last 7 Days" },
+    { label: "All Dates", value: "All Dates" },
+  ];
+
   // Calendar popover state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(7); // 7 = August (0-indexed)
-  const [calendarYear, setCalendarYear] = useState(2025);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
 
   // Filter modal state
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -310,11 +313,13 @@ export const OrderFiltersBar: React.FC<OrderFiltersBarProps> = ({
                       const day = i + 1;
                       const dateStr = `${day} ${monthNames[calendarMonth].substring(0, 3)} ${calendarYear}`;
                       const isSelected = dateFilter === dateStr;
-                      const hasData = AVAILABLE_ORDER_DATES.includes(dateStr);
+                      const availableDates = [todayFormatted, yesterdayFormatted, day2Formatted, day3Formatted, "25 Aug 2025"];
+                      const hasData = availableDates.includes(dateStr);
+                      const now = new Date();
                       const isToday =
-                        day === 25 &&
-                        calendarMonth === 7 &&
-                        calendarYear === 2025;
+                        day === now.getDate() &&
+                        calendarMonth === now.getMonth() &&
+                        calendarYear === now.getFullYear();
 
                       return (
                         <button

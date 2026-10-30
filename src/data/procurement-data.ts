@@ -1,10 +1,12 @@
 import {
   ProcurementItem,
+  ProcurementStatus,
   SupplierOrder,
   PendingProcurementItem,
   CategoryProcurementSummary,
   ProcurementSummary,
 } from "@/types";
+import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
 
 // Base 35 items for 26 Aug 2025 (matching PDF page 5 design exactly)
 export const MOCK_PROCUREMENT_ITEMS_26_AUG: ProcurementItem[] = [
@@ -707,13 +709,32 @@ export interface DateProcurementData {
 export function getProcurementDataByDate(rawDate?: string): DateProcurementData {
   const d = (rawDate || "").trim();
 
-  // Normalize date string (Default: Present Date 26 Oct 2026)
+  // Normalize date string (Default: Present Date)
   let targetDate = "26 Oct 2026";
-  if (d.includes("26 Oct") || d.toLowerCase() === "today" || d.includes("today (26 oct")) {
+  const systemToday = getSystemDateFormatted();
+  const systemTomorrow = getOffsetDateFormatted(1);
+  const systemYesterday = getOffsetDateFormatted(-1);
+
+  if (
+    d.includes("26 Oct") ||
+    d.toLowerCase() === "today" ||
+    d.toLowerCase().includes("today") ||
+    d === systemToday
+  ) {
     targetDate = "26 Oct 2026";
-  } else if (d.includes("27 Oct") || d.toLowerCase() === "tomorrow" || d.includes("tomorrow (27 oct")) {
+  } else if (
+    d.includes("27 Oct") ||
+    d.toLowerCase() === "tomorrow" ||
+    d.toLowerCase().includes("tomorrow") ||
+    d === systemTomorrow
+  ) {
     targetDate = "27 Oct 2026";
-  } else if (d.includes("25 Oct") || d.toLowerCase() === "yesterday" || d.includes("yesterday (25 oct")) {
+  } else if (
+    d.includes("25 Oct") ||
+    d.toLowerCase() === "yesterday" ||
+    d.toLowerCase().includes("yesterday") ||
+    d === systemYesterday
+  ) {
     targetDate = "25 Oct 2026";
   } else if (d.includes("24 Oct")) {
     targetDate = "24 Oct 2026";
@@ -786,7 +807,7 @@ export function getProcurementDataByDate(rawDate?: string): DateProcurementData 
       date: "27 Oct 2026",
       procuredQty: Math.round(item.requiredQty * 0.4),
       pendingQty: Math.round(item.requiredQty * 0.6),
-      status: (item.requiredQty * 0.4 === 0 ? "Not Started" : "Partial") as any,
+      status: (item.requiredQty * 0.4 === 0 ? "Not Started" : "Partial") as ProcurementStatus,
     }));
     return {
       date: "27 Oct 2026",

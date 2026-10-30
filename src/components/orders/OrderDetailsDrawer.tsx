@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Order, OrderStatus } from "@/types";
 import { ProduceImage } from "@/components/common";
+import { generateInvoicePdf } from "@/utils";
 
 interface OrderDetailsProps {
   order: Order | null;
@@ -42,43 +43,13 @@ export const OrderDetailsContent: React.FC<OrderDetailsProps & { isDrawer?: bool
   };
 
   const handleDownloadBill = () => {
-    const billContent = `
-========================================
-       RRV GREEN BASKET - INVOICE
-========================================
-Order ID: ${order.id}
-Date: ${order.orderDate || "25 Aug 2025"} (${order.orderTime})
-Customer: ${order.customerName}
-Phone: ${order.customerPhone}
-Address: ${order.customerAddress}
-Status: ${order.status}
-----------------------------------------
-ITEMS:
-${(order.items || [])
-  .map(
-    (it, i) =>
-      `${i + 1}. ${it.productName} x ${it.quantity} (${it.unit}) = ₹${it.totalPrice}`
-  )
-  .join("\n")}
-----------------------------------------
-Subtotal: ₹${order.subtotal || order.amount}
-Delivery Charge: ₹${order.deliveryCharge || 0}
-Discount: -₹${order.discount || 0}
-TOTAL AMOUNT: ₹${order.amount}
-Payment: ${order.paymentMethod} (${order.paymentStatus})
-Transaction ID: ${order.transactionId || "N/A"}
-========================================
-Freshness Delivered Daily - RRV Green Basket
-`;
-    const blob = new Blob([billContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Invoice_${order.id.replace("#", "")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    generateInvoicePdf(order, "download");
     setDownloadSuccess(true);
     setTimeout(() => setDownloadSuccess(false), 2500);
+  };
+
+  const handlePrintBill = () => {
+    generateInvoicePdf(order, "print");
   };
 
   const defaultItems = [
@@ -358,11 +329,11 @@ Freshness Delivered Daily - RRV Green Basket
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={handlePrintBill}
             className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 shadow-3xs transition-colors"
           >
             <Printer className="w-3.5 h-3.5 text-slate-500" />
-            <span>Print Invoice</span>
+            <span>Print Official Invoice</span>
           </button>
 
           <button
@@ -371,7 +342,7 @@ Freshness Delivered Daily - RRV Green Basket
             className="px-3 py-2 rounded-xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-3xs transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{downloadSuccess ? "Downloaded!" : "Download Bill"}</span>
+            <span>{downloadSuccess ? "PDF Saved!" : "Download PDF Bill"}</span>
           </button>
         </div>
       </div>

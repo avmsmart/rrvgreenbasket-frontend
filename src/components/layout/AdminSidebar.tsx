@@ -89,8 +89,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = ICON_MAP[item.iconName] || Home;
             const isActive =
-              pathname === item.path ||
-              (item.path !== "/admin/dashboard" && pathname.startsWith(item.path));
+              Boolean(pathname) &&
+              (pathname === item.path ||
+                (item.path !== "/admin/dashboard" && pathname!.startsWith(item.path + "/")));
 
             return (
               <Link

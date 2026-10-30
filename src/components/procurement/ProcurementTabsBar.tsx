@@ -9,6 +9,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
 
 export type ProcurementTabType =
   | "Procurement Plan"
@@ -32,22 +33,6 @@ interface ProcurementTabsBarProps {
   };
 }
 
-const DATE_PRESETS = [
-  { label: "Today (26 Oct 2026)", value: "26 Oct 2026" },
-  { label: "Tomorrow (27 Oct 2026)", value: "27 Oct 2026" },
-  { label: "Yesterday (25 Oct 2026)", value: "25 Oct 2026" },
-  { label: "24 Oct 2026", value: "24 Oct 2026" },
-  { label: "23 Oct 2026", value: "23 Oct 2026" },
-];
-
-const AVAILABLE_PROCUREMENT_DATES = [
-  "23 Oct 2026",
-  "24 Oct 2026",
-  "25 Oct 2026",
-  "26 Oct 2026",
-  "27 Oct 2026",
-];
-
 export const ProcurementTabsBar: React.FC<ProcurementTabsBarProps> = ({
   activeTab,
   onTabChange,
@@ -62,10 +47,24 @@ export const ProcurementTabsBar: React.FC<ProcurementTabsBarProps> = ({
     history: 120,
   },
 }) => {
+  const todayFormatted = getSystemDateFormatted();
+  const tomorrowFormatted = getOffsetDateFormatted(1);
+  const yesterdayFormatted = getOffsetDateFormatted(-1);
+  const day2Formatted = getOffsetDateFormatted(-2);
+  const day3Formatted = getOffsetDateFormatted(-3);
+
+  const DATE_PRESETS = [
+    { label: `Today (${todayFormatted})`, value: todayFormatted },
+    { label: `Tomorrow (${tomorrowFormatted})`, value: tomorrowFormatted },
+    { label: `Yesterday (${yesterdayFormatted})`, value: yesterdayFormatted },
+    { label: day2Formatted, value: day2Formatted },
+    { label: day3Formatted, value: day3Formatted },
+  ];
+
   // Calendar popover state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(9); // 9 = October (0-indexed)
-  const [calendarYear, setCalendarYear] = useState(2026);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
 
   const tabs: { id: ProcurementTabType; label: string; count: number }[] = [
     { id: "Procurement Plan", label: "Procurement Plan", count: tabCounts.total },
@@ -152,12 +151,12 @@ export const ProcurementTabsBar: React.FC<ProcurementTabsBarProps> = ({
           >
             <CalendarIcon className="w-3.5 h-3.5 text-[#00875a]" />
             <span className="font-bold text-slate-900">
-              {selectedDate === "26 Oct 2026"
-                ? "Today (26 Oct 2026)"
-                : selectedDate === "27 Oct 2026"
-                ? "Tomorrow (27 Oct 2026)"
-                : selectedDate === "25 Oct 2026"
-                ? "Yesterday (25 Oct 2026)"
+              {selectedDate === todayFormatted || selectedDate === "26 Oct 2026"
+                ? `Today (${todayFormatted})`
+                : selectedDate === tomorrowFormatted || selectedDate === "27 Oct 2026"
+                ? `Tomorrow (${tomorrowFormatted})`
+                : selectedDate === yesterdayFormatted || selectedDate === "25 Oct 2026"
+                ? `Yesterday (${yesterdayFormatted})`
                 : selectedDate}
             </span>
             <ChevronDown
@@ -227,15 +226,13 @@ export const ProcurementTabsBar: React.FC<ProcurementTabsBarProps> = ({
                     const day = i + 1;
                     const dateStr = `${day} ${monthNames[calendarMonth].substring(0, 3)} ${calendarYear}`;
                     const isSelected = selectedDate.includes(dateStr) || selectedDate === dateStr;
-                    const isPastOrActive =
-                      calendarYear < 2026 ||
-                      (calendarYear === 2026 && calendarMonth < 9) ||
-                      (calendarYear === 2026 && calendarMonth === 9 && day <= 27);
-                    const hasData = isPastOrActive || AVAILABLE_PROCUREMENT_DATES.includes(dateStr);
+                    const availableDates = [todayFormatted, tomorrowFormatted, getOffsetDateFormatted(-1), getOffsetDateFormatted(-2), "26 Oct 2026", "27 Oct 2026"];
+                    const hasData = availableDates.includes(dateStr);
+                    const now = new Date();
                     const isToday =
-                      day === 26 &&
-                      calendarMonth === 9 &&
-                      calendarYear === 2026;
+                      day === now.getDate() &&
+                      calendarMonth === now.getMonth() &&
+                      calendarYear === now.getFullYear();
 
                     return (
                       <button
