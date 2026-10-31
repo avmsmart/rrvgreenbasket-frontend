@@ -22,7 +22,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
   onSuccessWithout2FA,
   onRequires2FA,
 }) => {
-  const { login } = useAuth();
+  const { login, is2FAEnabled, set2FAEnabled } = useAuth();
 
   const [email, setEmail] = useState("admin@rrvgreenbasket.com");
   const [password, setPassword] = useState("Admin@123");
@@ -170,6 +170,45 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
               className="font-bold text-[#16a34a] hover:text-[#15803d] hover:underline transition-colors"
             >
               Forgot password?
+            </button>
+          </div>
+
+          {/* Two-Factor Authentication (2FA) Switch */}
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 transition-colors select-none">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${
+                  is2FAEnabled
+                    ? "bg-[#16a34a] text-white shadow-xs"
+                    : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="leading-tight">
+                <span className="text-xs font-bold text-slate-900 block">
+                  Two-Factor Authentication (2FA)
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  {is2FAEnabled
+                    ? "Google Authenticator required"
+                    : "Disabled (Direct login)"}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => set2FAEnabled(!is2FAEnabled)}
+              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                is2FAEnabled ? "bg-[#16a34a]" : "bg-slate-300"
+              }`}
+              aria-label="Toggle 2FA requirement"
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  is2FAEnabled ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
             </button>
           </div>
 
