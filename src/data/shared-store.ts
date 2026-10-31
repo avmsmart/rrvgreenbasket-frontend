@@ -3,6 +3,7 @@
 import { Coupon, CouponActivity } from "@/types/coupon";
 import { Sector } from "@/types/sector";
 import { StoreSettings } from "@/types/settings";
+import { RegisteredAdminAccount } from "@/types/auth";
 
 /* =========================================================================
    1. COUPONS INITIAL REFERENCE DATA (PDF PAGE 11)
@@ -380,6 +381,7 @@ const KEYS = {
   SETTINGS: "rrv_store_settings_v1",
   COUPON_ACTIVITIES: "rrv_store_coupon_acts_v1",
   AUTH_2FA_ENABLED: "rrv_auth_2fa_enabled_v1",
+  ADMIN_ACCOUNTS: "rrv_admin_accounts_v1",
 };
 
 // Safe localStorage helper
@@ -473,4 +475,22 @@ export function getSaved2FAEnabled(): boolean {
 export function save2FAEnabled(enabled: boolean): void {
   safeSet(KEYS.AUTH_2FA_ENABLED, enabled, "rrv:auth:2fa:updated");
 }
+
+// Registered Administrator Accounts
+export function getSavedAdminAccounts(): RegisteredAdminAccount[] {
+  return safeGet<RegisteredAdminAccount[]>(KEYS.ADMIN_ACCOUNTS, []);
+}
+
+export function saveAdminAccount(account: RegisteredAdminAccount): void {
+  const existing = getSavedAdminAccounts().filter(
+    (a) => a.email.toLowerCase() !== account.email.toLowerCase()
+  );
+  safeSet(KEYS.ADMIN_ACCOUNTS, [account, ...existing], "rrv:admin:accounts:updated");
+}
+
+export function findAdminAccount(email: string): RegisteredAdminAccount | undefined {
+  const normalized = email.trim().toLowerCase();
+  return getSavedAdminAccounts().find((a) => a.email.toLowerCase() === normalized);
+}
+
 

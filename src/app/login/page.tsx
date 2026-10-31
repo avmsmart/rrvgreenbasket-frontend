@@ -7,6 +7,7 @@ import { ShoppingBag, Box, BarChart3 } from "lucide-react";
 import {
   RRVAuthBrandLogo,
   LoginFormStep,
+  RegisterFormStep,
   TwoFactorStep,
   SuccessStep,
 } from "@/components/auth";
@@ -21,6 +22,7 @@ function LoginPageContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
   const [step, setStep] = useState<LoginStep>("credentials");
+  const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [twoFactorSession, setTwoFactorSession] = useState<{
     email: string;
     tempToken?: string;
@@ -145,10 +147,19 @@ function LoginPageContent() {
           {/* Active Authentication Step */}
           <div className="my-auto py-2">
             {step === "credentials" && (
-              <LoginFormStep
-                onSuccessWithout2FA={handleSuccess}
-                onRequires2FA={handleRequires2FA}
-              />
+              authMode === "signin" ? (
+                <LoginFormStep
+                  onSuccessWithout2FA={handleSuccess}
+                  onRequires2FA={handleRequires2FA}
+                  onSwitchToRegister={() => setAuthMode("register")}
+                />
+              ) : (
+                <RegisterFormStep
+                  onSuccessWithout2FA={handleSuccess}
+                  onRequires2FA={handleRequires2FA}
+                  onSwitchToLogin={() => setAuthMode("signin")}
+                />
+              )
             )}
 
             {step === "two_factor" && (

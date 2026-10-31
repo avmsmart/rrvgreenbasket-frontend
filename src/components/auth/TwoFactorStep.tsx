@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowRight, ShieldCheck, ArrowLeft, Sparkles, AlertCircle } from "lucide-react";
+import { ArrowRight, ShieldCheck, ArrowLeft, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { RRVAuthBrandLogo } from "./RRVAuthBrandLogo";
 import { useAuth } from "@/context/AuthContext";
 
@@ -18,13 +18,20 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
   onSuccess,
   onBackToLogin,
 }) => {
-  const { verify2FA } = useAuth();
+  const { verify2FA, resendOtp } = useAuth();
 
   // 6 individual OTP digit boxes
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(
+    `A verification code has been dispatched to ${email}. Please check your inbox & spam folder.`
+  );
+
+  // Resend countdown timer
+  const [countdown, setCountdown] = useState<number>(60);
+  const [isResending, setIsResending] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -32,6 +39,15 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   const handleDigitChange = (index: number, val: string) => {
     const char = val.slice(-1); // Take only latest entered character
@@ -82,7 +98,7 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
     const fullCode = digits.join("");
 
     if (fullCode.length !== 6) {
-      setErrorMessage("Please enter all 6 digits from your authenticator app.");
+      setErrorMessage("Please enter all 6 digits of the verification code.");
       return;
     }
 
@@ -94,21 +110,34 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
       if (result.success) {
         onSuccess();
       } else {
-        setErrorMessage(result.error || "Invalid verification code. Please check your app.");
+        setErrorMessage(result.error || "Invalid verification code. Please check your email.");
         setIsVerifying(false);
       }
     } catch {
-      setErrorMessage("Verification request failed. Please try again.");
+      setErrorMessage("Verification request failed. Please check your network.");
       setIsVerifying(false);
     }
   };
 
-  // Demo auto-fill helper (248916 matches the exact Authenticator screenshot in the reference!)
-  const handleFillDemoCode = () => {
-    const demo = ["2", "4", "8", "9", "1", "6"];
-    setDigits(demo);
+  const handleResend = async () => {
+    if (countdown > 0 || isResending) return;
+
+    setIsResending(true);
     setErrorMessage(null);
-    inputRefs.current[5]?.focus();
+
+    try {
+      const res = await resendOtp(email);
+      if (res.success) {
+        setSuccessNotice(`Fresh verification code sent to ${email}. Check your inbox.`);
+        setCountdown(60);
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch {
+      setErrorMessage("Failed to resend verification code. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const isFull = digits.every((d) => d !== "");
@@ -121,44 +150,46 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
       </div>
 
       {/* Title & Subtitle matching reference */}
-      <div className="text-center mb-5">
+      <div className="text-center mb-4">
         <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
           Two-Step Verification
         </h2>
-        <p className="text-xs sm:text-[13px] text-slate-500 font-medium mt-1">
-          Enter the 6-digit code from your authenticator app
+        <p className="text-xs text-slate-500 font-medium mt-1">
+          Enter the 6-digit code sent to{" "}
+          <span className="font-bold text-slate-800 break-all">{email}</span>
         </p>
       </div>
 
       {/* Phone with Shield Check Illustration (Exact match to reference) */}
-      <div className="flex justify-center my-4">
-        <div className="relative w-24 h-24 flex items-center justify-center">
-          {/* Soft circular background glow */}
+      <div className="flex justify-center my-3">
+        <div className="relative w-20 h-20 flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-emerald-50/80 animate-pulse" />
 
           {/* Phone body */}
-          <div className="relative w-14 h-20 bg-slate-900 rounded-[14px] p-1 shadow-md border-2 border-slate-700 flex flex-col items-center">
-            {/* Speaker bar */}
-            <div className="w-4 h-1 bg-slate-600 rounded-full mb-1" />
-
-            {/* Screen */}
-            <div className="w-full flex-1 bg-white rounded-[10px] flex items-center justify-center relative overflow-hidden">
-              {/* Authenticator G Icon Graphic */}
-              <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xs">
-                G
+          <div className="relative w-12 h-18 bg-slate-900 rounded-[14px] p-1 shadow-md border-2 border-slate-700 flex flex-col items-center">
+            <div className="w-3.5 h-1 bg-slate-600 rounded-full mb-1" />
+            <div className="w-full flex-1 bg-white rounded-[8px] flex items-center justify-center relative overflow-hidden">
+              <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#16a34a] font-black text-xs">
+                ✉️
               </div>
             </div>
-
-            {/* Bottom Home Indicator */}
-            <div className="w-5 h-0.5 bg-slate-600 rounded-full mt-0.5" />
+            <div className="w-4 h-0.5 bg-slate-600 rounded-full mt-0.5" />
           </div>
 
           {/* Floating Green Shield Check Badge */}
-          <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#16a34a] text-white flex items-center justify-center shadow-lg border-2 border-white">
-            <ShieldCheck className="w-4 h-4" />
+          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#16a34a] text-white flex items-center justify-center shadow-lg border-2 border-white">
+            <ShieldCheck className="w-3.5 h-3.5" />
           </div>
         </div>
       </div>
+
+      {/* Success notification banner */}
+      {successNotice && !errorMessage && (
+        <div className="mb-4 p-3 rounded-2xl bg-[#f0fdf4] border border-[#dcfce7] text-[#15803d] text-xs flex items-center gap-2 animate-in fade-in duration-150">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#16a34a]" />
+          <span className="leading-tight">{successNotice}</span>
+        </div>
+      )}
 
       {/* Error Message */}
       {errorMessage && (
@@ -230,13 +261,12 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
           <ShieldCheck className="w-3.5 h-3.5" />
         </div>
         <div className="text-[11px] leading-relaxed text-slate-600">
-          <span className="font-bold text-slate-800">Open your Authenticator app</span>{" "}
-          (e.g., Google Authenticator, Microsoft Authenticator) and enter the 6-digit code.
+          <span className="font-bold text-slate-800">Check your Email</span>. A 6-digit verification code has been dispatched. If not in your inbox, kindly check your spam/junk folder.
         </div>
       </div>
 
       {/* Action links row */}
-      <div className="mt-5 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between text-xs">
+      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
         <button
           type="button"
           onClick={onBackToLogin}
@@ -248,12 +278,14 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
 
         <button
           type="button"
-          onClick={handleFillDemoCode}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100/70 hover:bg-emerald-200/80 text-[11px] font-bold text-[#16a34a] transition-colors"
-          title="Fills demo code 248 916 as shown in the reference image"
+          disabled={countdown > 0 || isResending}
+          onClick={handleResend}
+          className="inline-flex items-center gap-1.5 font-bold text-slate-600 hover:text-emerald-700 disabled:opacity-50 transition-colors"
         >
-          <Sparkles className="w-3 h-3 text-amber-500" />
-          <span>Fill Code (248 916)</span>
+          <RefreshCw className={`w-3 h-3 ${isResending ? "animate-spin" : ""}`} />
+          <span>
+            {countdown > 0 ? `Resend code (${countdown}s)` : "Resend code"}
+          </span>
         </button>
       </div>
     </div>

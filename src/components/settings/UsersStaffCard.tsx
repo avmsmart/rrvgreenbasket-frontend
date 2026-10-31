@@ -53,28 +53,39 @@ const STAFF_MEMBERS: StaffMember[] = [
   },
 ];
 
+import { InviteStaffModal } from "./InviteStaffModal";
+
 export const UsersStaffCard: React.FC = () => {
+  const [staffList, setStaffList] = React.useState<StaffMember[]>(STAFF_MEMBERS);
+  const [isInviteOpen, setIsInviteOpen] = React.useState(false);
+
+  const handleStaffAdded = (newStaff: StaffMember) => {
+    setStaffList((prev) => [newStaff, ...prev]);
+  };
+
   return (
-    <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-3xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-black text-slate-900">Store Staff & Role Permissions</h3>
-          <p className="text-xs text-slate-500 font-medium">
-            Manage administrative personnel with access to orders, stock adjustments, and settings.
-          </p>
+    <>
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-3xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Store Staff & Role Permissions</h3>
+            <p className="text-xs text-slate-500 font-medium">
+              Manage administrative personnel with access to orders, stock adjustments, and settings.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsInviteOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-bold rounded-xl transition-colors self-start sm:self-auto shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Invite Team Member</span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-3 py-2 bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-bold rounded-xl transition-colors self-start sm:self-auto shadow-sm"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Invite Team Member</span>
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {STAFF_MEMBERS.map((member) => (
+        <div className="space-y-3">
+          {staffList.map((member) => (
           <div
             key={member.id}
             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50/80 border border-slate-200 hover:border-slate-300 transition-colors"
@@ -115,11 +126,19 @@ export const UsersStaffCard: React.FC = () => {
         ))}
       </div>
 
-      {/* Security & Two-Factor Authentication (2FA) Configuration */}
-      <div className="pt-5 border-t border-slate-200">
-        <Security2FASection />
+        {/* Security & Two-Factor Authentication (2FA) Configuration */}
+        <div className="pt-5 border-t border-slate-200">
+          <Security2FASection />
+        </div>
       </div>
-    </div>
+
+      {/* Invite Staff Dialog */}
+      <InviteStaffModal
+        isOpen={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        onStaffAdded={handleStaffAdded}
+      />
+    </>
   );
 };
 

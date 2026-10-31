@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Sparkles, KeyRound } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
 import { RRVAuthBrandLogo } from "./RRVAuthBrandLogo";
 import { ForgotPasswordModal } from "./ForgotPasswordModal";
 import { useAuth } from "@/context/AuthContext";
@@ -10,16 +10,18 @@ import { LoginCredentials } from "@/types";
 interface LoginFormStepProps {
   onSuccessWithout2FA: () => void;
   onRequires2FA: (data: { tempToken?: string; email: string }) => void;
+  onSwitchToRegister: () => void;
 }
 
 export const LoginFormStep: React.FC<LoginFormStepProps> = ({
   onSuccessWithout2FA,
   onRequires2FA,
+  onSwitchToRegister,
 }) => {
-  const { login, is2FAEnabled, set2FAEnabled } = useAuth();
+  const { login } = useAuth();
 
-  const [email, setEmail] = useState("admin@rrvgreenbasket.in");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,7 +31,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setErrorMessage("Please enter both email and password.");
+      setErrorMessage("Please enter both your email address and password.");
       return;
     }
 
@@ -46,7 +48,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
       const result = await login(credentials);
 
       if (!result.success) {
-        setErrorMessage(result.error || "Authentication failed. Please check your credentials.");
+        setErrorMessage(result.error || "Authentication failed. Please verify your credentials.");
         setIsSubmitting(false);
         return;
       }
@@ -61,16 +63,10 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
       }
     } catch (err: unknown) {
       setErrorMessage(
-        err instanceof Error ? err.message : "An unexpected error occurred. Please try again."
+        err instanceof Error ? err.message : "An unexpected network error occurred."
       );
       setIsSubmitting(false);
     }
-  };
-
-  const handleFillDemo = () => {
-    setEmail("admin@rrvgreenbasket.in");
-    setPassword("admin123");
-    setErrorMessage(null);
   };
 
   return (
@@ -81,7 +77,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
           <RRVAuthBrandLogo centered size="md" />
         </div>
 
-        {/* Heading & Subtitle */}
+        {/* Heading & Subtitle matching reference */}
         <div className="text-center mb-6">
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Admin Login
@@ -94,7 +90,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
         {/* Error Alert */}
         {errorMessage && (
           <div className="mb-4 p-3 rounded-2xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-start gap-2.5 animate-in fade-in duration-150">
-            <span className="font-bold flex-shrink-0">Notice:</span>
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span className="leading-relaxed">{errorMessage}</span>
           </div>
         )}
@@ -210,33 +206,18 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
           </div>
         </div>
 
-        {/* 2FA Mode Switch & Demo Autofill Pill (Honoring user's requirement: 2FA is active only when turned ON) */}
-        <div className="mt-5 pt-4 border-t border-dashed border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-            <span className="font-semibold text-slate-600">2FA Security:</span>
+        {/* Real Admin Registration Switch */}
+        <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+          <p className="text-xs text-slate-600">
+            New administrator or store owner?{" "}
             <button
               type="button"
-              onClick={() => set2FAEnabled(!is2FAEnabled)}
-              className={`px-2 py-0.5 rounded-full font-bold transition-all text-[10px] ${
-                is2FAEnabled
-                  ? "bg-emerald-100 text-[#16a34a] hover:bg-emerald-200"
-                  : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-              }`}
-              title="Click to toggle whether 2FA verification step is required"
+              onClick={onSwitchToRegister}
+              className="font-bold text-[#16a34a] hover:text-[#15803d] hover:underline transition-colors"
             >
-              {is2FAEnabled ? "● TURNED ON" : "○ TURNED OFF"}
+              Create Account
             </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleFillDemo}
-            className="inline-flex items-center gap-1 font-bold text-slate-500 hover:text-emerald-700 transition-colors"
-          >
-            <Sparkles className="w-3 h-3 text-amber-500" />
-            <span>Auto-fill Demo</span>
-          </button>
+          </p>
         </div>
       </div>
 

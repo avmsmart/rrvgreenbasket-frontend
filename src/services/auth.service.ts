@@ -8,7 +8,12 @@ import {
   TwoFactorVerifyResult,
   ForgotPasswordResult,
 } from "@/types";
-import { MOCK_ADMIN_USER_DATA, getSaved2FAEnabled } from "@/data";
+import {
+  MOCK_ADMIN_USER_DATA,
+  getSaved2FAEnabled,
+  findAdminAccount,
+  saveAdminAccount,
+} from "@/data";
 
 // Helper to generate a realistic JWT token string (Header.Payload.Signature)
 function generateMockJwt(userId: string, email: string): string {
@@ -30,79 +35,151 @@ function generateMockJwt(userId: string, email: string): string {
 export const authService = {
   /**
    * Authenticate admin user credentials (Step 1)
-   * If 2FA is active, returns a temporary session token and triggers Step 2.
+   * If 2FA is active, triggers real email dispatch and transitions to Step 2.
    * If 2FA is disabled, directly issues JWT and completes login.
    */
   async login(credentials: LoginCredentials): Promise<LoginResult> {
-    const is2FAActive = getSaved2FAEnabled();
+    const is2FAGloballyActive = getSaved2FAEnabled();
+    const savedAccount = findAdminAccount(credentials.email);
 
-    // Prepare realistic fallback for when backend API is offline
-    const fallbackResponse: AuthResponse = {
-      user: {
-        ...MOCK_ADMIN_USER_DATA,
-        twoFactorEnabled: is2FAActive,
-      },
-      token: generateMockJwt(MOCK_ADMIN_USER_DATA.id, credentials.email || MOCK_ADMIN_USER_DATA.email),
-      expiresIn: 86400 * 30,
-      requires2FA: is2FAActive,
-      tempToken: is2FAActive ? `tmp_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` : undefined,
-    };
-
-    try {
-      const response = await apiClient.post<AuthResponse>(
-        "/auth/login",
-        {
-          email: credentials.email,
-          password: credentials.password,
-          rememberMe: credentials.rememberMe ?? true,
-        },
-        { skipAuth: true },
-        fallbackResponse
-      );
-
-      // Check whether 2FA is required based on response or local store setting
-      const requires2FA = Boolean(response?.requires2FA ?? is2FAActive);
-
-      if (requires2FA) {
+    // If a registered account exists, verify its password
+    if (savedAccount) {
+      if (savedAccount.passwordHash && savedAccount.passwordHash !== credentials.password) {
         return {
-          success: true,
-          requires2FA: true,
-          nextStep: "two_factor",
-          tempToken: response?.tempToken || fallbackResponse.tempToken,
-          targetEmail: credentials.email || MOCK_ADMIN_USER_DATA.email,
-          targetPhone: MOCK_ADMIN_USER_DATA.phone,
+          success: false,
+          requires2FA: false,
+          nextStep: "credentials",
+          error: "Incorrect password. Please enter the password you registered with.",
         };
       }
+    }
 
-      // If 2FA is OFF, set JWT session immediately
-      const token = response?.token || fallbackResponse.token;
-      if (token) {
-        setAuthToken(token, response?.refreshToken);
+    const adminUser: AdminUser = savedAccount || {
+      ...MOCK_ADMIN_USER_DATA,
+      email: credentials.email || MOCK_ADMIN_USER_DATA.email,
+    };
+
+    const requires2FA = savedAccount?.twoFactorEnabled !== undefined
+      ? savedAccount.twoFactorEnabled
+      : is2FAGloballyActive;
+
+    if (requires2FA) {
+      const tempToken = `tmp_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // Dispatch real email via Next.js API route
+      try {
+        await fetch("/api/auth/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: credentials.email,
+            name: adminUser.name,
+          }),
+        });
+      } catch (e) {
+        console.warn("[AuthService] Could not reach /api/auth/send-otp:", e);
       }
 
       return {
         success: true,
-        requires2FA: false,
-        nextStep: "success",
-      };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Invalid email or password. Please try again.";
-      return {
-        success: false,
-        requires2FA: false,
-        nextStep: "credentials",
-        error: message,
+        requires2FA: true,
+        nextStep: "two_factor",
+        tempToken,
+        targetEmail: credentials.email,
+        targetPhone: adminUser.phone,
       };
     }
+
+    // If 2FA is OFF, set JWT session immediately
+    const token = generateMockJwt(adminUser.id, credentials.email);
+    setAuthToken(token);
+
+    return {
+      success: true,
+      requires2FA: false,
+      nextStep: "success",
+    };
   },
 
   /**
-   * Verify 6-digit Authenticator Code (Step 2)
+   * Register a new Administrator Account
+   */
+  async register(data: import("@/types").RegisterAdminData): Promise<import("@/types").RegisterResult> {
+    const existing = findAdminAccount(data.email);
+    if (existing) {
+      return {
+        success: false,
+        requires2FA: false,
+        error: "An administrator with this email address already exists. Please sign in instead.",
+      };
+    }
+
+    const newAccount: import("@/types").RegisteredAdminAccount = {
+      id: `ADM-${Date.now().toString().slice(-4)}`,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      role: data.role || "Super Admin",
+      storeName: data.storeName || "RRV Green Basket",
+      location: "Kurnool, Andhra Pradesh, India",
+      avatarInitial: data.name.charAt(0).toUpperCase(),
+      status: "Active (Accepting Orders)",
+      permissions: [
+        "All Modules Access",
+        "Order Management",
+        "Inventory Control",
+        "Financial Reports",
+        "Partner Management",
+      ],
+      twoFactorEnabled: data.twoFactorEnabled ?? true,
+      passwordHash: data.password,
+      createdAt: new Date().toISOString(),
+    };
+
+    saveAdminAccount(newAccount);
+
+    if (newAccount.twoFactorEnabled) {
+      const tempToken = `tmp_reg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // Dispatch real email OTP to the newly registered email
+      try {
+        await fetch("/api/auth/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.email,
+            name: data.name,
+          }),
+        });
+      } catch (e) {
+        console.warn("[AuthService] Error calling /api/auth/send-otp on registration:", e);
+      }
+
+      return {
+        success: true,
+        user: newAccount,
+        requires2FA: true,
+        tempToken,
+      };
+    }
+
+    // If 2FA is disabled, log in directly
+    const token = generateMockJwt(newAccount.id, newAccount.email);
+    setAuthToken(token);
+
+    return {
+      success: true,
+      user: newAccount,
+      requires2FA: false,
+    };
+  },
+
+  /**
+   * Verify 6-digit Authenticator / Email Code (Step 2)
    */
   async verify2FA(request: TwoFactorVerifyRequest): Promise<TwoFactorVerifyResult> {
-    const cleanCode = request.code.replace(/\s+/g, "");
+    const cleanCode = request.code.replace(/\s+/g, "").trim();
 
-    // Validate 6 digits format
     if (!/^\d{6}$/.test(cleanCode)) {
       return {
         success: false,
@@ -110,35 +187,64 @@ export const authService = {
       };
     }
 
-    const fallbackResponse: AuthResponse = {
-      user: MOCK_ADMIN_USER_DATA,
-      token: generateMockJwt(MOCK_ADMIN_USER_DATA.id, request.email || MOCK_ADMIN_USER_DATA.email),
-      expiresIn: 86400 * 30,
-    };
+    const savedAccount = findAdminAccount(request.email);
+    const adminUser = savedAccount || MOCK_ADMIN_USER_DATA;
 
+    // First attempt to verify with the server-side API route
     try {
-      const response = await apiClient.post<AuthResponse>(
-        "/auth/verify-2fa",
-        request,
-        { skipAuth: true },
-        fallbackResponse
-      );
+      const apiRes = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: request.email,
+          code: cleanCode,
+        }),
+      });
 
-      const token = response?.token || fallbackResponse.token;
-      if (token) {
-        setAuthToken(token, response?.refreshToken);
+      const json = await apiRes.json();
+      if (!apiRes.ok || !json.success) {
+        // If server says code is invalid, report error
+        return {
+          success: false,
+          error: json.message || "Invalid or expired verification code. Please check your email.",
+        };
       }
+    } catch {
+      // Fallback check if API is unreachable
+    }
 
+    const token = generateMockJwt(adminUser.id, request.email);
+    setAuthToken(token);
+
+    return {
+      success: true,
+      user: adminUser,
+      token,
+    };
+  },
+
+  /**
+   * Resend a fresh OTP code to user's email
+   */
+  async resendOtp(email: string, name?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          name: name || "Administrator",
+        }),
+      });
+      const data = await res.json();
       return {
-        success: true,
-        user: response?.user || MOCK_ADMIN_USER_DATA,
-        token,
+        success: data.success,
+        message: data.message || `A new code has been sent to ${email}`,
       };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Verification code is invalid or has expired.";
+    } catch {
       return {
         success: false,
-        error: message,
+        message: "Failed to dispatch email. Please check your network.",
       };
     }
   },

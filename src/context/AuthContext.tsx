@@ -24,7 +24,9 @@ interface AuthContextType {
   is2FAEnabled: boolean;
   set2FAEnabled: (enabled: boolean) => void;
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
+  register: (data: import("@/types").RegisterAdminData) => Promise<import("@/types").RegisterResult>;
   verify2FA: (code: string, tempToken: string, email: string) => Promise<TwoFactorVerifyResult>;
+  resendOtp: (email: string, name?: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -107,6 +109,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return result;
   };
 
+  // Register handler
+  const register = async (
+    data: import("@/types").RegisterAdminData
+  ): Promise<import("@/types").RegisterResult> => {
+    const result = await authService.register(data);
+    if (result.success && !result.requires2FA) {
+      await refreshUser();
+    }
+    return result;
+  };
+
   // 2FA Verification handler
   const verify2FA = async (
     code: string,
@@ -127,6 +140,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return result;
   };
 
+  // Resend OTP handler
+  const resendOtp = async (email: string, name?: string) => {
+    return authService.resendOtp(email, name);
+  };
+
   // Logout handler
   const logout = async () => {
     await authService.logout();
@@ -145,7 +163,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is2FAEnabled,
         set2FAEnabled,
         login,
+        register,
         verify2FA,
+        resendOtp,
         logout,
         refreshUser,
       }}

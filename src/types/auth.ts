@@ -65,3 +65,27 @@ export interface ForgotPasswordResult {
   success: boolean;
   message: string;
 }
+
+export interface RegisterAdminData {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  storeName?: string;
+  role?: string;
+  twoFactorEnabled?: boolean;
+}
+
+export interface RegisterResult {
+  success: boolean;
+  user?: AdminUser;
+  requires2FA: boolean;
+  tempToken?: string;
+  error?: string;
+}
+
+export interface RegisteredAdminAccount extends AdminUser {
+  passwordHash?: string;
+  createdAt?: string;
+}
+
