@@ -1,4 +1,4 @@
-import { apiClient, setAuthToken, removeAuthToken, getAuthToken } from "./api-client";
+import { apiClient, setAuthToken, removeAuthToken, getAuthToken, ApiError } from "./api-client";
 import {
   AdminUser,
   LoginCredentials,
@@ -8,6 +8,8 @@ import {
   TwoFactorVerifyResult,
   ForgotPasswordResult,
   TotpSetupInfo,
+  BackendAuthResponseData,
+  BackendUserSummary,
 } from "@/types";
 import {
   MOCK_ADMIN_USER_DATA,
@@ -25,6 +27,12 @@ import {
   getTotpSecondsRemaining,
   formatSecretKey,
 } from "@/lib/totp-service";
+
+// Temporary storage for real backend JWT tokens during active 2FA verification challenges
+const pending2FASessions = new Map<
+  string,
+  { token: string; refreshToken?: string; user?: AdminUser }
+>();
 
 // Helper to generate a realistic JWT token string (Header.Payload.Signature)
 function generateMockJwt(userId: string, email: string): string {
@@ -53,6 +61,92 @@ export const authService = {
   async login(credentials: LoginCredentials): Promise<LoginResult> {
     const is2FAGloballyActive = getSaved2FAEnabled();
     const normalizedEmail = credentials.email.trim().toLowerCase();
+    // 1. Live Spring Boot Backend Authentication (proxied to avoid browser CORS)
+    try {
+      const backendAuth = await apiClient.post<BackendAuthResponseData>(
+        "/auth/admin/login",
+        {
+          email: normalizedEmail,
+          password: credentials.password,
+        },
+        { skipAuth: true }
+      );
+
+      if (backendAuth && backendAuth.accessToken) {
+        const backendUser = backendAuth.user;
+        const adminUser: AdminUser = {
+          id: backendUser?.publicId || "ADM-001",
+          name: "Admin",
+          role: backendUser?.role === "ADMIN" ? "Super Admin" : backendUser?.role || "Super Admin",
+          avatarInitial: "A",
+          email: backendUser?.email || normalizedEmail,
+          phone: backendUser?.mobileNumber || "+91 98765 43210",
+          location: "Kurnool, Andhra Pradesh, India",
+          storeName: "RRV Green Basket",
+          operatingHours: "06:00 AM – 10:00 PM",
+          orderCutoff: "10:00 PM",
+          status: backendUser?.status === "ACTIVE" ? "Active (Accepting Orders)" : "Active",
+          permissions: [
+            "All Modules Access",
+            "Order Management",
+            "Inventory Control",
+            "Financial Reports",
+            "Partner Management",
+          ],
+          twoFactorEnabled: is2FAGloballyActive,
+        };
+
+        if (is2FAGloballyActive) {
+          const tempToken = `tmp_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          const totpSecret = PREDEFINED_ADMIN_TOTP_SECRET;
+          const totpUri = getTotpUri(normalizedEmail, totpSecret);
+          const totpQrCode = await generateTotpQrDataUrl(totpUri);
+          const previewCode = await generateTotpCode(totpSecret);
+
+          // Stash real backend tokens in pending map until 2FA is verified
+          pending2FASessions.set(tempToken, {
+            token: backendAuth.accessToken,
+            refreshToken: backendAuth.refreshToken,
+            user: adminUser,
+          });
+
+          return {
+            success: true,
+            requires2FA: true,
+            nextStep: "two_factor",
+            tempToken,
+            targetEmail: normalizedEmail,
+            targetPhone: adminUser.phone,
+            previewCode,
+            totpSecret,
+            totpQrCode,
+          };
+        }
+
+        // If 2FA is OFF, commit real backend tokens immediately
+        setAuthToken(backendAuth.accessToken, backendAuth.refreshToken);
+
+        return {
+          success: true,
+          requires2FA: false,
+          nextStep: "success",
+        };
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.status === 401 || err.status === 423 || !err.isNetworkError) {
+          return {
+            success: false,
+            requires2FA: false,
+            nextStep: "credentials",
+            error: err.message || "Invalid administrator credentials.",
+          };
+        }
+      }
+      // If network error/server offline, proceed to local fallback below
+    }
+
+    // 2. High-Fidelity Local Fallback (when backend server is unreachable)
     const savedAccount = findAdminAccount(normalizedEmail);
 
     // If an account or predefined credentials exist, check password
@@ -243,12 +337,17 @@ export const authService = {
       }
     }
 
-    const token = generateMockJwt(adminUser.id, request.email);
-    setAuthToken(token);
+    const pendingSession = request.tempToken ? pending2FASessions.get(request.tempToken) : null;
+    const token = pendingSession?.token || generateMockJwt(adminUser.id, request.email);
+    const adminUserToReturn = pendingSession?.user || adminUser;
+    setAuthToken(token, pendingSession?.refreshToken);
+    if (request.tempToken) {
+      pending2FASessions.delete(request.tempToken);
+    }
 
     return {
       success: true,
-      user: adminUser,
+      user: adminUserToReturn,
       token,
     };
   },
@@ -335,7 +434,16 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await apiClient.post("/auth/logout", {}, {}, {});
+      const refreshToken =
+        typeof window !== "undefined"
+          ? localStorage.getItem("rrv_green_basket_refresh_token")
+          : null;
+      await apiClient.post(
+        "/auth/logout",
+        {},
+        { params: refreshToken ? { refreshToken } : undefined },
+        {}
+      );
     } catch {
       // Ignore network errors on logout
     } finally {
@@ -344,10 +452,38 @@ export const authService = {
   },
 
   /**
-   * Fetch currently logged-in administrator profile
+   * Fetch currently logged-in administrator profile from /api/auth/me
    */
   async getCurrentUser(): Promise<AdminUser> {
-    return apiClient.get<AdminUser>("/auth/me", {}, MOCK_ADMIN_USER_DATA);
+    try {
+      const data = await apiClient.get<BackendUserSummary>("/auth/me");
+      if (data && data.publicId) {
+        return {
+          id: data.publicId,
+          name: "Admin",
+          role: data.role === "ADMIN" ? "Super Admin" : data.role,
+          avatarInitial: "A",
+          email: data.email,
+          phone: data.mobileNumber || "+91 98765 43210",
+          location: "Kurnool, Andhra Pradesh, India",
+          storeName: "RRV Green Basket",
+          operatingHours: "06:00 AM – 10:00 PM",
+          orderCutoff: "10:00 PM",
+          status: data.status === "ACTIVE" ? "Active (Accepting Orders)" : data.status,
+          permissions: [
+            "All Modules Access",
+            "Order Management",
+            "Inventory Control",
+            "Financial Reports",
+            "Partner Management",
+          ],
+          twoFactorEnabled: getSaved2FAEnabled(),
+        };
+      }
+    } catch {
+      // Backend offline fallback
+    }
+    return MOCK_ADMIN_USER_DATA;
   },
 
   /**
