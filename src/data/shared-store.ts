@@ -3,6 +3,7 @@
 import { Coupon, CouponActivity } from "@/types/coupon";
 import { Sector } from "@/types/sector";
 import { StoreSettings } from "@/types/settings";
+import { RegisteredAdminAccount } from "@/types/auth";
 
 /* =========================================================================
    1. COUPONS INITIAL REFERENCE DATA (PDF PAGE 11)
@@ -391,6 +392,8 @@ const KEYS = {
   SECTORS: "rrv_store_sectors_v1",
   SETTINGS: "rrv_store_settings_v1",
   COUPON_ACTIVITIES: "rrv_store_coupon_acts_v1",
+  AUTH_2FA_ENABLED: "rrv_auth_2fa_enabled_v1",
+  ADMIN_ACCOUNTS: "rrv_admin_accounts_v1",
 };
 
 // Safe localStorage helper
@@ -494,4 +497,68 @@ export function formatCurrency(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) || 0 : amount;
   const sym = getCurrencySymbol();
   return `${sym} ${num.toLocaleString("en-IN")}`;
+}
+
+// Two-Factor Authentication (2FA) Preference
+export function getSaved2FAEnabled(): boolean {
+  return safeGet<boolean>(KEYS.AUTH_2FA_ENABLED, true);
+}
+
+export function save2FAEnabled(enabled: boolean): void {
+  safeSet(KEYS.AUTH_2FA_ENABLED, enabled, "rrv:auth:2fa:updated");
+}
+
+// Predefined Administrator Credentials
+export const PREDEFINED_ADMIN_CREDENTIALS = {
+  email: "admin@rrvgreenbasket.com",
+  password: "Admin@123",
+  alternateEmails: ["admin@rrvgreenbasket.in", "vandanakaranam81@gmail.com"],
+};
+
+// Registered Administrator Accounts
+export function getSavedAdminAccounts(): RegisteredAdminAccount[] {
+  return safeGet<RegisteredAdminAccount[]>(KEYS.ADMIN_ACCOUNTS, []);
+}
+
+export function saveAdminAccount(account: RegisteredAdminAccount): void {
+  const existing = getSavedAdminAccounts().filter(
+    (a) => a.email.toLowerCase() !== account.email.toLowerCase()
+  );
+  safeSet(KEYS.ADMIN_ACCOUNTS, [account, ...existing], "rrv:admin:accounts:updated");
+}
+
+export function findAdminAccount(email: string): RegisteredAdminAccount | undefined {
+  const normalized = email.trim().toLowerCase();
+  const saved = getSavedAdminAccounts().find((a) => a.email.toLowerCase() === normalized);
+  if (saved) return saved;
+
+  // Check if matches predefined admin
+  if (
+    normalized === PREDEFINED_ADMIN_CREDENTIALS.email.toLowerCase() ||
+    PREDEFINED_ADMIN_CREDENTIALS.alternateEmails.some((e) => e.toLowerCase() === normalized)
+  ) {
+    return {
+      id: "ADM-001",
+      name: "Admin",
+      role: "Super Admin",
+      avatarInitial: "A",
+      email: normalized,
+      phone: "+91 98765 43210",
+      location: "Kurnool, Andhra Pradesh, India",
+      storeName: "RRV Green Basket",
+      operatingHours: "06:00 AM – 10:00 PM",
+      orderCutoff: "10:00 PM",
+      status: "Active (Accepting Orders)",
+      permissions: [
+        "All Modules Access",
+        "Order Management",
+        "Inventory Control",
+        "Financial Reports",
+        "Partner Management",
+      ],
+      twoFactorEnabled: getSaved2FAEnabled(),
+      passwordHash: PREDEFINED_ADMIN_CREDENTIALS.password,
+    };
+  }
+  return undefined;
 }

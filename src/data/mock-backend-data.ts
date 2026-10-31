@@ -21,7 +21,7 @@ import { MOCK_PACKING_ORDERS_PAGE13 } from "./packing-data";
 export const MOCK_ADMIN_USER_DATA: AdminUser = {
   id: "ADM-001",
   name: "Admin",
-  role: "Administrator",
+  role: "Super Admin",
   avatarInitial: "A",
   email: "admin@rrvgreenbasket.com",
   phone: "+91 98765 43210",
@@ -37,6 +37,7 @@ export const MOCK_ADMIN_USER_DATA: AdminUser = {
     "Financial Reports",
     "Partner Management",
   ],
+  twoFactorEnabled: true,
 };
 
 export const MOCK_PRODUCTS_DATA: Product[] = MASTER_PRODUCTS_DATA;
