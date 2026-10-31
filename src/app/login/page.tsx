@@ -7,7 +7,6 @@ import { ShoppingBag, Box, BarChart3 } from "lucide-react";
 import {
   RRVAuthBrandLogo,
   LoginFormStep,
-  RegisterFormStep,
   TwoFactorStep,
   SuccessStep,
 } from "@/components/auth";
@@ -22,13 +21,14 @@ function LoginPageContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
   const [step, setStep] = useState<LoginStep>("credentials");
-  const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [twoFactorSession, setTwoFactorSession] = useState<{
     email: string;
     tempToken?: string;
     previewCode?: string;
+    totpSecret?: string;
+    totpQrCode?: string;
   }>({
-    email: "admin@rrvgreenbasket.in",
+    email: "admin@rrvgreenbasket.com",
   });
 
   // If user is already authenticated, redirect straight to dashboard/target
@@ -38,7 +38,13 @@ function LoginPageContent() {
     }
   }, [isAuthenticated, isLoading, redirectTarget, router]);
 
-  const handleRequires2FA = (data: { tempToken?: string; email: string; previewCode?: string }) => {
+  const handleRequires2FA = (data: {
+    tempToken?: string;
+    email: string;
+    previewCode?: string;
+    totpSecret?: string;
+    totpQrCode?: string;
+  }) => {
     setTwoFactorSession(data);
     setStep("two_factor");
   };
@@ -148,19 +154,10 @@ function LoginPageContent() {
           {/* Active Authentication Step */}
           <div className="my-auto py-2">
             {step === "credentials" && (
-              authMode === "signin" ? (
-                <LoginFormStep
-                  onSuccessWithout2FA={handleSuccess}
-                  onRequires2FA={handleRequires2FA}
-                  onSwitchToRegister={() => setAuthMode("register")}
-                />
-              ) : (
-                <RegisterFormStep
-                  onSuccessWithout2FA={handleSuccess}
-                  onRequires2FA={handleRequires2FA}
-                  onSwitchToLogin={() => setAuthMode("signin")}
-                />
-              )
+              <LoginFormStep
+                onSuccessWithout2FA={handleSuccess}
+                onRequires2FA={handleRequires2FA}
+              />
             )}
 
             {step === "two_factor" && (
@@ -168,6 +165,8 @@ function LoginPageContent() {
                 email={twoFactorSession.email}
                 tempToken={twoFactorSession.tempToken}
                 initialPreviewCode={twoFactorSession.previewCode}
+                initialTotpSecret={twoFactorSession.totpSecret}
+                initialTotpQrCode={twoFactorSession.totpQrCode}
                 onSuccess={handleSuccess}
                 onBackToLogin={() => setStep("credentials")}
               />

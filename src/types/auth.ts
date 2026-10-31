@@ -41,7 +41,16 @@ export interface LoginResult {
   targetEmail?: string;
   targetPhone?: string;
   previewCode?: string;
+  totpSecret?: string;
+  totpQrCode?: string;
   error?: string;
+}
+
+export interface TotpSetupInfo {
+  secret: string;
+  formattedSecret: string;
+  uri: string;
+  qrDataUrl: string;
 }
 
 export interface TwoFactorVerifyRequest {

@@ -30,6 +30,8 @@ interface AuthContextType {
     email: string,
     name?: string
   ) => Promise<{ success: boolean; message: string; previewCode?: string }>;
+  getTotpSetup: (email?: string) => Promise<import("@/types").TotpSetupInfo>;
+  getCurrentTotpCode: (secret?: string) => Promise<{ code: string; secondsRemaining: number }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -148,6 +150,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return authService.resendOtp(email, name);
   };
 
+  // TOTP setup and live code sync
+  const getTotpSetup = async (email?: string) => {
+    return authService.getTotpSetupInfo(email || user?.email || "admin@rrvgreenbasket.com");
+  };
+
+  const getCurrentTotpCode = async (secret?: string) => {
+    return authService.getCurrentTotpCode(secret);
+  };
+
   // Logout handler
   const logout = async () => {
     await authService.logout();
@@ -169,6 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         verify2FA,
         resendOtp,
+        getTotpSetup,
+        getCurrentTotpCode,
         logout,
         refreshUser,
       }}

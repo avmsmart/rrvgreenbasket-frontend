@@ -7,13 +7,24 @@ import {
   TwoFactorVerifyRequest,
   TwoFactorVerifyResult,
   ForgotPasswordResult,
+  TotpSetupInfo,
 } from "@/types";
 import {
   MOCK_ADMIN_USER_DATA,
   getSaved2FAEnabled,
   findAdminAccount,
   saveAdminAccount,
+  PREDEFINED_ADMIN_CREDENTIALS,
 } from "@/data";
+import {
+  PREDEFINED_ADMIN_TOTP_SECRET,
+  generateTotpCode,
+  verifyTotpCode,
+  getTotpUri,
+  generateTotpQrDataUrl,
+  getTotpSecondsRemaining,
+  formatSecretKey,
+} from "@/lib/totp-service";
 
 // Helper to generate a realistic JWT token string (Header.Payload.Signature)
 function generateMockJwt(userId: string, email: string): string {
@@ -35,21 +46,33 @@ function generateMockJwt(userId: string, email: string): string {
 export const authService = {
   /**
    * Authenticate admin user credentials (Step 1)
-   * If 2FA is active, triggers real email dispatch and transitions to Step 2.
+   * Predefined administrator account validation.
+   * If 2FA is active, prepares Google Authenticator challenge and transitions to Step 2.
    * If 2FA is disabled, directly issues JWT and completes login.
    */
   async login(credentials: LoginCredentials): Promise<LoginResult> {
     const is2FAGloballyActive = getSaved2FAEnabled();
-    const savedAccount = findAdminAccount(credentials.email);
+    const normalizedEmail = credentials.email.trim().toLowerCase();
+    const savedAccount = findAdminAccount(normalizedEmail);
 
-    // If a registered account exists, verify its password
+    // If an account or predefined credentials exist, check password
     if (savedAccount) {
       if (savedAccount.passwordHash && savedAccount.passwordHash !== credentials.password) {
         return {
           success: false,
           requires2FA: false,
           nextStep: "credentials",
-          error: "Incorrect password. Please enter the password you registered with.",
+          error: "Incorrect password. The predefined administrator password is Admin@123.",
+        };
+      }
+    } else {
+      // Check if credentials match predefined admin password anyway
+      if (credentials.password !== PREDEFINED_ADMIN_CREDENTIALS.password) {
+        return {
+          success: false,
+          requires2FA: false,
+          nextStep: "credentials",
+          error: "Invalid administrator credentials. Please check your email or password.",
         };
       }
     }
@@ -66,23 +89,11 @@ export const authService = {
     if (requires2FA) {
       const tempToken = `tmp_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-      let previewCode: string | undefined;
-
-      // Dispatch real email via Next.js API route
-      try {
-        const res = await fetch("/api/auth/send-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: credentials.email,
-            name: adminUser.name,
-          }),
-        });
-        const data = await res.json();
-        previewCode = data.previewCode;
-      } catch (e) {
-        console.warn("[AuthService] Could not reach /api/auth/send-otp:", e);
-      }
+      // Generate standard Google Authenticator TOTP URI, QR Code & current valid code
+      const totpSecret = PREDEFINED_ADMIN_TOTP_SECRET;
+      const totpUri = getTotpUri(credentials.email, totpSecret);
+      const totpQrCode = await generateTotpQrDataUrl(totpUri);
+      const previewCode = await generateTotpCode(totpSecret);
 
       return {
         success: true,
@@ -92,6 +103,8 @@ export const authService = {
         targetEmail: credentials.email,
         targetPhone: adminUser.phone,
         previewCode,
+        totpSecret,
+        totpQrCode,
       };
     }
 
@@ -184,7 +197,7 @@ export const authService = {
   },
 
   /**
-   * Verify 6-digit Authenticator / Email Code (Step 2)
+   * Verify 6-digit Google Authenticator TOTP Code (Step 2)
    */
   async verify2FA(request: TwoFactorVerifyRequest): Promise<TwoFactorVerifyResult> {
     const cleanCode = request.code.replace(/\s+/g, "").trim();
@@ -192,34 +205,42 @@ export const authService = {
     if (!/^\d{6}$/.test(cleanCode)) {
       return {
         success: false,
-        error: "Please enter a valid 6-digit verification code.",
+        error: "Please enter a valid 6-digit Google Authenticator code.",
       };
     }
 
     const savedAccount = findAdminAccount(request.email);
     const adminUser = savedAccount || MOCK_ADMIN_USER_DATA;
 
-    // First attempt to verify with the server-side API route
-    try {
-      const apiRes = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: request.email,
-          code: cleanCode,
-        }),
-      });
+    // Verify against standard RFC 6238 TOTP (Google Authenticator)
+    const isTotpValid = await verifyTotpCode(cleanCode, PREDEFINED_ADMIN_TOTP_SECRET);
 
-      const json = await apiRes.json();
-      if (!apiRes.ok || !json.success) {
-        // If server says code is invalid, report error
+    // If local TOTP validation fails, also try checking backend API if available
+    if (!isTotpValid) {
+      let backendAccepted = false;
+      try {
+        const apiRes = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: request.email,
+            code: cleanCode,
+          }),
+        });
+        const json = await apiRes.json();
+        if (apiRes.ok && json.success) {
+          backendAccepted = true;
+        }
+      } catch {
+        // Backend offline fallback
+      }
+
+      if (!backendAccepted) {
         return {
           success: false,
-          error: json.message || "Invalid or expired verification code. Please check your email.",
+          error: "Invalid 6-digit code. Please enter the current code shown in your Google Authenticator app.",
         };
       }
-    } catch {
-      // Fallback check if API is unreachable
     }
 
     const token = generateMockJwt(adminUser.id, request.email);
@@ -230,6 +251,33 @@ export const authService = {
       user: adminUser,
       token,
     };
+  },
+
+  /**
+   * Retrieves Google Authenticator setup information (Secret, QR Data URL, and URI)
+   */
+  async getTotpSetupInfo(email: string = "admin@rrvgreenbasket.com"): Promise<TotpSetupInfo> {
+    const secret = PREDEFINED_ADMIN_TOTP_SECRET;
+    const uri = getTotpUri(email, secret);
+    const qrDataUrl = await generateTotpQrDataUrl(uri);
+    return {
+      secret,
+      formattedSecret: formatSecretKey(secret),
+      uri,
+      qrDataUrl,
+    };
+  },
+
+  /**
+   * Get current live TOTP code and seconds remaining for testing/development
+   */
+  async getCurrentTotpCode(secret: string = PREDEFINED_ADMIN_TOTP_SECRET): Promise<{
+    code: string;
+    secondsRemaining: number;
+  }> {
+    const code = await generateTotpCode(secret);
+    const secondsRemaining = getTotpSecondsRemaining();
+    return { code, secondsRemaining };
   },
 
   /**

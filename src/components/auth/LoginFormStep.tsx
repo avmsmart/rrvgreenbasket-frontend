@@ -9,19 +9,23 @@ import { LoginCredentials } from "@/types";
 
 interface LoginFormStepProps {
   onSuccessWithout2FA: () => void;
-  onRequires2FA: (data: { tempToken?: string; email: string; previewCode?: string }) => void;
-  onSwitchToRegister: () => void;
+  onRequires2FA: (data: {
+    tempToken?: string;
+    email: string;
+    previewCode?: string;
+    totpSecret?: string;
+    totpQrCode?: string;
+  }) => void;
 }
 
 export const LoginFormStep: React.FC<LoginFormStepProps> = ({
   onSuccessWithout2FA,
   onRequires2FA,
-  onSwitchToRegister,
 }) => {
   const { login } = useAuth();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@rrvgreenbasket.com");
+  const [password, setPassword] = useState("Admin@123");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +62,8 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
           tempToken: result.tempToken,
           email: result.targetEmail || email.trim(),
           previewCode: result.previewCode,
+          totpSecret: result.totpSecret,
+          totpQrCode: result.totpQrCode,
         });
       } else {
         onSuccessWithout2FA();
@@ -207,17 +213,10 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
           </div>
         </div>
 
-        {/* Real Admin Registration Switch */}
+        {/* Administrator Portal Notice */}
         <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-600">
-            New administrator or store owner?{" "}
-            <button
-              type="button"
-              onClick={onSwitchToRegister}
-              className="font-bold text-[#16a34a] hover:text-[#15803d] hover:underline transition-colors"
-            >
-              Create Account
-            </button>
+          <p className="text-xs text-slate-500 font-medium">
+            Authorized Administrator Portal • 2FA Protected
           </p>
         </div>
       </div>

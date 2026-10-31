@@ -1,14 +1,30 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { ArrowRight, ShieldCheck, ArrowLeft, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  ArrowRight,
+  ShieldCheck,
+  ArrowLeft,
+  AlertCircle,
+  CheckCircle2,
+  QrCode,
+  Copy,
+  Check,
+  KeyRound,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { RRVAuthBrandLogo } from "./RRVAuthBrandLogo";
 import { useAuth } from "@/context/AuthContext";
+import { formatSecretKey } from "@/lib/totp-service";
 
 interface TwoFactorStepProps {
   email: string;
   tempToken?: string;
   initialPreviewCode?: string;
+  initialTotpSecret?: string;
+  initialTotpQrCode?: string;
   onSuccess: () => void;
   onBackToLogin: () => void;
 }
@@ -17,24 +33,28 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
   email,
   tempToken = "",
   initialPreviewCode,
+  initialTotpSecret = "JBSWY3DPEHPK3PXP",
+  initialTotpQrCode,
   onSuccess,
   onBackToLogin,
 }) => {
-  const { verify2FA, resendOtp } = useAuth();
+  const { verify2FA, getTotpSetup, getCurrentTotpCode } = useAuth();
 
   // 6 individual OTP digit boxes
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [previewCode, setPreviewCode] = useState<string | null>(initialPreviewCode || null);
-  const [successNotice, setSuccessNotice] = useState<string | null>(
-    `A verification code has been dispatched to ${email}. Please check your inbox & spam folder.`
-  );
 
-  // Resend countdown timer
-  const [countdown, setCountdown] = useState<number>(60);
-  const [isResending, setIsResending] = useState(false);
+  // Google Authenticator Setup & QR Code State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(initialTotpQrCode || null);
+  const [totpSecret, setTotpSecret] = useState<string>(initialTotpSecret);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Real-time TOTP synchronization
+  const [currentCode, setCurrentCode] = useState<string | null>(initialPreviewCode || null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -43,19 +63,69 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
     inputRefs.current[0]?.focus();
   }, []);
 
-  // Countdown timer effect
+  // Fetch QR code & initial TOTP data if not already provided
   useEffect(() => {
-    if (countdown <= 0) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const setup = await getTotpSetup(email);
+        if (isMounted) {
+          setQrDataUrl(setup.qrDataUrl);
+          setTotpSecret(setup.secret);
+        }
+        const live = await getCurrentTotpCode(setup.secret);
+        if (isMounted) {
+          setCurrentCode(live.code);
+          setSecondsRemaining(live.secondsRemaining);
+        }
+      } catch (err) {
+        console.warn("Could not load TOTP setup:", err);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [email, getTotpSetup, getCurrentTotpCode]);
+
+  // Live 30-second TOTP countdown timer
+  const syncLiveCode = useCallback(async () => {
+    try {
+      const live = await getCurrentTotpCode(totpSecret);
+      setCurrentCode(live.code);
+      setSecondsRemaining(live.secondsRemaining);
+    } catch {
+      // Sync fallback
+    }
+  }, [getCurrentTotpCode, totpSecret]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => prev - 1);
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          syncLiveCode();
+          return 30;
+        }
+        return prev - 1;
+      });
     }, 1000);
+
     return () => clearInterval(timer);
-  }, [countdown]);
+  }, [syncLiveCode]);
+
+  // Copy secret key helper
+  const handleCopySecret = async () => {
+    try {
+      await navigator.clipboard.writeText(totpSecret.replace(/\s+/g, ""));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+    } catch {
+      // Clipboard fallback
+    }
+  };
 
   const handleDigitChange = (index: number, val: string) => {
-    const char = val.slice(-1); // Take only latest entered character
-
-    if (!/^\d*$/.test(char)) return; // Allow digits only
+    const char = val.slice(-1);
+    if (!/^\d*$/.test(char)) return;
 
     const newDigits = [...digits];
     newDigits[index] = char;
@@ -101,7 +171,7 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
     const fullCode = digits.join("");
 
     if (fullCode.length !== 6) {
-      setErrorMessage("Please enter all 6 digits of the verification code.");
+      setErrorMessage("Please enter all 6 digits from Google Authenticator.");
       return;
     }
 
@@ -113,36 +183,15 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
       if (result.success) {
         onSuccess();
       } else {
-        setErrorMessage(result.error || "Invalid verification code. Please check your email.");
+        setErrorMessage(
+          result.error ||
+            "Invalid Google Authenticator code. Please check your authenticator app and try again."
+        );
         setIsVerifying(false);
       }
     } catch {
-      setErrorMessage("Verification request failed. Please check your network.");
+      setErrorMessage("Verification request failed. Please check your network connection.");
       setIsVerifying(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (countdown > 0 || isResending) return;
-
-    setIsResending(true);
-    setErrorMessage(null);
-
-    try {
-      const res = await resendOtp(email);
-      if (res.success) {
-        setSuccessNotice(`Fresh verification code sent to ${email}. Check your inbox.`);
-        if (res.previewCode) {
-          setPreviewCode(res.previewCode);
-        }
-        setCountdown(60);
-      } else {
-        setErrorMessage(res.message);
-      }
-    } catch {
-      setErrorMessage("Failed to resend verification code. Please try again.");
-    } finally {
-      setIsResending(false);
     }
   };
 
@@ -155,29 +204,27 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
         <RRVAuthBrandLogo centered size="md" />
       </div>
 
-      {/* Title & Subtitle matching reference */}
+      {/* Title & Subtitle */}
       <div className="text-center mb-4">
         <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
           Two-Step Verification
         </h2>
         <p className="text-xs text-slate-500 font-medium mt-1">
-          Enter the 6-digit code sent to{" "}
-          <span className="font-bold text-slate-800 break-all">{email}</span>
+          Enter the 6-digit code from your{" "}
+          <span className="font-bold text-slate-800">Google Authenticator</span> app
         </p>
       </div>
 
-      {/* Phone with Shield Check Illustration (Exact match to reference) */}
+      {/* Shield & Authenticator Illustration */}
       <div className="flex justify-center my-3">
         <div className="relative w-20 h-20 flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-emerald-50/80 animate-pulse" />
 
-          {/* Phone body */}
+          {/* Smartphone device icon */}
           <div className="relative w-12 h-18 bg-slate-900 rounded-[14px] p-1 shadow-md border-2 border-slate-700 flex flex-col items-center">
             <div className="w-3.5 h-1 bg-slate-600 rounded-full mb-1" />
             <div className="w-full flex-1 bg-white rounded-[8px] flex items-center justify-center relative overflow-hidden">
-              <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#16a34a] font-black text-xs">
-                ✉️
-              </div>
+              <KeyRound className="w-4 h-4 text-[#16a34a]" />
             </div>
             <div className="w-4 h-0.5 bg-slate-600 rounded-full mt-0.5" />
           </div>
@@ -189,25 +236,108 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
         </div>
       </div>
 
-      {/* Success notification banner */}
-      {successNotice && !errorMessage && (
-        <div className="mb-4 p-3 rounded-2xl bg-[#f0fdf4] border border-[#dcfce7] text-[#15803d] text-xs flex items-center gap-2 animate-in fade-in duration-150">
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#16a34a]" />
-          <span className="leading-tight">{successNotice}</span>
-        </div>
-      )}
+      {/* QR Code Pairing Accordion Button */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowQrModal(!showQrModal)}
+          className="w-full px-3 py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 font-semibold flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <QrCode className="w-4 h-4 text-[#16a34a]" />
+            <span>Pair Google Authenticator (Scan QR Code)</span>
+          </div>
+          {showQrModal ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
 
-      {/* Code Helper Card */}
-      {previewCode && (
+        {/* Expandable Setup Drawer */}
+        {showQrModal && (
+          <div className="mt-2.5 p-4 rounded-2xl bg-white border border-emerald-200 shadow-sm animate-in fade-in duration-200">
+            <div className="text-center mb-3">
+              <h4 className="text-xs font-bold text-slate-900">
+                Scan with Google Authenticator
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Open Google Authenticator on your phone, tap <strong>+</strong>, and scan this QR code.
+              </p>
+            </div>
+
+            {/* QR Code Image */}
+            {qrDataUrl ? (
+              <div className="flex justify-center mb-3">
+                <div className="p-2 bg-white rounded-2xl border border-slate-200 shadow-xs inline-block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={qrDataUrl}
+                    alt="Google Authenticator QR Code"
+                    className="w-44 h-44 object-contain rounded-xl"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="w-44 h-44 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center mb-3 text-slate-400">
+                <QrCode className="w-8 h-8 animate-pulse" />
+              </div>
+            )}
+
+            {/* Manual Secret Key */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">
+                  Can&apos;t scan? Enter setup key manually:
+                </span>
+                <span className="font-mono text-xs font-bold text-slate-800 tracking-wider">
+                  {formatSecretKey(totpSecret)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopySecret}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-[11px] font-bold text-slate-700 transition-colors"
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-3 h-3 text-[#16a34a]" />
+                    <span className="text-[#16a34a]">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3 text-slate-500" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Live Synchronized Code Helper (Desktop Developer Testing) */}
+      {currentCode && (
         <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200/90 flex items-center justify-between text-xs animate-in fade-in duration-200 select-none">
-          <div>
-            <span className="text-slate-500 text-[11px] block font-medium">Your 6-Digit Verification Code:</span>
-            <span className="font-mono text-base font-black text-emerald-900 tracking-widest">{previewCode}</span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-[#16a34a] animate-pulse" />
+            <div>
+              <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                <span>Current Authenticator Code:</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 font-semibold">
+                  <Clock className="w-3 h-3" />
+                  {secondsRemaining}s
+                </span>
+              </div>
+              <span className="font-mono text-base font-black text-emerald-900 tracking-widest">
+                {currentCode}
+              </span>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => {
-              setDigits(previewCode.split(""));
+              setDigits(currentCode.split(""));
               setErrorMessage(null);
               inputRefs.current[5]?.focus();
             }}
@@ -228,7 +358,10 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
 
       {/* 6 Digit Inputs */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-center gap-2 sm:gap-2.5 on-paste" onPaste={handlePaste}>
+        <div
+          className="flex items-center justify-center gap-2 sm:gap-2.5 on-paste"
+          onPaste={handlePaste}
+        >
           {digits.map((digit, index) => (
             <input
               key={index}
@@ -261,7 +394,7 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
             <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
-              <span>Verify Code</span>
+              <span>Verify & Sign In</span>
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </>
           )}
@@ -276,43 +409,35 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
             onChange={(e) => setRememberDevice(e.target.checked)}
             className="w-4 h-4 rounded text-[#16a34a] focus:ring-emerald-500/30 border-slate-300 accent-[#16a34a]"
           />
-          <label htmlFor="rememberDevice" className="cursor-pointer font-medium hover:text-slate-900">
+          <label
+            htmlFor="rememberDevice"
+            className="cursor-pointer font-medium hover:text-slate-900"
+          >
             Remember this device for 30 days
           </label>
         </div>
       </form>
 
-      {/* Info Card matching reference */}
+      {/* Info Card matching Google Authenticator */}
       <div className="mt-5 p-3.5 rounded-2xl bg-[#f0fdf4] border border-[#dcfce7] flex items-start gap-3 select-none">
         <div className="w-5 h-5 rounded-full bg-[#dcfce7] text-[#16a34a] flex items-center justify-center flex-shrink-0 mt-0.5">
           <ShieldCheck className="w-3.5 h-3.5" />
         </div>
         <div className="text-[11px] leading-relaxed text-slate-600">
-          <span className="font-bold text-slate-800">Check your Email</span>. A 6-digit verification code has been dispatched. If not in your inbox, kindly check your spam/junk folder.
+          <span className="font-bold text-slate-800">Time-based One-Time Password (TOTP)</span>.
+          Codes rotate automatically every 30 seconds for maximum administrator security.
         </div>
       </div>
 
-      {/* Action links row */}
-      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+      {/* Back to Login action */}
+      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-center text-xs">
         <button
           type="button"
           onClick={onBackToLogin}
           className="inline-flex items-center gap-1.5 font-bold text-[#16a34a] hover:text-[#15803d] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Use a different account</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={countdown > 0 || isResending}
-          onClick={handleResend}
-          className="inline-flex items-center gap-1.5 font-bold text-slate-600 hover:text-emerald-700 disabled:opacity-50 transition-colors"
-        >
-          <RefreshCw className={`w-3 h-3 ${isResending ? "animate-spin" : ""}`} />
-          <span>
-            {countdown > 0 ? `Resend code (${countdown}s)` : "Resend code"}
-          </span>
+          <span>Back to Administrator Login</span>
         </button>
       </div>
     </div>
