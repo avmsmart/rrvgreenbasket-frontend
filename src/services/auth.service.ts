@@ -66,9 +66,11 @@ export const authService = {
     if (requires2FA) {
       const tempToken = `tmp_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+      let previewCode: string | undefined;
+
       // Dispatch real email via Next.js API route
       try {
-        await fetch("/api/auth/send-otp", {
+        const res = await fetch("/api/auth/send-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -76,6 +78,8 @@ export const authService = {
             name: adminUser.name,
           }),
         });
+        const data = await res.json();
+        previewCode = data.previewCode;
       } catch (e) {
         console.warn("[AuthService] Could not reach /api/auth/send-otp:", e);
       }
@@ -87,6 +91,7 @@ export const authService = {
         tempToken,
         targetEmail: credentials.email,
         targetPhone: adminUser.phone,
+        previewCode,
       };
     }
 
@@ -140,10 +145,11 @@ export const authService = {
 
     if (newAccount.twoFactorEnabled) {
       const tempToken = `tmp_reg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      let previewCode: string | undefined;
 
       // Dispatch real email OTP to the newly registered email
       try {
-        await fetch("/api/auth/send-otp", {
+        const res = await fetch("/api/auth/send-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -151,6 +157,8 @@ export const authService = {
             name: data.name,
           }),
         });
+        const json = await res.json();
+        previewCode = json.previewCode;
       } catch (e) {
         console.warn("[AuthService] Error calling /api/auth/send-otp on registration:", e);
       }
@@ -160,6 +168,7 @@ export const authService = {
         user: newAccount,
         requires2FA: true,
         tempToken,
+        previewCode,
       };
     }
 
@@ -226,7 +235,7 @@ export const authService = {
   /**
    * Resend a fresh OTP code to user's email
    */
-  async resendOtp(email: string, name?: string): Promise<{ success: boolean; message: string }> {
+  async resendOtp(email: string, name?: string): Promise<{ success: boolean; message: string; previewCode?: string }> {
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
@@ -240,6 +249,7 @@ export const authService = {
       return {
         success: data.success,
         message: data.message || `A new code has been sent to ${email}`,
+        previewCode: data.previewCode,
       };
     } catch {
       return {

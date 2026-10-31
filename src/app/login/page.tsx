@@ -26,6 +26,7 @@ function LoginPageContent() {
   const [twoFactorSession, setTwoFactorSession] = useState<{
     email: string;
     tempToken?: string;
+    previewCode?: string;
   }>({
     email: "admin@rrvgreenbasket.in",
   });
@@ -37,7 +38,7 @@ function LoginPageContent() {
     }
   }, [isAuthenticated, isLoading, redirectTarget, router]);
 
-  const handleRequires2FA = (data: { tempToken?: string; email: string }) => {
+  const handleRequires2FA = (data: { tempToken?: string; email: string; previewCode?: string }) => {
     setTwoFactorSession(data);
     setStep("two_factor");
   };
@@ -166,6 +167,7 @@ function LoginPageContent() {
               <TwoFactorStep
                 email={twoFactorSession.email}
                 tempToken={twoFactorSession.tempToken}
+                initialPreviewCode={twoFactorSession.previewCode}
                 onSuccess={handleSuccess}
                 onBackToLogin={() => setStep("credentials")}
               />

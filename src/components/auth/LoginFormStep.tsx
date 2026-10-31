@@ -9,7 +9,7 @@ import { LoginCredentials } from "@/types";
 
 interface LoginFormStepProps {
   onSuccessWithout2FA: () => void;
-  onRequires2FA: (data: { tempToken?: string; email: string }) => void;
+  onRequires2FA: (data: { tempToken?: string; email: string; previewCode?: string }) => void;
   onSwitchToRegister: () => void;
 }
 
@@ -57,6 +57,7 @@ export const LoginFormStep: React.FC<LoginFormStepProps> = ({
         onRequires2FA({
           tempToken: result.tempToken,
           email: result.targetEmail || email.trim(),
+          previewCode: result.previewCode,
         });
       } else {
         onSuccessWithout2FA();

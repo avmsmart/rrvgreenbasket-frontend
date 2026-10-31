@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 interface TwoFactorStepProps {
   email: string;
   tempToken?: string;
+  initialPreviewCode?: string;
   onSuccess: () => void;
   onBackToLogin: () => void;
 }
@@ -15,6 +16,7 @@ interface TwoFactorStepProps {
 export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
   email,
   tempToken = "",
+  initialPreviewCode,
   onSuccess,
   onBackToLogin,
 }) => {
@@ -25,6 +27,7 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewCode, setPreviewCode] = useState<string | null>(initialPreviewCode || null);
   const [successNotice, setSuccessNotice] = useState<string | null>(
     `A verification code has been dispatched to ${email}. Please check your inbox & spam folder.`
   );
@@ -129,6 +132,9 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
       const res = await resendOtp(email);
       if (res.success) {
         setSuccessNotice(`Fresh verification code sent to ${email}. Check your inbox.`);
+        if (res.previewCode) {
+          setPreviewCode(res.previewCode);
+        }
         setCountdown(60);
       } else {
         setErrorMessage(res.message);
@@ -188,6 +194,27 @@ export const TwoFactorStep: React.FC<TwoFactorStepProps> = ({
         <div className="mb-4 p-3 rounded-2xl bg-[#f0fdf4] border border-[#dcfce7] text-[#15803d] text-xs flex items-center gap-2 animate-in fade-in duration-150">
           <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#16a34a]" />
           <span className="leading-tight">{successNotice}</span>
+        </div>
+      )}
+
+      {/* Code Helper Card */}
+      {previewCode && (
+        <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200/90 flex items-center justify-between text-xs animate-in fade-in duration-200 select-none">
+          <div>
+            <span className="text-slate-500 text-[11px] block font-medium">Your 6-Digit Verification Code:</span>
+            <span className="font-mono text-base font-black text-emerald-900 tracking-widest">{previewCode}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDigits(previewCode.split(""));
+              setErrorMessage(null);
+              inputRefs.current[5]?.focus();
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-[#16a34a] hover:bg-[#15803d] text-white text-[11px] font-bold shadow-xs transition-colors"
+          >
+            Auto-Enter Code
+          </button>
         </div>
       )}
 

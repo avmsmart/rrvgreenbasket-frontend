@@ -26,7 +26,10 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
   register: (data: import("@/types").RegisterAdminData) => Promise<import("@/types").RegisterResult>;
   verify2FA: (code: string, tempToken: string, email: string) => Promise<TwoFactorVerifyResult>;
-  resendOtp: (email: string, name?: string) => Promise<{ success: boolean; message: string }>;
+  resendOtp: (
+    email: string,
+    name?: string
+  ) => Promise<{ success: boolean; message: string; previewCode?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }

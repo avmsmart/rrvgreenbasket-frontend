@@ -40,6 +40,7 @@ export interface LoginResult {
   tempToken?: string;
   targetEmail?: string;
   targetPhone?: string;
+  previewCode?: string;
   error?: string;
 }
 
@@ -81,6 +82,7 @@ export interface RegisterResult {
   user?: AdminUser;
   requires2FA: boolean;
   tempToken?: string;
+  previewCode?: string;
   error?: string;
 }
 

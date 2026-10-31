@@ -8,7 +8,7 @@ import { RegisterAdminData } from "@/types";
 
 interface RegisterFormStepProps {
   onSuccessWithout2FA: () => void;
-  onRequires2FA: (data: { tempToken?: string; email: string }) => void;
+  onRequires2FA: (data: { tempToken?: string; email: string; previewCode?: string }) => void;
   onSwitchToLogin: () => void;
 }
 
@@ -80,6 +80,7 @@ export const RegisterFormStep: React.FC<RegisterFormStepProps> = ({
         onRequires2FA({
           tempToken: result.tempToken,
           email: email.trim(),
+          previewCode: result.previewCode,
         });
       } else {
         onSuccessWithout2FA();
