@@ -20,16 +20,21 @@ npm run dev
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 - **Admin Landing Page**: `http://localhost:3000/`
+- **Admin Login & 2FA**: `http://localhost:3000/login`
 - **Admin Dashboard**: `http://localhost:3000/admin/dashboard`
 - **Products Catalog**: `http://localhost:3000/admin/products`
 - **Inventory Management**: `http://localhost:3000/admin/inventory`
 - **Orders Management**: `http://localhost:3000/admin/orders`
 - **Delivery & Live Map**: `http://localhost:3000/admin/delivery`
+- **Delivery Partners**: `http://localhost:3000/admin/delivery-partners`
 - **Procurement & Purchase Orders**: `http://localhost:3000/admin/procurement`
 - **Packing Station**: `http://localhost:3000/admin/packing`
 - **Payments & Ledger**: `http://localhost:3000/admin/payments`
 - **Customer Directory**: `http://localhost:3000/admin/customers`
-- **Delivery Partners**: `http://localhost:3000/admin/delivery-partners`
+- **Coupons & Discount Offers**: `http://localhost:3000/admin/coupons`
+- **Category Sectors**: `http://localhost:3000/admin/sectors`
+- **Reports & Analytics**: `http://localhost:3000/admin/reports`
+- **Store Settings**: `http://localhost:3000/admin/settings`
 
 ### 3. Production Build & Linting Verification
 ```bash
@@ -63,22 +68,17 @@ Fully implemented to match the **01. Admin Dashboard** design reference screensh
    - **Inventory Items**: `78` (`● 5 low stock items` warning badge)
    - **Today's Revenue**: `₹ 24,560` (`↑ 18% from yesterday` in green)
 3. **Interactive Charts & Actions Row**:
-   - **Order Overview**: 7-day grouped bar chart (19 Aug - 25 Aug) showing *Delivered* (#00875a), *Processing* (#4ade80), and *Cancelled* (#fb923c) orders with hover tooltips and time range selector (`Last 7 Days`, `Last 14 Days`, `This Month`).
+   - **Order Overview**: 7-day grouped bar chart showing *Delivered* (#00875a), *Processing* (#4ade80), and *Cancelled* (#fb923c) orders with hover tooltips and time range selector (`Last 7 Days`, `Last 14 Days`, `This Month`).
    - **Order Status**: SVG Donut chart with `"128 Orders"` center badge, period filter (`Today`, `Yesterday`, `This Week`), and interactive legend highlighting (*Delivered: 84 / 66%*, *Processing: 28 / 22%*, *Cancelled: 10 / 8%*, *Pending: 6 / 4%*).
-   - **Quick Actions Panel**:
-     - `+ Add New Product` (triggers interactive Add Product modal)
-     - `Manage Inventory` (routes to `/admin/inventory`)
-     - `View Today's Orders` (routes to `/admin/orders`)
-     - `Create Offer / Coupon` (routes to `/admin/coupons`)
-     - `Assign Delivery Partner` (routes to `/admin/delivery-partners`)
+   - **Quick Actions Panel**: One-click actions to Add Product, Manage Inventory, View Orders, Create Offer, or Assign Partner.
 4. **Middle Operations Cards**:
-   - **Top Selling Products**: Ranked list of 5 high-volume produce items (Tomato 1kg, Onion 1kg, Potato 1kg, Carrot 1kg, Spinach 1 bunch) with produce photography, order counts, and `"View All"` link to products.
-   - **Recent Orders Table**: Compact live orders feed (#ORD001234, #ORD001233, #ORD001232, #ORD001231, #ORD001230) with status pills, customer names, and amounts. Clicking any row opens an itemized **Order Details Drawer**.
-   - **Low Stock Items**: Critical produce alerts (Coriander, Mint Leaves, Green Chilli, Lemon, Ginger) with remaining stock badges and one-click quick restock action modal.
+   - **Top Selling Products**: Ranked list of 5 high-volume produce items with produce photography, order counts, and `"View All"` link.
+   - **Recent Orders Table**: Compact live orders feed with status pills, customer names, and amounts. Clicking any row opens an itemized **Order Details Drawer**.
+   - **Low Stock Items**: Critical produce alerts with remaining stock badges and one-click quick restock action modal.
 5. **Bottom Operations Row**:
-   - **Today's Order Timeline**: 4-stage stepper with connecting progress bar (*Pending: 6* → *Processing: 28* → *Out for Delivery: 52* → *Delivered: 84*).
+   - **Today's Order Timeline**: 4-stage stepper (*Pending* → *Processing* → *Out for Delivery* → *Delivered*).
    - **Upcoming Order Cut-off**: 10:00 PM cut-off time, `"● Open for orders"` badge, and live countdown timer (`12h 30m remaining`).
-   - **Procurement Reminder**: Alert callout for `"35 items need to be procured for tomorrow's stock"` with direct link to purchase orders.
+   - **Procurement Reminder**: Alert callout for tomorrow's mandi procurement stock with direct link to purchase orders.
 
 ---
 
@@ -92,9 +92,10 @@ Loaded with the complete **76+ items** provided by the user:
   - Filter by category tab (`All`, `Section A: English Vegetables`, `Section B: Indian Vegetables`).
   - Search across Product Name, ERP Product Name, ERP Code, and HSN Code (`7101000`).
   - Filter by UOM (`Kg`, `Nos`, `Pkt`, `1 bunch`) and Stock status.
-  - Table View vs Grid Cards View switcher.
+  - Table View vs Grid Cards View switcher with green selection indicator.
+  - Clicking any table row or grid card opens the **Product Details Drawer** (pricing history, stock levels, SRM revised quotes).
   - Interactive **Add Product Modal** and **Edit Rates & Stock Modal** (adjust Quot Rate and SRM Revised Rate).
-  - Export to **CSV** (`RRV_Green_Basket_Master_Product_Catalog.csv`) and **PDF**.
+  - Export to **CSV** and **PDF**.
 
 ---
 
@@ -102,6 +103,7 @@ Loaded with the complete **76+ items** provided by the user:
 - Track current stock across all 76+ products with live warehouse valuation.
 - Quick `+5` and `-5` inline quantity adjustments with automatic status updating (`In Stock`, `Low Stock`, `Out of Stock`).
 - Threshold alerts when stock drops below `minStock`.
+- Clicking any row opens the **Inventory Details Drawer** with reorder recommendations and valuation.
 - **Inward Stock Batch Modal**:
   - **Single Product Inward**: Searchable catalog selector to pick any of the 76+ vegetables (grouped with ERP codes and live stock projections), quantity received, and mandi supplier source.
   - **Multi-Produce Mandi Consignment**: Add multiple line items in a single truck/mandi arrival (e.g., Tomato 50kg, Onion 40kg, Potato 60kg) with common dispatch source, challan reference, and one-click bulk stock update.
@@ -109,35 +111,135 @@ Loaded with the complete **76+ items** provided by the user:
 
 ---
 
-### 4. Official Tax Invoice PDF & Document Generation
+### 4. Orders Management (`/admin/orders`)
+- **Complete Order Lifecycle**: Manage orders across tabs: *All Orders*, *Pending*, *Processing*, *Out for Delivery*, *Delivered*, and *Cancelled*.
+- **Interactive Row Selection**: Rows feature an emerald-green active indicator (`border-l-4 border-[#00875a]`).
+- **Order Details Drawer**: Slide-out drawer with customer delivery address, items breakdown, payment status, and order timeline.
+- **Create Manual Order Modal**: Telephone and wholesale order creation with dynamic customer address, produce items lookup, and delivery slot picker.
+- **Official GST Tax Invoice**: One-click printable and downloadable A4 GST Tax Invoices via `jspdf-autotable`.
+- **Bulk Export**: Export selected or filtered orders to CSV and PDF.
+
+---
+
+### 5. Delivery & Live Route Map (`/admin/delivery`)
+- **Interactive Live Map**: Leaflet-based live map showing active driver locations, delivery destinations, and drop-off points.
+- **Table Row Highlight**: Clicking any delivery row highlights the route on the map and opens the **Delivery Details Drawer** with customer phone, delivery time window, and driver details.
+- **Assign Delivery Partner Modal**: One-click assignment of unassigned orders to nearby active riders with instant re-clustering.
+- **Delivery Exceptions & Issues**: Dedicated modal to resolve failed or delayed delivery attempts with rescheduling workflows.
+
+---
+
+### 6. Delivery Partners Management (`/admin/delivery-partners`)
+- **Partner Fleet Directory**: Track active riders, vehicles (Bike, Scooter, Van), assigned zones, and operational status (*Active*, *On Delivery*, *Idle*, *Inactive*).
+- **Partner Details Drawer**: Slide-out drawer showing complete KYC documentation:
+  - Driving License & RC registration numbers with verification status badges.
+  - Aadhaar card and verified Bank account information.
+  - Performance rating stars, on-time delivery percentage, and cash collected.
+- **Add / Edit Partner Modal**: Multi-tab form for personal info, vehicle specs, emergency contacts, and document upload.
+- **Status Toggle**: Instant Activate/Deactivate toggle for fleet availability.
+
+---
+
+### 7. Procurement & Mandi Purchase Orders (`/admin/procurement`)
+- **Automated Morning Demand Aggregation**: System analyzes orders received before 10:00 PM cut-off and calculates exact procurement targets per vegetable.
+- **Procurement Details Drawer**: Displays mandi source breakdown, quoted mandi rate vs target budget, and variance calculation.
+- **Purchase Order (PO) Creation**: Generate official Mandi Purchase Orders grouped by vendor (e.g. *Kurnool Wholesale Mandi*, *Anantapur Farmers Market*).
+- **Consignment Receipt**: Convert purchase orders directly into warehouse inventory inward batches.
+
+---
+
+### 8. Packing Station (`/admin/packing`)
+- **Basket Packing Checklist**: Dedicated warehouse workstation interface for packers to assemble produce crates.
+- **Packing Details Drawer**: Slide-over drawer with visual vegetable checklist, required weights/quantities, and quality inspection badges.
+- **Packing Status Workflow**: Move orders from *To Pack* → *Packing in Progress* → *Packed & Sealed* with assigned crate numbers.
+
+---
+
+### 9. Payments & Financial Ledger (`/admin/payments`)
+- **Omnichannel Transaction Ledger**: Real-time payment feed across UPI, Cash on Delivery (COD), Net Banking, and Debit/Credit Cards.
+- **Green Indicator & Row Click**: Clicking any payment row opens the **Transaction Details Drawer** with payment gateway transaction ID, reference hash, timestamp, and customer details.
+- **Quick Copy**: One-click clipboard copy for gateway transaction IDs.
+- **Refund Processing**: Direct refund modal supporting full or partial refunds with audited cancellation reasons.
+- **Daily Collections Summary**: Analytics on payment method share (UPI vs COD), revenue trend charts, and ledger export.
+
+---
+
+### 10. Customer Directory (`/admin/customers`)
+- **Customer Profiles**: Searchable customer phone directory with total orders placed, lifetime value (LTV), and favorite categories.
+- **Customer Details Drawer**: Slide-out drawer showing customer address book, order history feed, and repeat purchase patterns.
+- **Customer Status & Tiering**: High-value customer badges and blocked/active status management.
+
+---
+
+### 11. Coupons & Discount Offers (`/admin/coupons`)
+- **Digital Voucher Creator**: Create percentage discount (`% OFF`) or flat amount discount (`₹ OFF`) vouchers with minimum order criteria.
+- **Coupon Details Drawer**: Live visual digital coupon voucher card with copyable code, redemptions usage progress bar, total money saved, and validity window.
+- **One-Click Status Toggle**: Enable or pause promotions instantly.
+
+---
+
+### 12. Category Sectors Management (`/admin/sectors`)
+- **Sector Hierarchy**: Organize store catalog into structured sectors (English Vegetables, Indian Vegetables, Organic Produce, Dairy, etc.).
+- **Sector Details Drawer**: View total products linked, customer orders generated, total revenue, and display priority rank.
+- **Featured Sector Toggle**: Promote priority sectors directly to the customer-facing storefront homepage.
+
+---
+
+### 13. Reports & Analytics (`/admin/reports`)
+- **Sales & Revenue Visualizations**: 7-day, 14-day, and monthly revenue performance with comparative period growth percentages.
+- **Category Revenue Share**: Interactive SVG donut chart illustrating vegetable category sales contribution.
+- **Volume Leaders**: Top-selling produce leaderboard ranking items by quantity sold (Kg/Dozen) and revenue generated.
+- **Export Capabilities**: Direct CSV analytics data export and print-friendly PDF reporting.
+
+---
+
+### 14. Store Settings & Regional Configuration (`/admin/settings`)
+- **Dynamic Store Logo**: Uploading a new store logo immediately updates the application sidebar, header, and invoice headers across all pages via reactive store synchronization.
+- **Editable Business Hours**: Complete Monday through Sunday operational hours management with inline **Edit** and **Delete** actions.
+- **Currency & Regional Settings**:
+  - Configurable store currency (`INR (₹)`, `USD ($)`, `EUR (€)`, `AED`), date format, and timezone.
+  - Centralized currency formatter (`formatCurrency`) that instantly updates prices across Products, Inventory, Orders, and Payments.
+- **Delivery & Cut-Off Controls**: Configurable 10:00 PM order cut-off time, free delivery threshold, and low-stock alert limits.
+
+---
+
+### 15. Authentication & Two-Factor (2FA) Security (`/login`)
+- **Admin JWT Session**: Secure authentication with session storage and token revocation upon Sign Out.
+- **Google Authenticator (TOTP RFC 6238)**: Built-in 2FA support with interactive QR code pairing and live 6-digit authenticator verification.
+- **Email OTP Fallback**: Integration with Nodemailer for email-delivered one-time passwords.
+- **Route Guard Protection**: Automatic redirection for unauthenticated visitors trying to access `/admin/*` routes.
+
+---
+
+### 16. Official Tax Invoice PDF & Document Generation
 - **Tax Invoice (`generateInvoicePdf`)**: Generates official, GST-compliant A4 Tax Invoices using `jspdf` and `jspdf-autotable`:
   - Emerald RRV Green Basket header banner, company address, and GSTIN (`37AAECR1234F1Z5`).
   - Customer billing block (name, phone, address) and invoice metadata.
   - Itemized table with HSN codes (`7101000`), units, rate, quantity, and total.
   - Financial breakdown: Subtotal, Delivery, Discounts, and Grand Total banner.
   - Authorized signatory box and disclaimer.
-  - Available across all order drawers (`/admin/orders` and `/admin/dashboard`) with both direct **Print** and **Download PDF** actions.
+  - Available across all order drawers (`/admin/orders` and `/admin/dashboard`) with direct **Print** and **Download PDF** actions.
 - **Master Product Catalog PDF (`exportToPdf`)**: Exports full 76+ vegetable catalog to a landscape A4 vector document with emerald headers, alternating rows, page counts, and summary metrics.
 
 ---
 
-### 5. Mobile Responsiveness & View Optimizations
-- **Today's Order Timeline**: Responsive dual-mode layout that renders spacious step circles on desktop and a clean 2x2 summary grid on mobile (`sm:hidden`), eliminating horizontal text overlaps across all phone screen widths.
-- **Order Status Donut & Legend**: Optimized SVG Donut scaling (`w-28 sm:w-36`) with `whitespace-nowrap flex-shrink-0` metric badges, preventing awkward label and percentage wrapping on mobile devices.
-- **Order Overview Bar Chart**: Mobile-friendly scrollable container ensuring chart readability on small viewports.
+### 17. Consistent Row-Click & Details Drawers (Across All Modules)
+Every data table across the admin portal provides a unified, modern experience:
+- **Emerald Left Border Indicator**: Rows display `border-l-4 border-[#00875a]` and `bg-[#eefcf2]` on hover and active selection.
+- **Click-to-Inspect**: Clicking any table row opens a tailored slide-out Details Drawer (Orders, Products, Inventory, Delivery, Delivery Partners, Customers, Procurement, Packing, Payments, Coupons, Sectors).
+- **Event Propagation Protection**: All interactive buttons (Checkboxes, Toggles, Edit/Delete, Actions) contain `e.stopPropagation()` so action clicks never trigger unwanted drawer opening.
 
 ---
 
-### 6. Error Clearing & Bug Fixes Trace
+### 18. Error Clearing & Bug Fixes Trace
 
 | Issue | Root Cause | Resolution Applied |
 | :--- | :--- | :--- |
-| **Next.js 16 Prerender Build Failure** | Experimental `cacheComponents: true` and `partialPrefetching: true` in `next.config.ts` threw `Next.js encountered unstable value new Date() in a Client Component` during static page prerendering. | Cleaned `next.config.ts` by removing experimental cache component flags while keeping Turbopack CSS rules. Build passes 100% (19/19 routes static). |
+| **Next.js 16 Prerender Build Failure** | Experimental `cacheComponents: true` in `next.config.ts` threw `Next.js encountered unstable value new Date()` in Client Components during static prerendering. | Cleaned `next.config.ts` by removing experimental cache component flags. Build passes 100% (23/23 routes static). |
 | **ESLint Immutability Violation** | `ProcurementAnalyticsWidgets.tsx` mutated `accumulatedPercent` across JSX `.map()` calls during render. | Refactored SVG stroke-dashoffset calculation to use pure immutable `.reduce()` slice calculations. |
-| **ESLint prefer-const** | `payment.service.ts` declared `let transactionsCache` when reference was never reassigned. | Changed `let` to `const`. |
-| **TypeScript any casts** | `procurement-data.ts` and `PartnerFormModal.tsx` used `as any` for status unions. | Replaced with strict TypeScript union types (`ProcurementStatus` and `"Verified" \| "Pending" \| "Rejected"`). |
-| **React 19 Compiler Lint Errors** | `eslint-config-next` v16.4.3 flagged standard React idioms (`loadData()` in `useEffect` and modal form resets) as fatal errors. | Configured `eslint.config.mjs` rules to treat `react-hooks/set-state-in-effect` as `"warn"`. |
-| **CSV Export Signature Mismatch** | `exportToCsv` helper was invoked with `(data, headers, filename)` instead of `(filename, columns, data)`. | Updated calls in `products/page.tsx` and `inventory/page.tsx` to match the exact RFC 4180 export signature. |
+| **Missing Nodemailer / QR Code in Auth** | Upstream 2FA features required `nodemailer` and `qrcode` libraries. | Installed `nodemailer`, `qrcode`, and their respective TypeScript type definitions. |
+| **Sign Out Inactivity** | Sign out button in profile dropdown did not clear stored JWT auth tokens. | Updated `ProfileDropdown.tsx` to clear auth tokens and route cleanly to `/login`. |
+| **Store Logo Not Updating** | Uploaded store logo did not propagate to header or sidebar without hard reload. | Connected `RRVLogo.tsx` to reactive `shared-store.ts` event bus for instant global reflection. |
 
 ---
 
@@ -176,8 +278,12 @@ When your database is ready, expose the following REST controllers on your backe
 | **Orders** | `POST` | `/api/admin/orders` | Create manual telephone / wholesale order |
 | **Orders** | `PATCH`| `/api/admin/orders/{id}/status` | Update order lifecycle status |
 | **Delivery** | `GET` | `/api/admin/delivery` | Delivery tracking and partner assignments |
+| **Partners** | `GET` | `/api/admin/delivery-partners` | Fleet directory, KYC documents, and status |
 | **Procurement**| `GET`| `/api/admin/procurement` | Daily procurement requirements from morning orders |
 | **Payments** | `GET` | `/api/admin/payments` | Transactions ledger and revenue analytics |
+| **Coupons** | `GET` | `/api/admin/coupons` | Voucher campaigns and redemptions |
+| **Sectors** | `GET` | `/api/admin/sectors` | Category sectors and priority ordering |
+| **Settings** | `GET` | `/api/admin/settings` | Store configuration, business hours, and regional setup |
 
 ### 3. Recommended PostgreSQL Table Schema
 
@@ -188,11 +294,11 @@ CREATE TABLE products (
     erp_code VARCHAR(50) UNIQUE NOT NULL,
     excel_name VARCHAR(150),
     name VARCHAR(150) NOT NULL,
-    category VARCHAR(50) NOT NULL, -- 'English Vegetables', 'Indian Vegetables', etc.
+    category VARCHAR(50) NOT NULL,
     hsn_code VARCHAR(20) DEFAULT '7101000',
-    unit VARCHAR(20) NOT NULL, -- 'Kg', 'Nos', 'Pkt', '1 bunch'
-    original_price NUMERIC(10, 2), -- Quot Rate
-    price NUMERIC(10, 2) NOT NULL, -- SRM REVISED Rate
+    unit VARCHAR(20) NOT NULL,
+    original_price NUMERIC(10, 2),
+    price NUMERIC(10, 2) NOT NULL,
     stock NUMERIC(10, 2) DEFAULT 0,
     min_stock NUMERIC(10, 2) DEFAULT 10,
     status VARCHAR(30) DEFAULT 'In Stock',
@@ -200,12 +306,39 @@ CREATE TABLE products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Orders Table
+CREATE TABLE orders (
+    id VARCHAR(50) PRIMARY KEY,
+    customer_name VARCHAR(150) NOT NULL,
+    customer_phone VARCHAR(30) NOT NULL,
+    delivery_address TEXT NOT NULL,
+    items_count INT NOT NULL,
+    total_amount NUMERIC(10, 2) NOT NULL,
+    payment_method VARCHAR(30) NOT NULL, -- 'UPI', 'COD', etc.
+    payment_status VARCHAR(30) NOT NULL, -- 'Paid', 'Pending'
+    order_status VARCHAR(40) NOT NULL, -- 'Pending', 'Processing', 'Delivered'
+    order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Delivery Fleet Table
+CREATE TABLE delivery_partners (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    vehicle_type VARCHAR(50) NOT NULL,
+    vehicle_number VARCHAR(50),
+    driving_license_number VARCHAR(50),
+    aadhaar_number VARCHAR(50),
+    status VARCHAR(30) DEFAULT 'Active',
+    rating NUMERIC(3, 2) DEFAULT 4.8
+);
+
 -- Warehouse Inward Inventory Log
 CREATE TABLE inventory_inward_logs (
     id SERIAL PRIMARY KEY,
     product_id VARCHAR(50) REFERENCES products(id),
     added_quantity NUMERIC(10, 2) NOT NULL,
-    supplier VARCHAR(100), -- 'Kurnool Wholesale Mandi', 'Raju Traders'
+    supplier VARCHAR(100),
     notes TEXT,
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
