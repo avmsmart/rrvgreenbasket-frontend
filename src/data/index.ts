@@ -26,4 +26,5 @@ export const MOCK_ADMIN_USER = {
   orderCutoff: "10:00 PM",
   status: "Active (Accepting Orders)",
   permissions: ["All Modules Access", "Order Management", "Inventory Control", "Financial Reports"],
+  twoFactorEnabled: true,
 };

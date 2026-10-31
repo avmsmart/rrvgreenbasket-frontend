@@ -37,6 +37,7 @@ export const MOCK_ADMIN_USER_DATA: AdminUser = {
     "Financial Reports",
     "Partner Management",
   ],
+  twoFactorEnabled: true,
 };
 
 export const MOCK_PRODUCTS_DATA: Product[] = MASTER_PRODUCTS_DATA;

@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/components/layout";
+import { AuthGuard } from "@/components/auth";
 
 export const metadata = {
   title: "Admin Portal - RRV Green Basket",
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <AdminLayout>{children}</AdminLayout>;
+  return (
+    <AuthGuard>
+      <AdminLayout>{children}</AdminLayout>
+    </AuthGuard>
+  );
 }

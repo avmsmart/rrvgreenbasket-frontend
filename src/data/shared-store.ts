@@ -379,6 +379,7 @@ const KEYS = {
   SECTORS: "rrv_store_sectors_v1",
   SETTINGS: "rrv_store_settings_v1",
   COUPON_ACTIVITIES: "rrv_store_coupon_acts_v1",
+  AUTH_2FA_ENABLED: "rrv_auth_2fa_enabled_v1",
 };
 
 // Safe localStorage helper
@@ -463,3 +464,13 @@ export function getSavedSettings(): StoreSettings {
 export function saveSettings(settings: StoreSettings): void {
   safeSet(KEYS.SETTINGS, settings, "rrv:settings:updated");
 }
+
+// Two-Factor Authentication (2FA) Preference
+export function getSaved2FAEnabled(): boolean {
+  return safeGet<boolean>(KEYS.AUTH_2FA_ENABLED, true);
+}
+
+export function save2FAEnabled(enabled: boolean): void {
+  safeSet(KEYS.AUTH_2FA_ENABLED, enabled, "rrv:auth:2fa:updated");
+}
+

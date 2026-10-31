@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/context";
 
 export const metadata: Metadata = {
   title: "RRV Green Basket - Admin Portal",
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full bg-slate-50 text-slate-900 antialiased font-sans">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

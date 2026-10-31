@@ -39,14 +39,20 @@ export default function Home() {
           UI/UX design reference PDF.
         </p>
 
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center gap-2.5 w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#16a34a] hover:bg-[#15803d] text-white font-bold text-sm shadow-md shadow-emerald-700/20 transition-all hover:gap-3"
+          >
+            <span>Admin Sign In</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
           <Link
             href="/admin/dashboard"
-            className="inline-flex items-center justify-center gap-2.5 w-full sm:w-auto px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-200 transition-all hover:gap-3"
+            className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors"
           >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Open Admin Dashboard</span>
-            <ArrowRight className="w-4 h-4" />
+            <LayoutDashboard className="w-4 h-4 text-slate-500" />
+            <span>Go to Dashboard</span>
           </Link>
         </div>
 

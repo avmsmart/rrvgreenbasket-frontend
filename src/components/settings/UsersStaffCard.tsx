@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Users, Shield, Plus, Mail, Phone, CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface StaffMember {
   id: string;
@@ -112,6 +113,61 @@ export const UsersStaffCard: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Security & Two-Factor Authentication (2FA) Configuration */}
+      <div className="pt-5 border-t border-slate-200">
+        <Security2FASection />
+      </div>
+    </div>
+  );
+};
+
+const Security2FASection: React.FC = () => {
+  const { is2FAEnabled, set2FAEnabled } = useAuth();
+
+  return (
+    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50/70 to-slate-50 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-start gap-3.5">
+        <div className="w-10 h-10 rounded-2xl bg-[#00875a] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+          <Shield className="w-5 h-5" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-bold text-slate-900">
+              Two-Factor Authentication (2FA)
+            </h4>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                is2FAEnabled
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {is2FAEnabled ? "Active & Enforced" : "Disabled (Optional)"}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed max-w-xl">
+            When turned ON, admins must enter a 6-digit Authenticator code (Google Authenticator / Microsoft Authenticator) after password verification. When turned OFF, admins sign in directly.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 self-end sm:self-center">
+        <button
+          type="button"
+          onClick={() => set2FAEnabled(!is2FAEnabled)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${
+            is2FAEnabled ? "bg-[#00875a]" : "bg-slate-300"
+          }`}
+          aria-label="Toggle 2FA requirement"
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              is2FAEnabled ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
       </div>
     </div>
   );
