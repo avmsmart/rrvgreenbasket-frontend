@@ -9,6 +9,7 @@ interface CouponsTableProps {
   onToggleStatus: (couponId: string) => void;
   onEditCoupon: (coupon: Coupon) => void;
   onDeleteCoupon: (couponId: string) => void;
+  onViewCoupon?: (coupon: Coupon) => void;
   currentPage: number;
   pageSize: number;
   totalItems: number;
@@ -20,6 +21,7 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
   onToggleStatus,
   onEditCoupon,
   onDeleteCoupon,
+  onViewCoupon,
   currentPage,
   pageSize,
   totalItems,
@@ -55,7 +57,9 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
           return (
             <div
               key={coupon.id}
-              className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-3xs space-y-3"
+              onClick={() => (onViewCoupon ? onViewCoupon(coupon) : onEditCoupon(coupon))}
+              title="Click to view coupon details"
+              className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-3xs space-y-3 cursor-pointer hover:border-[#00875a] transition-all"
             >
               {/* Card Header */}
               <div className="flex items-center justify-between">
@@ -84,7 +88,10 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
                   {/* Toggle */}
                   <button
                     type="button"
-                    onClick={() => onToggleStatus(coupon.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleStatus(coupon.id);
+                    }}
                     aria-label={`Toggle active status for ${coupon.code}`}
                     className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 ${
                       coupon.status === "Active" ? "bg-[#00875a]" : "bg-slate-300"
@@ -132,7 +139,10 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div
+                className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <button
                   type="button"
                   onClick={() => onEditCoupon(coupon)}
@@ -179,7 +189,9 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
                 return (
                   <tr
                     key={coupon.id}
-                    className="hover:bg-slate-50/80 transition-colors group"
+                    onClick={() => (onViewCoupon ? onViewCoupon(coupon) : onEditCoupon(coupon))}
+                    title="Click to view full coupon details"
+                    className="border-l-4 border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50 cursor-pointer transition-colors group"
                   >
                     {/* # */}
                     <td className="py-3.5 px-4 text-center font-bold text-slate-400">
@@ -248,7 +260,10 @@ export const CouponsTable: React.FC<CouponsTableProps> = ({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right">
+                    <td
+                      className="py-3.5 px-4 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1.5">
                         {/* Toggle switch */}
                         <button

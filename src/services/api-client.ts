@@ -51,11 +51,6 @@ export const setAuthToken = (token: string, refreshToken?: string): void => {
     if (refreshToken) {
       localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     }
-    // Synchronize to cookie for middleware and Next.js SSR
-    document.cookie = `${AUTH_TOKEN_KEY}=${encodeURIComponent(
-      token
-    )}; path=/; max-age=2592000; SameSite=Lax`;
-    window.dispatchEvent(new CustomEvent("rrv:auth:changed", { detail: { token } }));
   } catch (e) {
     console.error("Failed to store auth token:", e);
   }
@@ -66,9 +61,6 @@ export const removeAuthToken = (): void => {
   try {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
-    // Remove cookie
-    document.cookie = `${AUTH_TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
-    window.dispatchEvent(new CustomEvent("rrv:auth:changed", { detail: { token: null } }));
   } catch (e) {
     console.error("Failed to clear auth token:", e);
   }

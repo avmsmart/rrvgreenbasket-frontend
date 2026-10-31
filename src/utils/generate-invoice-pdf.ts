@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Order, OrderItem } from "@/types";
+import { getSavedSettings, getCurrencySymbol } from "@/data/shared-store";
 
 /**
  * Generates an official, tax-compliant PDF invoice for RRV Green Basket orders.
@@ -25,6 +26,8 @@ export function generateInvoicePdf(
     format: "a4",
   });
 
+  const settings = getSavedSettings();
+  const curSymbol = getCurrencySymbol();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const cleanId = order.id.replace("#", "");
@@ -38,12 +41,12 @@ export function generateInvoicePdf(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("RRV GREEN BASKET", 14, 12);
+  doc.text((settings.storeName || "RRV GREEN BASKET").toUpperCase(), 14, 12);
 
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
-  doc.text("Freshness Delivered Daily • Farm-Fresh Vegetables & Groceries", 14, 18);
-  doc.text("Kurnool, Andhra Pradesh - 518002 | Helpline: +91 94401 23456", 14, 23);
+  doc.text(`${settings.tagline || "Freshness Delivered Daily"} • Farm-Fresh Produce`, 14, 18);
+  doc.text(`${settings.address || "Kurnool, Andhra Pradesh"} | Helpline: ${settings.supportPhone || "+91 98765 43210"}`, 14, 23);
 
   // Document Type Header on Top Right
   doc.setFontSize(14);
@@ -169,8 +172,8 @@ export function generateInvoicePdf(
       { content: "HSN Code", styles: { halign: "center" as const } },
       { content: "UOM", styles: { halign: "center" as const } },
       { content: "Qty", styles: { halign: "center" as const } },
-      { content: "Rate (₹)", styles: { halign: "right" as const } },
-      { content: "Amount (₹)", styles: { halign: "right" as const } },
+      { content: `Rate (${curSymbol})`, styles: { halign: "right" as const } },
+      { content: `Amount (${curSymbol})`, styles: { halign: "right" as const } },
     ],
   ];
 
@@ -250,11 +253,11 @@ export function generateInvoicePdf(
   doc.setFont("helvetica", "normal");
 
   doc.text("Items Subtotal:", summaryBoxX + 4, finalY + 7);
-  doc.text(`₹ ${calcSubtotal.toFixed(2)}`, pageWidth - 18, finalY + 7, { align: "right" });
+  doc.text(`${curSymbol} ${calcSubtotal.toFixed(2)}`, pageWidth - 18, finalY + 7, { align: "right" });
 
   doc.text("Delivery Charges:", summaryBoxX + 4, finalY + 13);
   doc.text(
-    calcDelivery > 0 ? `₹ ${calcDelivery.toFixed(2)}` : "FREE (₹0.00)",
+    calcDelivery > 0 ? `${curSymbol} ${calcDelivery.toFixed(2)}` : `FREE (${curSymbol}0.00)`,
     pageWidth - 18,
     finalY + 13,
     { align: "right" }
@@ -262,7 +265,7 @@ export function generateInvoicePdf(
 
   doc.text("Discount Applied:", summaryBoxX + 4, finalY + 19);
   doc.setTextColor(22, 163, 74);
-  doc.text(`- ₹ ${calcDiscount.toFixed(2)}`, pageWidth - 18, finalY + 19, { align: "right" });
+  doc.text(`- ${curSymbol} ${calcDiscount.toFixed(2)}`, pageWidth - 18, finalY + 19, { align: "right" });
 
   // Grand Total Highlight Banner
   doc.setFillColor(0, 135, 90);
@@ -273,7 +276,7 @@ export function generateInvoicePdf(
   doc.setFont("helvetica", "bold");
   doc.text("GRAND TOTAL:", summaryBoxX + 4, finalY + 33);
   doc.setFontSize(12);
-  doc.text(`₹ ${calcGrandTotal.toFixed(2)}`, pageWidth - 18, finalY + 33, { align: "right" });
+  doc.text(`${curSymbol} ${calcGrandTotal.toFixed(2)}`, pageWidth - 18, finalY + 33, { align: "right" });
 
   // 5. Authorized Signatory & Footer
   const signY = finalY + 46;

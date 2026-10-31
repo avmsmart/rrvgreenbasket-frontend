@@ -17,6 +17,7 @@ interface InventoryTableProps {
   items: Product[];
   onAdjustStock: (productId: string, delta: number) => void;
   onOpenInwardModal: (product: Product) => void;
+  onViewItem?: (product: Product) => void;
   currentPage: number;
   pageSize: number;
   totalItems: number;
@@ -27,6 +28,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   items,
   onAdjustStock,
   onOpenInwardModal,
+  onViewItem,
   currentPage,
   pageSize,
   totalItems,
@@ -77,7 +79,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               return (
                 <tr
                   key={p.id}
-                  className="hover:bg-slate-50/80 transition-colors group"
+                  onClick={() => (onViewItem ? onViewItem(p) : onOpenInwardModal(p))}
+                  title="Click to view full inventory and stock details"
+                  className="border-l-4 border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50 cursor-pointer transition-colors group"
                 >
                   <td className="py-3 px-4 text-center font-bold text-slate-400">
                     {sNo}
@@ -152,7 +156,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   </td>
 
                   {/* Quick Adjust Buttons */}
-                  <td className="py-3 px-4 text-right">
+                  <td
+                    className="py-3 px-4 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="inline-flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
                       <button
                         onClick={() => onAdjustStock(p.id, -5)}
@@ -173,7 +180,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   </td>
 
                   {/* Batch Inward */}
-                  <td className="py-3 px-4 text-right">
+                  <td
+                    className="py-3 px-4 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       onClick={() => onOpenInwardModal(p)}
                       className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-[#00875a] hover:bg-emerald-50 text-[11px] font-bold shadow-3xs transition-colors"

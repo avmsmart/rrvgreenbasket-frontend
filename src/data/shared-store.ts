@@ -3,7 +3,6 @@
 import { Coupon, CouponActivity } from "@/types/coupon";
 import { Sector } from "@/types/sector";
 import { StoreSettings } from "@/types/settings";
-import { RegisteredAdminAccount } from "@/types/auth";
 
 /* =========================================================================
    1. COUPONS INITIAL REFERENCE DATA (PDF PAGE 11)
@@ -326,23 +325,35 @@ export const INITIAL_SETTINGS_DATA: StoreSettings = {
   supportPhone: "+91 98765 43210",
   address: "Kurnool, Andhra Pradesh, India",
   websiteUrl: "https://www.rrvgreenbasket.in",
-  platformLogo: "/images/logo.png",
+  platformLogo: "",
   appFavicon: "/favicon.ico",
 
   businessHours: [
-    { day: "Monday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Tuesday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Wednesday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Thursday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Friday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Saturday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
-    { day: "Sunday", openTime: "07:00 AM", closeTime: "09:00 PM", isOpen: true },
+    { id: "BH-1", day: "Monday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-2", day: "Tuesday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-3", day: "Wednesday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-4", day: "Thursday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-5", day: "Friday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-6", day: "Saturday", openTime: "06:00 AM", closeTime: "10:00 PM", isOpen: true },
+    { id: "BH-7", day: "Sunday", openTime: "07:00 AM", closeTime: "09:00 PM", isOpen: true },
   ],
   timeZone: "(GMT+05:30) India Standard Time (IST)",
 
   currency: "INR (₹) - Indian Rupee",
   language: "English",
   dateFormat: "DD/MM/YYYY",
+  currencies: [
+    { id: "CUR-01", name: "Indian Rupee", code: "INR", symbol: "₹", rate: 1.0, isDefault: true },
+    { id: "CUR-02", name: "US Dollar", code: "USD", symbol: "$", rate: 86.50, isDefault: false },
+    { id: "CUR-03", name: "Euro", code: "EUR", symbol: "€", rate: 92.20, isDefault: false },
+    { id: "CUR-04", name: "UAE Dirham", code: "AED", symbol: "د.إ", rate: 23.50, isDefault: false },
+  ],
+  regionalZones: [
+    { id: "REG-01", name: "Telangana & AP Hub", code: "TS-AP-01", language: "Telugu / English", dateFormat: "DD/MM/YYYY", status: "Active" },
+    { id: "REG-02", name: "Karnataka Urban Hub", code: "KA-BLR-01", language: "Kannada / English", dateFormat: "DD/MM/YYYY", status: "Active" },
+    { id: "REG-03", name: "Maharashtra Metro Hub", code: "MH-MUM-01", language: "Marathi / Hindi", dateFormat: "DD/MM/YYYY", status: "Active" },
+    { id: "REG-04", name: "Pan-India Dispatch", code: "IN-ALL-01", language: "English / Hindi", dateFormat: "DD/MM/YYYY", status: "Active" },
+  ],
 
   allowCod: true,
   minimumOrderAmount: 199,
@@ -380,8 +391,6 @@ const KEYS = {
   SECTORS: "rrv_store_sectors_v1",
   SETTINGS: "rrv_store_settings_v1",
   COUPON_ACTIVITIES: "rrv_store_coupon_acts_v1",
-  AUTH_2FA_ENABLED: "rrv_auth_2fa_enabled_v1",
-  ADMIN_ACCOUNTS: "rrv_admin_accounts_v1",
 };
 
 // Safe localStorage helper
@@ -467,68 +476,22 @@ export function saveSettings(settings: StoreSettings): void {
   safeSet(KEYS.SETTINGS, settings, "rrv:settings:updated");
 }
 
-// Two-Factor Authentication (2FA) Preference
-export function getSaved2FAEnabled(): boolean {
-  return safeGet<boolean>(KEYS.AUTH_2FA_ENABLED, true);
-}
-
-export function save2FAEnabled(enabled: boolean): void {
-  safeSet(KEYS.AUTH_2FA_ENABLED, enabled, "rrv:auth:2fa:updated");
-}
-
-// Predefined Administrator Credentials
-export const PREDEFINED_ADMIN_CREDENTIALS = {
-  email: "admin@rrvgreenbasket.com",
-  password: "Admin@123",
-  alternateEmails: ["admin@rrvgreenbasket.in", "vandanakaranam81@gmail.com"],
-};
-
-// Registered Administrator Accounts
-export function getSavedAdminAccounts(): RegisteredAdminAccount[] {
-  return safeGet<RegisteredAdminAccount[]>(KEYS.ADMIN_ACCOUNTS, []);
-}
-
-export function saveAdminAccount(account: RegisteredAdminAccount): void {
-  const existing = getSavedAdminAccounts().filter(
-    (a) => a.email.toLowerCase() !== account.email.toLowerCase()
-  );
-  safeSet(KEYS.ADMIN_ACCOUNTS, [account, ...existing], "rrv:admin:accounts:updated");
-}
-
-export function findAdminAccount(email: string): RegisteredAdminAccount | undefined {
-  const normalized = email.trim().toLowerCase();
-  const saved = getSavedAdminAccounts().find((a) => a.email.toLowerCase() === normalized);
-  if (saved) return saved;
-
-  // Check if matches predefined admin
-  if (
-    normalized === PREDEFINED_ADMIN_CREDENTIALS.email.toLowerCase() ||
-    PREDEFINED_ADMIN_CREDENTIALS.alternateEmails.some((e) => e.toLowerCase() === normalized)
-  ) {
-    return {
-      id: "ADM-001",
-      name: "Admin",
-      role: "Super Admin",
-      avatarInitial: "A",
-      email: normalized,
-      phone: "+91 98765 43210",
-      location: "Kurnool, Andhra Pradesh, India",
-      storeName: "RRV Green Basket",
-      operatingHours: "06:00 AM – 10:00 PM",
-      orderCutoff: "10:00 PM",
-      status: "Active (Accepting Orders)",
-      permissions: [
-        "All Modules Access",
-        "Order Management",
-        "Inventory Control",
-        "Financial Reports",
-        "Partner Management",
-      ],
-      twoFactorEnabled: getSaved2FAEnabled(),
-      passwordHash: PREDEFINED_ADMIN_CREDENTIALS.password,
-    };
+export function getCurrencySymbol(): string {
+  const s = getSavedSettings();
+  if (s.currency) {
+    if (s.currency.includes("$")) return "$";
+    if (s.currency.includes("€")) return "€";
+    if (s.currency.includes("£")) return "£";
+    if (s.currency.includes("AED") || s.currency.includes("د.إ")) return "AED ";
+    if (s.currency.includes("₹")) return "₹";
+    const m = s.currency.match(/\((.*?)\)/);
+    if (m && m[1]) return m[1];
   }
-  return undefined;
+  return "₹";
 }
 
-
+export function formatCurrency(amount: number | string): string {
+  const num = typeof amount === "string" ? parseFloat(amount) || 0 : amount;
+  const sym = getCurrencySymbol();
+  return `${sym} ${num.toLocaleString("en-IN")}`;
+}

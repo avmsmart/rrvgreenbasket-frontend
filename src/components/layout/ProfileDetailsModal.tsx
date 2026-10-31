@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   X,
   Shield,
@@ -14,9 +15,11 @@ import {
   Lock,
   Copy,
   Check,
+  LogOut,
 } from "lucide-react";
 import { MOCK_ADMIN_USER } from "@/data";
-import { apiClient } from "@/services/api-client";
+import { getSavedSettings } from "@/data/shared-store";
+import { StoreSettings } from "@/types/settings";
 
 interface ProfileDetailsModalProps {
   isOpen: boolean;
@@ -27,45 +30,31 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const router = useRouter();
   const [storeStatus, setStoreStatus] = useState<"Online" | "Paused">("Online");
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [apiStatus, setApiStatus] = useState<"idle" | "checking" | "online" | "offline">("idle");
-  const [apiMessage, setApiMessage] = useState<string>("");
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => getSavedSettings());
 
-  const checkConnection = async () => {
-    setApiStatus("checking");
-    try {
-      const res = await apiClient.checkHealth();
-      if (res.online) {
-        setApiStatus("online");
-        setApiMessage("Connected (Spring Boot UP)");
-      } else {
-        setApiStatus("offline");
-        setApiMessage("Local Fallback Active (Offline)");
+  const handleSignOut = () => {
+    onClose();
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rrv_admin_logged_in", "false");
+      } catch (err) {
+        console.error("Sign out storage error", err);
       }
-    } catch {
-      setApiStatus("offline");
-      setApiMessage("Local Fallback Active (Offline)");
     }
+    router.push("/login");
   };
 
   useEffect(() => {
-    let active = true;
-    if (isOpen) {
-      apiClient.checkHealth().then((res) => {
-        if (!active) return;
-        if (res.online) {
-          setApiStatus("online");
-          setApiMessage("Connected (Spring Boot UP)");
-        } else {
-          setApiStatus("offline");
-          setApiMessage("Local Fallback Active (Offline)");
-        }
-      });
-    }
-    return () => {
-      active = false;
+    setStoreSettings(getSavedSettings());
+    const onSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<StoreSettings>;
+      setStoreSettings(customEvent.detail || getSavedSettings());
     };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
   }, [isOpen]);
 
   // Close on Escape key
@@ -97,57 +86,57 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Green Gradient banner */}
-        <div className="relative bg-gradient-to-r from-[#00875a] to-[#006b47] px-6 pt-6 pb-12 text-white">
+        <div className="bg-gradient-to-r from-[#00875a] to-[#006b47] px-6 py-5 text-white flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#d1f2e0]">
+              <Shield className="w-4 h-4" />
+              <span>Administrator Profile</span>
+            </div>
+            <h2 className="text-xl font-bold mt-1">{storeSettings.storeName || "RRV Green Basket"}</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
             aria-label="Close dialog"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#d1f2e0]">
-            <Shield className="w-4 h-4" />
-            <span>Administrator Profile</span>
-          </div>
-          <h2 className="text-xl font-bold mt-1">RRV Green Basket Admin</h2>
         </div>
 
-        {/* User Card overlapping header */}
-        <div className="px-6 -mt-8">
-          <div className="flex items-end justify-between">
-            <div className="flex items-end gap-3.5">
-              <div className="w-16 h-16 rounded-2xl bg-[#00875a] border-4 border-white text-white font-black text-2xl flex items-center justify-center shadow-lg flex-shrink-0">
-                {MOCK_ADMIN_USER.avatarInitial}
-              </div>
-              <div className="mb-1 leading-tight">
-                <h3 className="text-lg font-bold text-[#0f2942] flex items-center gap-1.5">
-                  {MOCK_ADMIN_USER.name}
-                  <span className="w-2 h-2 rounded-full bg-[#00875a] animate-pulse"></span>
-                </h3>
-                <span className="inline-block px-2.5 py-0.5 mt-0.5 rounded-full text-xs font-bold bg-[#eaf8f0] text-[#00875a]">
-                  {MOCK_ADMIN_USER.role}
-                </span>
-              </div>
+        {/* Profile User Info Row on clean white background */}
+        <div className="px-6 pt-5 pb-1 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-2xl bg-[#00875a] text-white font-black text-2xl flex items-center justify-center shadow-md flex-shrink-0">
+              {MOCK_ADMIN_USER.avatarInitial}
             </div>
-
-            {/* Store Status Toggle */}
-            <button
-              type="button"
-              onClick={() =>
-                setStoreStatus((prev) => (prev === "Online" ? "Paused" : "Online"))
-              }
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
-                storeStatus === "Online"
-                  ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                  : "bg-amber-500 text-white hover:bg-amber-600"
-              }`}
-              title="Click to toggle store operating status"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-              <span>Store: {storeStatus}</span>
-            </button>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                Admin
+                <span className="w-2 h-2 rounded-full bg-[#00875a] animate-pulse" />
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Full System Administrator
+              </p>
+            </div>
           </div>
+
+          {/* Store Status Toggle */}
+          <button
+            type="button"
+            onClick={() =>
+              setStoreStatus((prev) => (prev === "Online" ? "Paused" : "Online"))
+            }
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs ${
+              storeStatus === "Online"
+                ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                : "bg-amber-500 text-white hover:bg-amber-600"
+            }`}
+            title="Click to toggle store operating status"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+            <span>Store: {storeStatus}</span>
+          </button>
         </div>
 
         {/* Details Body */}
@@ -157,7 +146,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
             {/* Email with copy */}
             <button
               type="button"
-              onClick={() => handleCopy(MOCK_ADMIN_USER.email, "email")}
+              onClick={() => handleCopy(storeSettings.supportEmail || MOCK_ADMIN_USER.email, "email")}
               className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 hover:border-slate-200 transition-all text-left group"
               title="Click to copy email"
             >
@@ -168,7 +157,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
                 <div className="min-w-0">
                   <span className="text-slate-400 block text-[10px] font-medium">Email Address</span>
                   <span className="font-semibold text-slate-800 truncate block">
-                    {MOCK_ADMIN_USER.email}
+                    {storeSettings.supportEmail || MOCK_ADMIN_USER.email}
                   </span>
                 </div>
               </div>
@@ -184,7 +173,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
             {/* Phone with copy */}
             <button
               type="button"
-              onClick={() => handleCopy(MOCK_ADMIN_USER.phone, "phone")}
+              onClick={() => handleCopy(storeSettings.supportPhone || MOCK_ADMIN_USER.phone, "phone")}
               className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 hover:border-slate-200 transition-all text-left group"
               title="Click to copy phone number"
             >
@@ -195,7 +184,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
                 <div className="min-w-0">
                   <span className="text-slate-400 block text-[10px] font-medium">Contact Phone</span>
                   <span className="font-semibold text-slate-800 truncate block">
-                    {MOCK_ADMIN_USER.phone}
+                    {storeSettings.supportPhone || MOCK_ADMIN_USER.phone}
                   </span>
                 </div>
               </div>
@@ -216,7 +205,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
               <div className="min-w-0">
                 <span className="text-slate-400 block text-[10px] font-medium">Operating Hub</span>
                 <span className="font-semibold text-slate-800 truncate block">
-                  {MOCK_ADMIN_USER.location}
+                  {storeSettings.address || MOCK_ADMIN_USER.location}
                 </span>
               </div>
             </div>
@@ -229,7 +218,7 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
               <div className="min-w-0">
                 <span className="text-slate-400 block text-[10px] font-medium">Cut-off Time</span>
                 <span className="font-semibold text-slate-800 truncate block">
-                  {MOCK_ADMIN_USER.orderCutoff} Daily
+                  {storeSettings.orderCutoffTime ? `${storeSettings.orderCutoffTime} Daily` : `${MOCK_ADMIN_USER.orderCutoff}`}
                 </span>
               </div>
             </div>
@@ -251,41 +240,6 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Backend API Connection Status */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${
-                  apiStatus === "online"
-                    ? "bg-emerald-500 animate-pulse"
-                    : apiStatus === "checking"
-                    ? "bg-blue-500 animate-spin"
-                    : "bg-amber-500"
-                }`} />
-                <span className="text-xs font-bold text-slate-800">
-                  Java Backend API Status
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={checkConnection}
-                disabled={apiStatus === "checking"}
-                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-3xs transition-colors hover:bg-emerald-50"
-              >
-                {apiStatus === "checking" ? "Pinging..." : "Test Ping"}
-              </button>
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-mono text-[10px] text-slate-600 truncate max-w-[200px]">
-                {apiClient.getBaseUrl()}
-              </span>
-              <span className={`font-semibold ${
-                apiStatus === "online" ? "text-emerald-600" : "text-amber-600"
-              }`}>
-                {apiMessage || "Local Fallback Active"}
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Modal Actions Footer */}
@@ -299,13 +253,23 @@ export const ProfileDetailsModal: React.FC<ProfileDetailsModalProps> = ({
             <span>Open Store Settings</span>
           </Link>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-xs"
-          >
-            Close Details
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-500" />
+              <span>Sign Out</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-xs"
+            >
+              Close Details
+            </button>
+          </div>
         </div>
       </div>
     </div>

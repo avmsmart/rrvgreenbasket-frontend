@@ -1,7 +1,7 @@
 import { apiClient } from "./api-client";
-import { Order, OrderStatus, OrderStatsSummary, PaymentStatus, PaymentMethod } from "@/types";
+import { Order, OrderStatus, OrderStatsSummary, PaymentStatus, PaymentMethod, OrderTimelineEvent } from "@/types";
 import { MOCK_ORDERS_DATA, MOCK_ORDER_STATS_BY_DATE, MOCK_DATE_ANALYTICS } from "@/data";
-import { getSystemDateFormatted, getOffsetDateFormatted } from "@/utils";
+import { getSystemDateFormatted, getOffsetDateFormatted, getSystemTimeFormatted } from "@/utils";
 
 export interface OrderQueryParams {
   status?: OrderStatus | "All";
@@ -223,11 +223,129 @@ export const orderService = {
   },
 
   /**
-   * Update the status of an order
+   * Helper to recalculate order timeline stages and timestamps based on order status
    */
-  async updateOrderStatus(orderId: string, status: OrderStatus): Promise<Order> {
-    const existing = MOCK_ORDERS_DATA.find((o) => o.id === orderId) || MOCK_ORDERS_DATA[0];
-    const updated: Order = { ...existing, status };
+  computeUpdatedTimeline(
+    existing: Order,
+    newStatus: OrderStatus,
+    currentTime: string
+  ): OrderTimelineEvent[] {
+    const existingTimeline = existing.timeline || [];
+    const findTime = (statusName: string, fallbackTime: string) => {
+      const ev = existingTimeline.find((e) => e.status === statusName);
+      return ev && ev.time && !ev.time.includes("Pending") ? ev.time : fallbackTime;
+    };
+
+    if (newStatus === "Cancelled") {
+      const placedTime = findTime("Order Placed", existing.orderTime || currentTime);
+      return [
+        { status: "Order Placed", time: placedTime, completed: true },
+        { status: "Cancelled", time: `${currentTime} (Cancelled by Admin)`, completed: true },
+      ];
+    }
+
+    const placedTime = findTime("Order Placed", existing.orderTime || currentTime);
+    const paymentTime =
+      existing.paymentMethod === "COD" && newStatus === "Pending"
+        ? "Pending (COD)"
+        : existing.paymentMethod === "COD" && newStatus === "Delivered"
+        ? "Collected on Delivery"
+        : findTime("Payment Confirmed", "Instant");
+
+    const processingTime = findTime("Processing", currentTime);
+    const dispatchTime = findTime("Out for Delivery", currentTime);
+    const deliveredTime = findTime("Delivered", currentTime);
+
+    if (newStatus === "Pending") {
+      return [
+        { status: "Order Placed", time: placedTime, completed: true },
+        {
+          status: "Payment Confirmed",
+          time: paymentTime,
+          completed: existing.paymentMethod !== "COD" && existing.paymentStatus === "Paid",
+        },
+        { status: "Processing", time: "Pending", completed: false },
+        { status: "Out for Delivery", time: "Pending", completed: false },
+        { status: "Delivered", time: "Pending", completed: false },
+      ];
+    }
+
+    if (newStatus === "Processing" || newStatus === "In Packing" || newStatus === "Packed") {
+      return [
+        { status: "Order Placed", time: placedTime, completed: true },
+        { status: "Payment Confirmed", time: paymentTime, completed: true },
+        { status: "Processing", time: processingTime, completed: true },
+        { status: "Out for Delivery", time: "Pending", completed: false },
+        { status: "Delivered", time: "Pending", completed: false },
+      ];
+    }
+
+    if (newStatus === "Out for Delivery") {
+      return [
+        { status: "Order Placed", time: placedTime, completed: true },
+        { status: "Payment Confirmed", time: paymentTime, completed: true },
+        { status: "Processing", time: processingTime, completed: true },
+        { status: "Out for Delivery", time: dispatchTime, completed: true },
+        { status: "Delivered", time: "Pending", completed: false },
+      ];
+    }
+
+    if (newStatus === "Delivered") {
+      return [
+        { status: "Order Placed", time: placedTime, completed: true },
+        { status: "Payment Confirmed", time: paymentTime, completed: true },
+        { status: "Processing", time: processingTime, completed: true },
+        { status: "Out for Delivery", time: dispatchTime, completed: true },
+        { status: "Delivered", time: deliveredTime, completed: true },
+      ];
+    }
+
+    return existingTimeline;
+  },
+
+  /**
+   * Update the status of an order and synchronize its timeline
+   */
+  async updateOrderStatus(
+    orderId: string,
+    status: OrderStatus,
+    currentOrder?: Order
+  ): Promise<Order> {
+    const index = MOCK_ORDERS_DATA.findIndex((o) => o.id === orderId);
+    const existing = currentOrder || (index !== -1 ? MOCK_ORDERS_DATA[index] : MOCK_ORDERS_DATA[0]);
+    const currentTime = getSystemTimeFormatted();
+    const updatedTimeline = this.computeUpdatedTimeline(existing, status, currentTime);
+
+    const updated: Order = {
+      ...existing,
+      status,
+      timeline: updatedTimeline,
+      ...(status === "Delivered"
+        ? {
+            deliveryTime:
+              existing.deliveryTime &&
+              !existing.deliveryTime.includes("Expected") &&
+              !existing.deliveryTime.includes("Slot")
+                ? existing.deliveryTime
+                : currentTime,
+            paymentStatus: existing.paymentMethod === "COD" ? "Paid" : existing.paymentStatus,
+          }
+        : {}),
+      ...(status === "Out for Delivery" &&
+      (!existing.deliveryTime ||
+        existing.deliveryTime.includes("Expected") ||
+        existing.deliveryTime.includes("Slot"))
+        ? {
+            deliveryTime: `Expected ${getSystemTimeFormatted(
+              new Date(Date.now() + 45 * 60 * 1000)
+            )}`,
+          }
+        : {}),
+    };
+
+    if (index !== -1) {
+      MOCK_ORDERS_DATA[index] = updated;
+    }
 
     return apiClient.patch<Order>(
       `/admin/orders/${encodeURIComponent(orderId)}/status`,
@@ -285,12 +403,22 @@ export const orderService = {
     partnerId: string,
     partnerName: string
   ): Promise<Order> {
-    const existing = MOCK_ORDERS_DATA.find((o) => o.id === orderId) || MOCK_ORDERS_DATA[0];
+    const index = MOCK_ORDERS_DATA.findIndex((o) => o.id === orderId);
+    const existing = index !== -1 ? MOCK_ORDERS_DATA[index] : MOCK_ORDERS_DATA[0];
+    const currentTime = getSystemTimeFormatted();
+    const updatedTimeline = this.computeUpdatedTimeline(existing, "Out for Delivery", currentTime);
+
     const updated: Order = {
       ...existing,
       deliveryPartner: `${partnerName} (${partnerId})`,
       status: "Out for Delivery",
+      timeline: updatedTimeline,
+      deliveryTime: `Expected ${getSystemTimeFormatted(new Date(Date.now() + 45 * 60 * 1000))}`,
     };
+
+    if (index !== -1) {
+      MOCK_ORDERS_DATA[index] = updated;
+    }
 
     return apiClient.patch<Order>(
       `/admin/orders/${encodeURIComponent(orderId)}/assign-partner`,
@@ -303,12 +431,28 @@ export const orderService = {
   /**
    * Cancel an order with reason
    */
-  async cancelOrder(orderId: string, reason: string): Promise<Order> {
-    const existing = MOCK_ORDERS_DATA.find((o) => o.id === orderId) || MOCK_ORDERS_DATA[0];
+  async cancelOrder(
+    orderId: string,
+    reason: string,
+    currentOrder?: Order
+  ): Promise<Order> {
+    const index = MOCK_ORDERS_DATA.findIndex((o) => o.id === orderId);
+    const existing = currentOrder || (index !== -1 ? MOCK_ORDERS_DATA[index] : MOCK_ORDERS_DATA[0]);
+    const currentTime = getSystemTimeFormatted();
+    const updatedTimeline = [
+      { status: "Order Placed", time: existing.orderTime || currentTime, completed: true },
+      { status: "Cancelled", time: `${currentTime} (${reason || "Cancelled by Admin"})`, completed: true },
+    ];
+
     const updated: Order = {
       ...existing,
       status: "Cancelled",
+      timeline: updatedTimeline,
     };
+
+    if (index !== -1) {
+      MOCK_ORDERS_DATA[index] = updated;
+    }
 
     return apiClient.post<Order>(
       `/admin/orders/${encodeURIComponent(orderId)}/cancel`,

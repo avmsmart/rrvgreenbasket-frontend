@@ -4,12 +4,25 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Sparkles, Calendar, Clock, ShoppingBag } from "lucide-react";
 import { getSystemDateWithDay, getSystemTimeFormatted } from "@/utils";
+import { getSavedSettings } from "@/data/shared-store";
+import { StoreSettings } from "@/types/settings";
 
 export const DashboardWelcomeBanner: React.FC = () => {
   const [currentDate, setCurrentDate] = useState("Monday, 25 Aug 2025");
   const [currentTime, setCurrentTime] = useState("09:30 AM");
+  const [storeName, setStoreName] = useState("RRV Green Basket");
 
   useEffect(() => {
+    const s = getSavedSettings();
+    if (s.storeName) setStoreName(s.storeName);
+
+    const onSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<StoreSettings>;
+      const updated = customEvent.detail || getSavedSettings();
+      if (updated.storeName) setStoreName(updated.storeName);
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+
     const now = new Date();
     setCurrentDate(getSystemDateWithDay(now));
     setCurrentTime(getSystemTimeFormatted(now));
@@ -19,7 +32,10 @@ export const DashboardWelcomeBanner: React.FC = () => {
       setCurrentTime(getSystemTimeFormatted(liveNow));
     }, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   return (
@@ -41,7 +57,7 @@ export const DashboardWelcomeBanner: React.FC = () => {
         </h1>
 
         <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1.5">
-          Here&apos;s what&apos;s happening with RRV Green Basket today.
+          Here&apos;s what&apos;s happening with {storeName} today.
         </p>
 
         {/* Date and Time Badges (matching PDF reference) */}

@@ -1,15 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   ShoppingBag,
   Users,
   Package,
   Boxes,
-  IndianRupee,
+  DollarSign,
   TrendingUp,
   AlertTriangle,
 } from "lucide-react";
+import { getCurrencySymbol } from "@/data/shared-store";
 
 interface DashboardKpiCardsProps {
   totalOrders?: number;
@@ -28,6 +29,16 @@ export const DashboardKpiCards: React.FC<DashboardKpiCardsProps> = ({
   lowStockCount = 5,
   todayRevenue = 24560,
 }) => {
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
+
+  useEffect(() => {
+    setCurrencySymbol(getCurrencySymbol());
+    const onSettingsUpdate = () => {
+      setCurrencySymbol(getCurrencySymbol());
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+  }, []);
   const cards = [
     {
       label: "Total Orders",
@@ -67,10 +78,10 @@ export const DashboardKpiCards: React.FC<DashboardKpiCardsProps> = ({
     },
     {
       label: "Today's Revenue",
-      value: `₹ ${todayRevenue.toLocaleString("en-IN")}`,
+      value: `${currencySymbol} ${todayRevenue.toLocaleString("en-IN")}`,
       subtext: "↑ 18% from yesterday",
       subtextColor: "text-[#00875a]",
-      icon: IndianRupee,
+      icon: DollarSign,
       iconBg: "bg-[#eaf8f0] text-[#00875a] border-[#bbf7d0]",
       badgeTrend: true,
     },

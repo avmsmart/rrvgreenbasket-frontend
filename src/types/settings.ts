@@ -1,8 +1,26 @@
 export interface DaySchedule {
+  id?: string;
   day: string;
   openTime: string;
   closeTime: string;
   isOpen: boolean;
+}
+export interface SupportedCurrency {
+  id: string;
+  name: string;
+  code: string;
+  symbol: string;
+  rate?: number;
+  isDefault?: boolean;
+}
+
+export interface RegionalZone {
+  id: string;
+  name: string;
+  code: string;
+  language: string;
+  dateFormat: string;
+  status: "Active" | "Inactive";
 }
 
 export interface StoreSettings {
@@ -27,6 +45,8 @@ export interface StoreSettings {
   currency?: string;
   language?: string;
   dateFormat?: string;
+  currencies?: SupportedCurrency[];
+  regionalZones?: RegionalZone[];
 
   // Order Rules
   allowCod?: boolean;

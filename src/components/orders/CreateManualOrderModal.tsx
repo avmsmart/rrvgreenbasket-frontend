@@ -21,7 +21,7 @@ import {
 import { Order, OrderItem, PaymentMethod } from "@/types";
 import { Coupon } from "@/types/coupon";
 import { MASTER_PRODUCTS_DATA } from "@/data";
-import { getSavedCoupons } from "@/data/shared-store";
+import { getSavedCoupons, getSavedSettings, getCurrencySymbol } from "@/data/shared-store";
 import { ProduceImage } from "@/components/common";
 
 interface CreateManualOrderModalProps {
@@ -175,8 +175,12 @@ export const CreateManualOrderModal: React.FC<CreateManualOrderModalProps> = ({
   };
 
   // Pricing & Coupon Calculations
+  const storeSettings = getSavedSettings();
+  const currencySymbol = getCurrencySymbol();
+  const freeThreshold = storeSettings.freeDeliveryThreshold ?? 299;
+  const standardFee = storeSettings.standardDeliveryFee ?? 20;
   const subtotal = items.reduce((acc, it) => acc + it.totalPrice, 0);
-  const baseDeliveryCharge = items.length === 0 ? 0 : subtotal >= 299 ? 0 : 20;
+  const baseDeliveryCharge = items.length === 0 ? 0 : subtotal >= freeThreshold ? 0 : standardFee;
 
   // Compute discount
   let discountAmount = 0;
@@ -713,16 +717,16 @@ export const CreateManualOrderModal: React.FC<CreateManualOrderModalProps> = ({
             <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex flex-col justify-center text-right space-y-0.5">
               <div className="flex items-center justify-between text-[11px] text-slate-500">
                 <span>Subtotal ({items.length} items):</span>
-                <span>₹{subtotal}</span>
+                <span>{currencySymbol}{subtotal}</span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-slate-500">
                 <span>Delivery Charge:</span>
                 <span className={deliveryCharge === 0 && items.length > 0 ? "font-bold text-emerald-700" : ""}>
                   {items.length === 0
-                    ? "₹0"
+                    ? `${currencySymbol}0`
                     : deliveryCharge === 0
                     ? "FREE"
-                    : `₹${deliveryCharge}`}
+                    : `${currencySymbol}${deliveryCharge}`}
                 </span>
               </div>
 
@@ -730,7 +734,7 @@ export const CreateManualOrderModal: React.FC<CreateManualOrderModalProps> = ({
               {appliedCoupon && discountAmount > 0 && (
                 <div className="flex items-center justify-between text-[11px] font-bold text-[#00875a]">
                   <span>Coupon Discount ({appliedCoupon.code}):</span>
-                  <span>-₹{discountAmount}</span>
+                  <span>-{currencySymbol}{discountAmount}</span>
                 </div>
               )}
 
@@ -739,7 +743,7 @@ export const CreateManualOrderModal: React.FC<CreateManualOrderModalProps> = ({
                   Total Payable Amount:
                 </span>
                 <span className="text-lg font-black text-[#00875a]">
-                  ₹{totalAmount}
+                  {currencySymbol}{totalAmount}
                 </span>
               </div>
             </div>

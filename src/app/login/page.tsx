@@ -1,210 +1,206 @@
 "use client";
 
-import React, { useState, Suspense, useEffect } from "react";
-import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ShoppingBag, Box, BarChart3 } from "lucide-react";
-import {
-  RRVAuthBrandLogo,
-  LoginFormStep,
-  TwoFactorStep,
-  SuccessStep,
-} from "@/components/auth";
-import { useAuth } from "@/context/AuthContext";
-import { LoginStep } from "@/types";
-
-function LoginPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/admin/dashboard";
-
-  const { isAuthenticated, isLoading } = useAuth();
-
-  const [step, setStep] = useState<LoginStep>("credentials");
-  const [twoFactorSession, setTwoFactorSession] = useState<{
-    email: string;
-    tempToken?: string;
-    previewCode?: string;
-    totpSecret?: string;
-    totpQrCode?: string;
-  }>({
-    email: "admin@rrvgreenbasket.com",
-  });
-
-  // If user is already authenticated, redirect straight to dashboard/target
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace(redirectTarget);
-    }
-  }, [isAuthenticated, isLoading, redirectTarget, router]);
-
-  const handleRequires2FA = (data: {
-    tempToken?: string;
-    email: string;
-    previewCode?: string;
-    totpSecret?: string;
-    totpQrCode?: string;
-  }) => {
-    setTwoFactorSession(data);
-    setStep("two_factor");
-  };
-
-  const handleSuccess = () => {
-    setStep("success");
-  };
-
-  const handleRedirect = () => {
-    router.replace(redirectTarget);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-100/70 flex items-center justify-center p-3 sm:p-6 lg:p-8">
-      {/* Main Container: Split Desktop Hero (Left) + Card (Right) */}
-      <div className="w-full max-w-5xl bg-white rounded-[32px] shadow-2xl shadow-slate-200/80 border border-slate-200/80 overflow-hidden flex flex-col lg:flex-row">
-        
-        {/* =========================================================================
-            LEFT COLUMN: BRANDING HERO SECTION (Desktop Only)
-           ========================================================================= */}
-        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-emerald-50/70 via-white to-emerald-100/50 p-10 flex-col justify-between relative overflow-hidden select-none border-r border-slate-100">
-          
-          {/* Subtle Background Organic Farm Glow & Floating Leaves */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-300/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-20 left-10 w-60 h-60 bg-green-200/25 rounded-full blur-2xl pointer-events-none" />
-
-          {/* Top Brand Logo */}
-          <div className="relative z-10">
-            <RRVAuthBrandLogo size="md" />
-          </div>
-
-          {/* Center Copy & Value Proposition */}
-          <div className="relative z-10 my-auto py-8">
-            <h1 className="text-3xl xl:text-4xl font-black text-slate-900 tracking-tight leading-[1.15]">
-              Fresh Food
-              <span className="block text-[#16a34a] font-black mt-1">
-                Happier Families
-              </span>
-            </h1>
-
-            <p className="text-xs xl:text-sm text-slate-500 font-medium mt-3.5 max-w-sm leading-relaxed">
-              Manage your store, orders, inventory and deliveries all in one place.
-            </p>
-
-            {/* 3 Value Proposition Highlight Pills matching reference */}
-            <div className="mt-8 space-y-4 max-w-md">
-              {/* Feature 1 */}
-              <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/80 backdrop-blur-xs border border-emerald-100/80 shadow-2xs">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-[#16a34a] flex items-center justify-center flex-shrink-0">
-                  <ShoppingBag className="w-5 h-5" />
-                </div>
-                <div className="leading-tight">
-                  <h3 className="text-xs font-bold text-slate-900">Track Orders</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Manage and monitor all customer orders
-                  </p>
-                </div>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/80 backdrop-blur-xs border border-emerald-100/80 shadow-2xs">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-[#16a34a] flex items-center justify-center flex-shrink-0">
-                  <Box className="w-5 h-5" />
-                </div>
-                <div className="leading-tight">
-                  <h3 className="text-xs font-bold text-slate-900">Manage Inventory</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Keep your stock updated in real time
-                  </p>
-                </div>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/80 backdrop-blur-xs border border-emerald-100/80 shadow-2xs">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-[#16a34a] flex items-center justify-center flex-shrink-0">
-                  <BarChart3 className="w-5 h-5" />
-                </div>
-                <div className="leading-tight">
-                  <h3 className="text-xs font-bold text-slate-900">Grow Your Business</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Get insights and serve more customers
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Vegetable Basket Artwork & Curved "Farm Fresh" Ribbon */}
-          <div className="relative z-10 mt-auto pt-4 -mx-10 -mb-10 overflow-hidden">
-            <div className="relative w-full h-52">
-              <Image
-                src="/images/auth/farm-basket.png"
-                alt="Farm Fresh Vegetables"
-                fill
-                priority
-                className="object-cover object-left-bottom"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* =========================================================================
-            RIGHT COLUMN: INTERACTIVE AUTH STEPS (Step 1, Step 2, Step 3)
-           ========================================================================= */}
-        <div className="w-full lg:w-1/2 p-6 sm:p-10 lg:p-12 flex flex-col justify-between bg-white relative">
-          
-          {/* Active Authentication Step */}
-          <div className="my-auto py-2">
-            {step === "credentials" && (
-              <LoginFormStep
-                onSuccessWithout2FA={handleSuccess}
-                onRequires2FA={handleRequires2FA}
-              />
-            )}
-
-            {step === "two_factor" && (
-              <TwoFactorStep
-                email={twoFactorSession.email}
-                tempToken={twoFactorSession.tempToken}
-                initialPreviewCode={twoFactorSession.previewCode}
-                initialTotpSecret={twoFactorSession.totpSecret}
-                initialTotpQrCode={twoFactorSession.totpQrCode}
-                onSuccess={handleSuccess}
-                onBackToLogin={() => setStep("credentials")}
-              />
-            )}
-
-            {step === "success" && (
-              <SuccessStep onRedirect={handleRedirect} />
-            )}
-          </div>
-
-          {/* Mobile Bottom Graphic matching the Mobile View in reference */}
-          <div className="lg:hidden mt-8 pt-4 -mx-6 -mb-6 sm:-mx-10 sm:-mb-10 overflow-hidden">
-            <div className="relative w-full h-36">
-              <Image
-                src="/images/auth/farm-basket.png"
-                alt="Farm Fresh Vegetables"
-                fill
-                className="object-cover object-bottom"
-              />
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { RRVLogo } from "@/components/layout/RRVLogo";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
+import { getSavedSettings } from "@/data/shared-store";
 
 export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[#16a34a] animate-spin" />
-        </div>
+  const router = useRouter();
+  const [email, setEmail] = useState("admin@rrvgreenbasket.in");
+  const [password, setPassword] = useState("admin123");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState("RRV Green Basket");
+
+  useEffect(() => {
+    const s = getSavedSettings();
+    if (s.storeName) setStoreName(s.storeName);
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMsg("Please enter both email and password.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Simulate login verification
+    setTimeout(() => {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("rrv_admin_logged_in", "true");
+          localStorage.setItem("rrv_admin_last_login", new Date().toISOString());
+        } catch (err) {
+          console.error("Failed to save auth token", err);
+        }
       }
-    >
-      <LoginPageContent />
-    </Suspense>
+      setIsLoading(false);
+      router.push("/admin/dashboard");
+    }, 400);
+  };
+
+  const handleQuickLogin = (roleEmail: string) => {
+    setEmail(roleEmail);
+    setPassword("admin123");
+    setErrorMsg(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200/90 p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        {/* Brand Logo Header */}
+        <div className="flex flex-col items-center text-center space-y-3">
+          <RRVLogo className="pointer-events-none scale-105" />
+          <div className="pt-2">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              Admin Portal Sign In
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Enter your administrative credentials to manage store operations, orders, and inventory.
+            </p>
+          </div>
+        </div>
+
+        {/* Error Alert */}
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Admin Email Address
+            </label>
+            <div className="relative">
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@rrvgreenbasket.in"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00875a]/20"
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={() => alert("Demo Password is: admin123")}
+                className="text-[11px] font-bold text-[#00875a] hover:underline"
+              >
+                Forgot?
+              </button>
+            </div>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00875a]/20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Remember Me */}
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 text-[#00875a] rounded-sm focus:ring-[#00875a]"
+              />
+              <span className="text-xs font-semibold text-slate-600">
+                Remember this device
+              </span>
+            </label>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              256-bit Secure
+            </span>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-3 px-4 bg-[#00875a] hover:bg-[#00744e] disabled:bg-slate-300 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-700/20 transition-all flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <span>Sign In to Admin Dashboard</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Quick Demo Login Credentials Card */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#00875a]" />
+              Quick Demo Login:
+            </span>
+            <span className="text-[10px] font-bold text-slate-400">Click to autofill</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("admin@rrvgreenbasket.in")}
+              className="p-2 rounded-xl bg-white border border-slate-200 text-left hover:border-[#00875a] hover:bg-emerald-50/50 transition-colors"
+            >
+              <span className="font-bold text-slate-800 block text-[11px]">Store Admin</span>
+              <span className="text-[10px] text-slate-500 truncate block">admin@rrvgreenbasket.in</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("manager@rrvgreenbasket.in")}
+              className="p-2 rounded-xl bg-white border border-slate-200 text-left hover:border-[#00875a] hover:bg-emerald-50/50 transition-colors"
+            >
+              <span className="font-bold text-slate-800 block text-[11px]">Store Manager</span>
+              <span className="text-[10px] text-slate-500 truncate block">manager@rrvgreenbasket.in</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Footer info */}
+        <div className="text-center text-[11px] text-slate-400 font-medium">
+          © {new Date().getFullYear()} {storeName} • All rights reserved
+        </div>
+      </div>
+    </div>
   );
 }

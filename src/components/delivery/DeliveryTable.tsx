@@ -323,7 +323,7 @@ export const DeliveryTable: React.FC<DeliveryTableProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    onClick={() => onTrackOrder(order)}
+                    onClick={() => onViewOrder(order)}
                     className={`cursor-pointer transition-colors ${
                       isMapFocused
                         ? "bg-emerald-50/70 border-l-4 border-[#00875a]"
@@ -331,7 +331,7 @@ export const DeliveryTable: React.FC<DeliveryTableProps> = ({
                         ? "bg-emerald-50/40"
                         : "hover:bg-slate-50/80"
                     }`}
-                    title="Click row to focus on live map"
+                    title="Click to view delivery order details"
                   >
                     {/* Checkbox */}
                     <td

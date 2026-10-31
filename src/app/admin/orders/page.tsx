@@ -199,7 +199,8 @@ export default function OrdersManagementPage() {
   // Status Update Action
   const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
-      const updated = await orderService.updateOrderStatus(orderId, newStatus);
+      const currentOrder = orders.find((o) => o.id === orderId) || selectedOrder;
+      const updated = await orderService.updateOrderStatus(orderId, newStatus, currentOrder || undefined);
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? updated : o))
       );
@@ -214,7 +215,8 @@ export default function OrdersManagementPage() {
   // Cancel Order Action
   const handleCancelOrder = async (orderId: string) => {
     try {
-      const cancelled = await orderService.cancelOrder(orderId, "Cancelled by Admin");
+      const currentOrder = orders.find((o) => o.id === orderId) || selectedOrder;
+      const cancelled = await orderService.cancelOrder(orderId, "Cancelled by Admin", currentOrder || undefined);
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? cancelled : o))
       );
@@ -376,6 +378,7 @@ export default function OrdersManagementPage() {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={handleSort}
+          selectedOrderId={isDetailsDrawerOpen ? selectedOrder?.id : null}
         />
       )}
 

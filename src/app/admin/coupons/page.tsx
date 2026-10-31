@@ -11,6 +11,7 @@ import {
   CreateCouponModal,
   EditCouponModal,
   CouponTab,
+  CouponDetailsDrawer,
 } from "@/components/coupons";
 import { Coupon, CouponActivity } from "@/types/coupon";
 import {
@@ -28,10 +29,12 @@ export default function CouponsManagementPage() {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [sortBy, setSortBy] = useState("created");
 
-  // Modals
+  // Modals & Drawer
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedCouponForDrawer, setSelectedCouponForDrawer] = useState<Coupon | null>(null);
+  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -261,6 +264,10 @@ export default function CouponsManagementPage() {
         onToggleStatus={handleToggleStatus}
         onEditCoupon={handleOpenEdit}
         onDeleteCoupon={handleDeleteCoupon}
+        onViewCoupon={(c) => {
+          setSelectedCouponForDrawer(c);
+          setIsDetailsDrawerOpen(true);
+        }}
         currentPage={currentPage}
         pageSize={pageSize}
         totalItems={filteredCoupons.length}
@@ -270,7 +277,7 @@ export default function CouponsManagementPage() {
       {/* Analytics Row */}
       <CouponsAnalyticsRow activities={activitiesList} />
 
-      {/* Modals */}
+      {/* Modals & Drawer */}
       <CreateCouponModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -282,6 +289,14 @@ export default function CouponsManagementPage() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onCouponSaved={handleSaveEdit}
+      />
+
+      <CouponDetailsDrawer
+        coupon={selectedCouponForDrawer}
+        isOpen={isDetailsDrawerOpen}
+        onClose={() => setIsDetailsDrawerOpen(false)}
+        onEdit={handleOpenEdit}
+        onToggleStatus={handleToggleStatus}
       />
     </div>
   );

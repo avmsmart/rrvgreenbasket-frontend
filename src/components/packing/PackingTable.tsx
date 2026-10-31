@@ -243,8 +243,12 @@ export const PackingTable: React.FC<PackingTableProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    className={`border-l-4 border-transparent transition-all duration-150 hover:border-[#00875a] hover:bg-[#eefcf2]/30 ${
-                      isSelected ? "bg-emerald-50/30" : ""
+                    onClick={() => onViewOrder(order)}
+                    title="Click to view order packing details"
+                    className={`cursor-pointer border-l-4 transition-all duration-150 ${
+                      isSelected
+                        ? "border-[#00875a] bg-emerald-50/40"
+                        : "border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50"
                     }`}
                   >
                     {/* Checkbox */}
@@ -308,7 +312,10 @@ export const PackingTable: React.FC<PackingTableProps> = ({
                     </td>
 
                     {/* Actions matching Page 13: Pack / Continue / View + 3-dots */}
-                    <td className="py-3.5 px-4 text-center">
+                    <td
+                      className="py-3.5 px-4 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-center gap-1.5 relative">
                         {order.status === "Pending" ? (
                           <button

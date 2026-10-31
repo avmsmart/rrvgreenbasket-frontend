@@ -16,7 +16,7 @@ export * from "./shared-store";
 
 export const MOCK_ADMIN_USER = {
   name: "Admin",
-  role: "Super Admin",
+  role: "Administrator",
   avatarInitial: "A",
   email: "admin@rrvgreenbasket.com",
   phone: "+91 98765 43210",
@@ -26,5 +26,4 @@ export const MOCK_ADMIN_USER = {
   orderCutoff: "10:00 PM",
   status: "Active (Accepting Orders)",
   permissions: ["All Modules Access", "Order Management", "Inventory Control", "Financial Reports"],
-  twoFactorEnabled: true,
 };

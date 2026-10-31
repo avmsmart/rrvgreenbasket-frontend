@@ -20,6 +20,7 @@ interface SectorsTableProps {
   onDelete: (id: string) => void;
   onToggleStatus: (id: string) => void;
   onToggleFeatured: (id: string) => void;
+  onViewSector?: (sector: Sector) => void;
 }
 
 export const SectorsTable: React.FC<SectorsTableProps> = ({
@@ -28,6 +29,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
   onDelete,
   onToggleStatus,
   onToggleFeatured,
+  onViewSector,
 }) => {
   if (sectors.length === 0) {
     return (
@@ -67,7 +69,9 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
                 return (
                   <tr
                     key={sector.id}
-                    className="hover:bg-slate-50/60 transition-colors group"
+                    onClick={() => (onViewSector ? onViewSector(sector) : onEdit(sector))}
+                    title="Click to view full sector details"
+                    className="border-l-4 border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50 cursor-pointer transition-colors group"
                   >
                     {/* Sector Name & Icon */}
                     <td className="py-4 pl-6 pr-3">
@@ -123,7 +127,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
                     </td>
 
                     {/* Featured on App Toggle */}
-                    <td className="py-4 px-3">
+                    <td className="py-4 px-3" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => onToggleFeatured(sector.id)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
@@ -138,7 +142,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
                     </td>
 
                     {/* Status Badge */}
-                    <td className="py-4 px-3">
+                    <td className="py-4 px-3" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => onToggleStatus(sector.id)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
@@ -153,7 +157,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-4 pr-6 pl-3 text-right">
+                    <td className="py-4 pr-6 pl-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onEdit(sector)}
@@ -188,7 +192,9 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
           return (
             <div
               key={sector.id}
-              className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-3xs space-y-3"
+              onClick={() => (onViewSector ? onViewSector(sector) : onEdit(sector))}
+              title="Click to view full sector details"
+              className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-3xs space-y-3 cursor-pointer hover:border-[#00875a] transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -216,7 +222,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => onEdit(sector)}
                     className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
@@ -255,7 +261,7 @@ export const SectorsTable: React.FC<SectorsTableProps> = ({
               </div>
 
               {/* Badges / Quick toggles */}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center justify-between pt-1" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => onToggleFeatured(sector.id)}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${

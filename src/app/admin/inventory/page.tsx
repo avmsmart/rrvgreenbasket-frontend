@@ -7,6 +7,7 @@ import {
   InventoryFiltersBar,
   InventoryTable,
   StockAdjustmentModal,
+  InventoryDetailsDrawer,
 } from "@/components/inventory";
 import { MASTER_PRODUCTS_DATA } from "@/data";
 import { getSavedSettings } from "@/data/shared-store";
@@ -45,9 +46,11 @@ export default function InventoryManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
-  // Modals
+  // Modals & Drawer
   const [selectedProductForInward, setSelectedProductForInward] = useState<Product | null>(null);
   const [isInwardModalOpen, setIsInwardModalOpen] = useState(false);
+  const [selectedProductForDrawer, setSelectedProductForDrawer] = useState<Product | null>(null);
+  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -220,6 +223,10 @@ export default function InventoryManagementPage() {
         items={paginatedItems}
         onAdjustStock={handleAdjustStock}
         onOpenInwardModal={handleOpenInward}
+        onViewItem={(p) => {
+          setSelectedProductForDrawer(p);
+          setIsDetailsDrawerOpen(true);
+        }}
         currentPage={currentPage}
         pageSize={pageSize}
         totalItems={filteredItems.length}
@@ -234,6 +241,15 @@ export default function InventoryManagementPage() {
         onClose={() => setIsInwardModalOpen(false)}
         onConfirmInward={handleConfirmInward}
         onConfirmBatchInward={handleBatchInward}
+      />
+
+      {/* Inventory Details Drawer */}
+      <InventoryDetailsDrawer
+        product={selectedProductForDrawer}
+        isOpen={isDetailsDrawerOpen}
+        onClose={() => setIsDetailsDrawerOpen(false)}
+        onOpenInwardModal={handleOpenInward}
+        lowStockThreshold={lowStockThreshold}
       />
     </div>
   );

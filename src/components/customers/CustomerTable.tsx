@@ -236,8 +236,12 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                 return (
                   <tr
                     key={customer.id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      isSelected ? "bg-emerald-50/40" : ""
+                    onClick={() => onViewCustomer(customer)}
+                    title="Click to view customer profile and order history"
+                    className={`cursor-pointer border-l-4 transition-all ${
+                      isSelected
+                        ? "border-[#00875a] bg-[#eefcf2]"
+                        : "border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50"
                     }`}
                   >
                     {/* Checkbox */}
@@ -317,7 +321,10 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-3.5 text-center relative">
+                    <td
+                      className="py-3 px-3.5 text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-center gap-1.5">
                         {/* Eye: View */}
                         <button

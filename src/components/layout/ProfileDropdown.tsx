@@ -2,27 +2,51 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   Settings,
-  ShieldCheck,
-  UserCheck,
   LogOut,
   Store,
   User,
 } from "lucide-react";
 import { MOCK_ADMIN_USER } from "@/data";
 import { ProfileDetailsModal } from "./ProfileDetailsModal";
-import { useAuth } from "@/context/AuthContext";
+import { getSavedSettings } from "@/data/shared-store";
+import { StoreSettings } from "@/types/settings";
 
 export const ProfileDropdown: React.FC = () => {
-  const { logout, user } = useAuth();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(true);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [storeName, setStoreName] = useState("RRV Green Basket");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const adminProfile = user || MOCK_ADMIN_USER;
+  const handleSignOut = () => {
+    setIsOpen(false);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rrv_admin_logged_in", "false");
+      } catch (err) {
+        console.error("Sign out storage error", err);
+      }
+    }
+    router.push("/login");
+  };
+
+  useEffect(() => {
+    const s = getSavedSettings();
+    if (s.storeName) setStoreName(s.storeName);
+
+    const onSettingsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<StoreSettings>;
+      const updated = customEvent.detail || getSavedSettings();
+      if (updated.storeName) setStoreName(updated.storeName);
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -45,14 +69,14 @@ export const ProfileDropdown: React.FC = () => {
           title="Admin Profile Menu"
         >
           <div className="w-8 h-8 rounded-full bg-[#00875a] text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs">
-            {adminProfile.avatarInitial || "A"}
+            {MOCK_ADMIN_USER.avatarInitial}
           </div>
           <div className="hidden sm:flex flex-col text-left leading-tight">
             <span className="text-xs font-bold text-[#0f2942]">
-              {adminProfile.name}
+              {MOCK_ADMIN_USER.name}
             </span>
-            <span className="text-[10px] text-slate-500 font-medium">
-              {adminProfile.role}
+            <span className="text-[10px] text-slate-500 font-medium truncate max-w-[120px]">
+              {storeName}
             </span>
           </div>
           <ChevronDown
@@ -74,16 +98,13 @@ export const ProfileDropdown: React.FC = () => {
               className="w-full text-left px-4 py-3 border-b border-slate-100 flex items-center gap-3 hover:bg-[#eaf8f0] transition-colors group"
             >
               <div className="w-10 h-10 rounded-full bg-[#00875a] group-hover:bg-[#00734d] text-white font-bold text-sm flex items-center justify-center shadow-xs flex-shrink-0 transition-colors">
-                {adminProfile.avatarInitial || "A"}
+                {MOCK_ADMIN_USER.avatarInitial}
               </div>
               <div className="overflow-hidden">
                 <p className="text-sm font-bold text-[#0f2942] group-hover:text-[#00875a]">
-                  {adminProfile.name}
+                  {MOCK_ADMIN_USER.name}
                 </p>
-                <p className="text-xs text-slate-500 truncate">{adminProfile.email}</p>
-                <span className="inline-block mt-0.5 px-2 py-0.5 text-[9px] font-bold bg-[#eaf8f0] text-[#00875a] rounded-full">
-                  {adminProfile.role}
-                </span>
+                <p className="text-xs text-slate-500 truncate">{MOCK_ADMIN_USER.email}</p>
               </div>
             </button>
 
@@ -130,34 +151,16 @@ export const ProfileDropdown: React.FC = () => {
                 <Settings className="w-4 h-4 text-slate-400" />
                 <span>Store Settings</span>
               </Link>
-              <Link
-                href="/admin/settings"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 hover:text-emerald-700 transition-colors"
-              >
-                <ShieldCheck className="w-4 h-4 text-slate-400" />
-                <span>Roles &amp; Permissions</span>
-              </Link>
-              <Link
-                href="/admin/customers"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 hover:text-emerald-700 transition-colors"
-              >
-                <UserCheck className="w-4 h-4 text-slate-400" />
-                <span>Account Activity</span>
-              </Link>
             </div>
 
             {/* Logout */}
             <div className="pt-1 border-t border-slate-100">
               <button
-                onClick={async () => {
-                  setIsOpen(false);
-                  await logout();
-                }}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                type="button"
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
               >
-                <LogOut className="w-4 h-4 text-red-500" />
+                <LogOut className="w-4 h-4 text-rose-500" />
                 <span>Sign Out</span>
               </button>
             </div>

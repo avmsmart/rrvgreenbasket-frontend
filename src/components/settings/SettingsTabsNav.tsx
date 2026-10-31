@@ -6,18 +6,14 @@ import {
   Store, 
   Clock, 
   Package, 
-  Globe, 
-  CreditCard, 
-  Users 
+  CreditCard 
 } from "lucide-react";
 
 export type SettingsTabId = 
   | "general" 
   | "hours" 
   | "rules" 
-  | "regional" 
-  | "delivery_payment" 
-  | "staff";
+  | "delivery_payment";
 
 interface TabItem {
   id: SettingsTabId;
@@ -30,8 +26,6 @@ const TABS: TabItem[] = [
   { id: "hours", label: "Business Hours", icon: Clock },
   { id: "rules", label: "Order & Inventory Rules", icon: Package },
   { id: "delivery_payment", label: "Delivery & Payment", icon: CreditCard },
-  { id: "regional", label: "Currency & Regional", icon: Globe },
-  { id: "staff", label: "Users & Roles", icon: Users },
 ];
 
 interface SettingsTabsNavProps {

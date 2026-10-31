@@ -14,9 +14,7 @@ import {
   GeneralSettingsForm,
   BusinessHoursCard,
   OrderInventoryRulesCard,
-  CurrencyRegionalCard,
   DeliveryPaymentCard,
-  UsersStaffCard,
 } from "@/components/settings";
 
 export default function SettingsPage() {
@@ -50,7 +48,17 @@ export default function SettingsPage() {
   };
 
   const handlePartialUpdate = (updated: Partial<StoreSettings>) => {
-    setSettings((prev) => ({ ...prev, ...updated }));
+    setSettings((prev) => {
+      const next = { ...prev, ...updated };
+      if ("platformLogo" in updated) {
+        saveSettings(next);
+        showToast("Brand logo uploaded and updated across the dashboard!");
+      } else if ("businessHours" in updated) {
+        saveSettings(next);
+        showToast("Business operating hours updated and synchronized!");
+      }
+      return next;
+    });
     setHasChanges(true);
   };
 
@@ -149,12 +157,6 @@ export default function SettingsPage() {
       {activeTab === "delivery_payment" && (
         <DeliveryPaymentCard settings={settings} onChange={handlePartialUpdate} />
       )}
-
-      {activeTab === "regional" && (
-        <CurrencyRegionalCard settings={settings} onChange={handlePartialUpdate} />
-      )}
-
-      {activeTab === "staff" && <UsersStaffCard />}
     </div>
   );
 }

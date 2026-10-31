@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Eye,
   MoreVertical,
@@ -19,6 +19,7 @@ import {
 import { Order, OrderStatus } from "@/types";
 import { SelectionToolbar, IndeterminateCheckbox, PaginationBar } from "@/components/common";
 import { exportToCsv, exportToPdf } from "@/utils";
+import { getCurrencySymbol } from "@/data/shared-store";
 
 interface OrdersTableProps {
   orders: Order[];
@@ -54,6 +55,16 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
+
+  useEffect(() => {
+    setCurrencySymbol(getCurrencySymbol());
+    const onSettingsUpdate = () => {
+      setCurrencySymbol(getCurrencySymbol());
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+  }, []);
 
   const totalPages = Math.ceil(totalOrders / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize + 1;
@@ -318,8 +329,14 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    className={`border-l-4 border-transparent hover:border-[#00875a] hover:bg-[#eefcf2] transition-all group ${
-                      isChecked ? "bg-[#f2faf5]" : ""
+                    onClick={() => onSelectOrder(order)}
+                    title="Click to view order details"
+                    className={`border-l-4 transition-all group cursor-pointer ${
+                      isSelected
+                        ? "border-[#00875a] bg-[#eefcf2] shadow-3xs"
+                        : isChecked
+                        ? "border-transparent bg-[#f2faf5]"
+                        : "border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]"
                     }`}
                   >
                     <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
@@ -341,14 +358,17 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                       {order.itemsCount} items
                     </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                      ₹{order.amount}
+                      {currencySymbol}{order.amount}
                     </td>
                     <td className="py-3.5 px-4">{getPaymentBadge(order)}</td>
                     <td className="py-3.5 px-4">{getStatusBadge(order.status)}</td>
                     <td className="py-3.5 px-4 font-medium text-slate-600">
                       {order.orderTime}
                     </td>
-                    <td className="py-3.5 px-4 text-right relative">
+                    <td
+                      className="py-3.5 px-4 text-right relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"

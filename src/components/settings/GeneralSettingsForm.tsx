@@ -14,18 +14,14 @@ export const GeneralSettingsForm: React.FC<GeneralSettingsFormProps> = ({
   onChange,
 }) => {
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const faviconInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: "platformLogo" | "appFavicon"
-  ) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
-          onChange({ [field]: reader.result });
+          onChange({ platformLogo: reader.result });
         }
       };
       reader.readAsDataURL(file);
@@ -139,84 +135,42 @@ export const GeneralSettingsForm: React.FC<GeneralSettingsFormProps> = ({
 
       {/* Brand Assets Upload */}
       <div className="pt-4 border-t border-slate-100">
-        <h4 className="text-sm font-bold text-slate-900 mb-3">Brand Logo & Favicon</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Platform Logo */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-3xs">
-                {settings.platformLogo ? (
-                  <img
-                    src={settings.platformLogo}
-                    alt="Logo"
-                    className="w-full h-full object-contain p-1"
-                  />
-                ) : (
-                  <ImageIcon className="w-6 h-6 text-slate-400" />
-                )}
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900">Platform Logo</span>
-                <p className="text-[10px] text-slate-400">PNG or SVG, max 2MB</p>
-              </div>
+        <h4 className="text-sm font-bold text-slate-900 mb-3">Brand Platform Logo</h4>
+        <div className="max-w-md p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-3xs">
+              {settings.platformLogo ? (
+                <img
+                  src={settings.platformLogo}
+                  alt="Logo"
+                  className="w-full h-full object-contain p-1"
+                />
+              ) : (
+                <ImageIcon className="w-6 h-6 text-slate-400" />
+              )}
             </div>
-
             <div>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "platformLogo")}
-              />
-              <button
-                type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-3xs transition-colors"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload</span>
-              </button>
+              <span className="text-xs font-bold text-slate-900">Platform Logo</span>
+              <p className="text-[10px] text-slate-400">PNG or SVG, max 2MB</p>
             </div>
           </div>
 
-          {/* Favicon */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-3xs">
-                {settings.appFavicon ? (
-                  <img
-                    src={settings.appFavicon}
-                    alt="Favicon"
-                    className="w-8 h-8 object-contain"
-                  />
-                ) : (
-                  <span className="text-xl">🌿</span>
-                )}
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900">App Favicon</span>
-                <p className="text-[10px] text-slate-400">32x32 ICO or PNG</p>
-              </div>
-            </div>
-
-            <div>
-              <input
-                ref={faviconInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "appFavicon")}
-              />
-              <button
-                type="button"
-                onClick={() => faviconInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-3xs transition-colors"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload</span>
-              </button>
-            </div>
+          <div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <button
+              type="button"
+              onClick={() => logoInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-3xs transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload</span>
+            </button>
           </div>
         </div>
       </div>

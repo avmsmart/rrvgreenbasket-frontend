@@ -16,6 +16,7 @@ import {
   SectorsAnalyticsRow,
   AddSectorModal,
   EditSectorModal,
+  SectorDetailsDrawer,
 } from "@/components/sectors";
 
 export default function SectorsPage() {
@@ -28,6 +29,8 @@ export default function SectorsPage() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingSector, setEditingSector] = useState<Sector | null>(null);
+  const [selectedSectorForDrawer, setSelectedSectorForDrawer] = useState<Sector | null>(null);
+  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Initialize from shared store & subscribe to cross-page events
@@ -185,6 +188,10 @@ export default function SectorsPage() {
         onDelete={handleDeleteSector}
         onToggleStatus={handleToggleStatus}
         onToggleFeatured={handleToggleFeatured}
+        onViewSector={(sec) => {
+          setSelectedSectorForDrawer(sec);
+          setIsDetailsDrawerOpen(true);
+        }}
       />
 
       {/* Sector Analytics Breakdown Row */}
@@ -204,6 +211,16 @@ export default function SectorsPage() {
         onClose={() => setEditingSector(null)}
         sector={editingSector}
         onSave={handleSaveSector}
+      />
+
+      {/* Sector Details Drawer */}
+      <SectorDetailsDrawer
+        sector={selectedSectorForDrawer}
+        isOpen={isDetailsDrawerOpen}
+        onClose={() => setIsDetailsDrawerOpen(false)}
+        onEdit={(sec) => setEditingSector(sec)}
+        onToggleStatus={handleToggleStatus}
+        onToggleFeatured={handleToggleFeatured}
       />
     </div>
   );

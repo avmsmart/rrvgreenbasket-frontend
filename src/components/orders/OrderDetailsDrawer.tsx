@@ -18,6 +18,7 @@ import {
 import { Order, OrderStatus } from "@/types";
 import { ProduceImage } from "@/components/common";
 import { generateInvoicePdf } from "@/utils";
+import { getCurrencySymbol } from "@/data/shared-store";
 
 interface OrderDetailsProps {
   order: Order | null;
@@ -33,6 +34,16 @@ export const OrderDetailsContent: React.FC<OrderDetailsProps & { isDrawer?: bool
 }) => {
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
+
+  useEffect(() => {
+    setCurrencySymbol(getCurrencySymbol());
+    const onSettingsUpdate = () => {
+      setCurrencySymbol(getCurrencySymbol());
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+  }, []);
 
   if (!order) return null;
 
@@ -178,12 +189,12 @@ export const OrderDetailsContent: React.FC<OrderDetailsProps & { isDrawer?: bool
                         {item.productName}
                       </div>
                       <span className="text-[10px] text-slate-400">
-                        ₹{item.unitPrice}/{item.unit} • Qty: {item.quantity}
+                        {currencySymbol}{item.unitPrice}/{item.unit} • Qty: {item.quantity}
                       </span>
                     </div>
                   </div>
                   <div className="font-bold text-slate-900 text-xs flex-shrink-0 pl-2">
-                    ₹{item.totalPrice}
+                    {currencySymbol}{item.totalPrice}
                   </div>
                 </div>
               ))}
@@ -196,23 +207,23 @@ export const OrderDetailsContent: React.FC<OrderDetailsProps & { isDrawer?: bool
             <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-1.5 font-medium">
               <div className="flex items-center justify-between text-slate-600">
                 <span>Subtotal</span>
-                <span>₹{order.subtotal || order.amount}</span>
+                <span>{currencySymbol}{order.subtotal || order.amount}</span>
               </div>
               <div className="flex items-center justify-between text-slate-600">
                 <span>Delivery Charge</span>
                 <span>
-                  {order.deliveryCharge ? `₹${order.deliveryCharge}` : "FREE"}
+                  {order.deliveryCharge ? `${currencySymbol}${order.deliveryCharge}` : "FREE"}
                 </span>
               </div>
               {order.discount ? (
                 <div className="flex items-center justify-between text-emerald-700">
                   <span>Discount (Coupon)</span>
-                  <span>-₹{order.discount}</span>
+                  <span>-{currencySymbol}{order.discount}</span>
                 </div>
               ) : null}
               <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-extrabold text-sm text-slate-900">
                 <span>Total Amount</span>
-                <span className="text-base text-[#00875a]">₹{order.amount}</span>
+                <span className="text-base text-[#00875a]">{currencySymbol}{order.amount}</span>
               </div>
             </div>
           </div>
@@ -277,31 +288,48 @@ export const OrderDetailsContent: React.FC<OrderDetailsProps & { isDrawer?: bool
                   completed: order.status === "Out for Delivery" || order.status === "Delivered",
                 },
                 { status: "Delivered", time: "Pending", completed: order.status === "Delivered" },
-              ]).map((t, idx) => (
-                <div key={idx} className="relative">
-                  <div
-                    className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                      t.completed
-                        ? "bg-[#00875a] border-white text-white shadow-3xs"
-                        : "bg-white border-slate-300 text-transparent"
-                    }`}
-                  >
-                    {t.completed && <CheckCircle2 className="w-3 h-3" />}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`font-semibold ${
-                        t.completed ? "text-slate-800" : "text-slate-400"
+              ]).map((t, idx) => {
+                const isCancelledEvent = t.status === "Cancelled";
+                return (
+                  <div key={idx} className="relative">
+                    <div
+                      className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                        isCancelledEvent
+                          ? "bg-rose-600 border-white text-white shadow-3xs"
+                          : t.completed
+                          ? "bg-[#00875a] border-white text-white shadow-3xs"
+                          : "bg-white border-slate-300 text-transparent"
                       }`}
                     >
-                      {t.status}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      {t.time}
-                    </span>
+                      {isCancelledEvent ? (
+                        <X className="w-2.5 h-2.5 stroke-[3]" />
+                      ) : (
+                        t.completed && <CheckCircle2 className="w-3 h-3" />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`font-semibold ${
+                          isCancelledEvent
+                            ? "text-rose-700"
+                            : t.completed
+                            ? "text-slate-800"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                      <span
+                        className={`text-[10px] font-medium ${
+                          isCancelledEvent ? "text-rose-600 font-semibold" : "text-slate-400"
+                        }`}
+                      >
+                        {t.time}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

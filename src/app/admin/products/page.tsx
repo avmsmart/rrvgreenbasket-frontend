@@ -8,6 +8,7 @@ import {
   ProductsTable,
   EditProductModal,
   ProductCategoryTab,
+  ProductDetailsDrawer,
 } from "@/components/products";
 import { AddProductModal } from "@/components/dashboard/AddProductModal";
 import { MASTER_PRODUCTS_DATA } from "@/data";
@@ -37,10 +38,12 @@ export default function ProductsManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
-  // Modals
+  // Modals & Drawer
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedProductForDrawer, setSelectedProductForDrawer] = useState<Product | null>(null);
+  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
 
   // Counts for tabs
   const counts = useMemo(() => {
@@ -234,13 +237,17 @@ export default function ProductsManagementPage() {
         viewMode={viewMode}
         onEditProduct={handleOpenEdit}
         onDeleteProduct={handleDelete}
+        onViewProduct={(p) => {
+          setSelectedProductForDrawer(p);
+          setIsDetailsDrawerOpen(true);
+        }}
         currentPage={currentPage}
         pageSize={pageSize}
         totalItems={filteredProducts.length}
         onPageChange={setCurrentPage}
       />
 
-      {/* Modals */}
+      {/* Modals & Drawer */}
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -252,6 +259,13 @@ export default function ProductsManagementPage() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveEdit}
+      />
+
+      <ProductDetailsDrawer
+        product={selectedProductForDrawer}
+        isOpen={isDetailsDrawerOpen}
+        onClose={() => setIsDetailsDrawerOpen(false)}
+        onEdit={handleOpenEdit}
       />
     </div>
   );

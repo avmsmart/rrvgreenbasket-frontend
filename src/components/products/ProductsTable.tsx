@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Edit3,
   Trash2,
@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 import { Product } from "@/types";
 import { ProduceImage } from "@/components/common/ProduceImage";
+import { getCurrencySymbol } from "@/data/shared-store";
 
 interface ProductsTableProps {
   products: Product[];
   viewMode: "table" | "grid";
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
+  onViewProduct?: (product: Product) => void;
   currentPage: number;
   pageSize: number;
   totalItems: number;
@@ -29,11 +31,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   viewMode,
   onEditProduct,
   onDeleteProduct,
+  onViewProduct,
   currentPage,
   pageSize,
   totalItems,
   onPageChange,
 }) => {
+  const [currencySymbol, setCurrencySymbol] = useState("₹");
+
+  useEffect(() => {
+    setCurrencySymbol(getCurrencySymbol());
+    const onSettingsUpdate = () => {
+      setCurrencySymbol(getCurrencySymbol());
+    };
+    window.addEventListener("rrv:settings:updated", onSettingsUpdate);
+    return () => window.removeEventListener("rrv:settings:updated", onSettingsUpdate);
+  }, []);
+
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
@@ -62,7 +76,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             return (
               <div
                 key={p.id}
-                className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-3xs hover:border-emerald-300 transition-all flex flex-col justify-between group"
+                onClick={() => (onViewProduct ? onViewProduct(p) : onEditProduct(p))}
+                title="Click to view full product details"
+                className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-3xs hover:border-[#00875a] hover:shadow-sm cursor-pointer transition-all flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -99,13 +115,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400">Quot Rate:</span>
                       <span className="font-semibold text-slate-500 line-through">
-                        ₹{p.originalPrice || p.price}
+                        {currencySymbol}{p.originalPrice || p.price}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-emerald-800">SRM Revised:</span>
                       <span className="text-sm font-black text-[#00875a]">
-                        ₹{p.price.toFixed(2)} / {p.unit}
+                        {currencySymbol}{p.price.toFixed(2)} / {p.unit}
                       </span>
                     </div>
                   </div>
@@ -118,14 +134,22 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                   <button
-                    onClick={() => onEditProduct(p)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditProduct(p);
+                    }}
                     className="flex-1 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Edit</span>
                   </button>
                   <button
-                    onClick={() => onDeleteProduct(p.id)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteProduct(p.id);
+                    }}
                     className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -191,7 +215,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               return (
                 <tr
                   key={p.id}
-                  className="hover:bg-slate-50/80 transition-colors group"
+                  onClick={() => (onViewProduct ? onViewProduct(p) : onEditProduct(p))}
+                  title="Click to view full product details"
+                  className="border-l-4 border-transparent hover:border-[#00875a] hover:bg-[#eefcf2]/50 cursor-pointer transition-colors group"
                 >
                   {/* S.No */}
                   <td className="py-3 px-4 text-center font-bold text-slate-400">
@@ -237,13 +263,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                   {/* Quot Rate */}
                   <td className="py-3 px-4 text-right text-slate-500 font-semibold">
-                    {p.originalPrice ? `₹${p.originalPrice}` : `₹${p.price}`}
+                    {p.originalPrice ? `${currencySymbol}${p.originalPrice}` : `${currencySymbol}${p.price}`}
                   </td>
 
                   {/* SRM REVISED */}
                   <td className="py-3 px-4 text-right">
                     <span className="text-xs font-black text-[#00875a] bg-[#eaf8f0] px-2.5 py-1 rounded-xl border border-[#bbf7d0]">
-                      ₹{p.price.toFixed(2)}
+                      {currencySymbol}{p.price.toFixed(2)}
                     </span>
                   </td>
 
@@ -274,7 +300,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3 px-4 text-right">
+                  <td
+                    className="py-3 px-4 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => onEditProduct(p)}
