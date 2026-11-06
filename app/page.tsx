@@ -1,83 +1,121 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
+import HomeFooter from "@/components/HomeFooter";
+import {
+  Search,
+  MapPin,
+  Heart,
+  ShoppingCart,
+  Leaf,
+  ChevronDown,
+  Home as HomeIcon,
+  LayoutGrid,
+  UserRound,
+  Sparkles,
+  AlertTriangle,
+  RefreshCw,
+  Plus,
+  Minus,
+  CheckCircle2,
+  X,
+  Tag,
+} from "lucide-react";
+import {
+  productService,
+  getCategoryId,
+  mapBackendToStoreProduct,
+} from "@/services/product.service";
+import { BackendCategory, StoreProduct } from "@/types";
+import {
+  getStoredWishlist,
+  saveStoredWishlist,
+  CustomerWishlistItem,
+} from "@/data/customer-profile-mock";
 
-type Product = {
-  id: number;
-  name: string;
-  category: string;
-  price: number;
-  unit: string;
-  image: string;
-  badge?: string;
+// Category image fallbacks for storefront visual badges
+const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
+  Fruits: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80",
+  Vegetables: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80",
+  "Leafy Vegetables": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=400&q=80",
+  "Leafy Greens": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=400&q=80",
+  "Root Vegetables": "https://images.unsplash.com/photo-1445282768818-728615cc910a?auto=format&fit=crop&w=400&q=80",
+  Seasonings: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=400&q=80",
+  Mushrooms: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=400&q=80",
+  "Other Items": "https://images.unsplash.com/photo-1604977042946-1eecc30f269e?auto=format&fit=crop&w=400&q=80",
+  "Exotic & Seasonal": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=400&q=80",
+  Organics: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80",
+  "Dairy Products": "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80",
+  "Snacks & Foods": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80",
+  Beverages: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=400&q=80",
+  "Household Items": "https://images.unsplash.com/photo-1563453392212-326f5e854473?auto=format&fit=crop&w=400&q=80",
 };
 
-const categories = [
-  { name: "All Products", icon: "▦" },
-  { name: "Fruits", icon: "🍊" },
-  { name: "Vegetables", icon: "🥦" },
-  { name: "Leafy Greens", icon: "🥬" },
-  { name: "Exotic & Seasonal", icon: "🍍" },
-  { name: "Organics", icon: "🌿" },
-  { name: "Dairy Products", icon: "🥛" },
-  { name: "Snacks & Foods", icon: "🥜" },
-  { name: "Beverages", icon: "🧃" },
-  { name: "Household Items", icon: "🧺" },
-];
+const DEFAULT_CATEGORY_ICONS: Record<string, string> = {
+  Fruits: "🍊",
+  Vegetables: "🥦",
+  "Leafy Vegetables": "🥬",
+  "Leafy Greens": "🥬",
+  "Root Vegetables": "🥔",
+  Seasonings: "🌿",
+  Mushrooms: "🍄",
+  "Other Items": "📦",
+  "Exotic & Seasonal": "🍍",
+  Organics: "🌱",
+  "Dairy Products": "🥛",
+  "Snacks & Foods": "🥜",
+  Beverages: "🧃",
+  "Household Items": "🧺",
+};
 
-const products: Product[] = [
-  { id: 1, name: "Fresh Apples", category: "Fruits", price: 120, unit: "kg", image: "photo-1560806887-1e4cd0b6cbd6", badge: "Popular" },
-  { id: 2, name: "Sweet Bananas", category: "Fruits", price: 60, unit: "dozen", image: "photo-1571771894821-ce9b6c11b08e" },
-  { id: 3, name: "Green Grapes", category: "Fruits", price: 80, unit: "500 g", image: "photo-1537640538966-79f369143f8f" },
-  { id: 4, name: "Fresh Mangoes", category: "Exotic & Seasonal", price: 100, unit: "kg", image: "photo-1553279768-865429fa0078", badge: "Seasonal" },
-  { id: 5, name: "Red Tomatoes", category: "Vegetables", price: 36, unit: "kg", image: "photo-1546094096-0df4bcaaa337" },
-  { id: 6, name: "Fresh Onions", category: "Vegetables", price: 28, unit: "kg", image: "photo-1508747703725-719777637510" },
-  { id: 7, name: "Carrots", category: "Vegetables", price: 40, unit: "kg", image: "photo-1445282768818-728615cc910a" },
-  { id: 8, name: "Fresh Cucumber", category: "Vegetables", price: 25, unit: "kg", image: "photo-1604977042946-1eecc30f269e" },
-  { id: 9, name: "Fresh Spinach", category: "Leafy Greens", price: 20, unit: "bunch", image: "photo-1576045057995-568f588f82fb" },
-  { id: 10, name: "Fresh Lettuce", category: "Leafy Greens", price: 35, unit: "bunch", image: "photo-1622206151226-18ca2c9ab4a1" },
-  { id: 11, name: "Fresh Coriander", category: "Leafy Greens", price: 15, unit: "bunch", image: "photo-1615485290382-441e4d049cb5" },
-  { id: 12, name: "Fresh Pineapple", category: "Exotic & Seasonal", price: 90, unit: "piece", image: "photo-1550258987-190a2d41a8ba" },
-  { id: 13, name: "Dragon Fruit", category: "Exotic & Seasonal", price: 140, unit: "piece", image: "photo-1527325678964-54921661f888" },
-  { id: 14, name: "Organic Tomatoes", category: "Organics", price: 50, unit: "kg", image: "photo-1546094096-0df4bcaaa337", badge: "Organic" },
-  { id: 15, name: "Organic Spinach", category: "Organics", price: 30, unit: "bunch", image: "photo-1576045057995-568f588f82fb", badge: "Organic" },
-  { id: 16, name: "Organic Apples", category: "Organics", price: 150, unit: "kg", image: "photo-1560806887-1e4cd0b6cbd6", badge: "Organic" },
-  { id: 17, name: "Organic Carrots", category: "Organics", price: 55, unit: "kg", image: "photo-1445282768818-728615cc910a", badge: "Organic" },
-  { id: 18, name: "Fresh Cow Milk", category: "Dairy Products", price: 32, unit: "500 ml", image: "photo-1563636619-e9143da7973b" },
-  { id: 19, name: "Fresh Paneer", category: "Dairy Products", price: 90, unit: "200 g", image: "photo-1631452180519-c014fe946bc7" },
-  { id: 20, name: "Farm Butter", category: "Dairy Products", price: 55, unit: "100 g", image: "photo-1589985270826-4b7bb135bc9d" },
-  { id: 21, name: "Roasted Peanuts", category: "Snacks & Foods", price: 45, unit: "200 g", image: "photo-1567892737950-30c4db37cd89" },
-  { id: 22, name: "Potato Chips", category: "Snacks & Foods", price: 30, unit: "pack", image: "photo-1566478989037-eec170784d0b" },
-  { id: 23, name: "Mixed Nuts", category: "Snacks & Foods", price: 120, unit: "200 g", image: "photo-1599599810694-b5b37304c9d4" },
-  { id: 24, name: "Orange Juice", category: "Beverages", price: 60, unit: "bottle", image: "photo-1600271886742-f049cd451bba" },
-  { id: 25, name: "Coconut Water", category: "Beverages", price: 40, unit: "bottle", image: "photo-1525385133512-2f3bdd039054" },
-  { id: 26, name: "Green Tea", category: "Beverages", price: 110, unit: "pack", image: "photo-1556679343-c7306c1976bc" },
-  { id: 27, name: "Dishwashing Liquid", category: "Household Items", price: 85, unit: "bottle", image: "photo-1563453392212-326f5e854473" },
-  { id: 28, name: "Laundry Detergent", category: "Household Items", price: 120, unit: "pack", image: "photo-1585421514738-01798e348b17" },
-  { id: 29, name: "Paper Towels", category: "Household Items", price: 65, unit: "pack", image: "photo-1583947215259-38e31be8751f" },
-];
+const resolveImageUrl = (img?: string, width = 600) => {
+  if (!img) {
+    return `https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=${width}&q=85`;
+  }
+  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:") || img.startsWith("/")) {
+    return img;
+  }
+  return `https://images.unsplash.com/${img}?auto=format&fit=crop&w=${width}&q=85`;
+};
 
-const imageUrl = (id: string, width = 600) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=85`;
-
-const categoryImages: Record<string, string> = {
-  Fruits: imageUrl("photo-1610832958506-aa56368176cf"),
-  Vegetables: imageUrl("photo-1540420773420-3366772f4999"),
-  "Leafy Greens": imageUrl("photo-1576045057995-568f588f82fb"),
-  "Exotic & Seasonal": imageUrl("photo-1550258987-190a2d41a8ba"),
-  Organics: imageUrl("photo-1540420773420-3366772f4999"),
-  "Dairy Products": imageUrl("photo-1563636619-e9143da7973b"),
-  "Snacks & Foods": imageUrl("photo-1566478989037-eec170784d0b"),
-  Beverages: imageUrl("photo-1600271886742-f049cd451bba"),
-  "Household Items": imageUrl("photo-1563453392212-326f5e854473"),
+const getCategoryVisuals = (cat: BackendCategory) => {
+  const name = cat.name || "";
+  const img = cat.imageUrl || DEFAULT_CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGES.Vegetables;
+  const icon = cat.icon || DEFAULT_CATEGORY_ICONS[name] || "▦";
+  return { img, icon };
 };
 
 export default function Home() {
-  const [activeCategory, setActiveCategory] = useState("All Products");
-  const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<Record<number, number>>({});
+  // Category state (driven dynamically from backend API)
+  const [categories, setCategories] = useState<BackendCategory[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [activeCategoryName, setActiveCategoryName] = useState<string>("All Products");
 
-  useEffect(() => {
+  // Product state (fetched dynamically from backend API)
+  const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Search state
+  const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+
+  // Cart state
+  const [cart, setCart] = useState<Record<string | number, number>>({});
+
+  // Favorites (Wishlist) state
+  const [favorites, setFavorites] = useState<(string | number)[]>([]);
+  const [showFavorites, setShowFavorites] = useState<boolean>(false);
+
+  // UI state
+  const [notice, setNotice] = useState<string>("");
+  const [scrolling, setScrolling] = useState<boolean>(false);
+
+  // Synchronize cart from localStorage and window storage events
+  const syncCartFromStorage = useCallback(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("rrv-cart") || "{}");
       setCart(saved);
@@ -86,35 +124,145 @@ export default function Home() {
     }
   }, []);
 
-  const [favorites, setFavorites] = useState<number[]>([]);
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    syncCartFromStorage();
+    window.addEventListener("storage", syncCartFromStorage);
+    return () => window.removeEventListener("storage", syncCartFromStorage);
+  }, [syncCartFromStorage]);
 
-  const filteredProducts = useMemo(() => {
-    const term = search.trim().toLowerCase();
+  // Synchronize favorites from customer wishlist
+  useEffect(() => {
+    try {
+      const stored = getStoredWishlist();
+      setFavorites(stored.map((item) => item.id));
+    } catch {
+      setFavorites([]);
+    }
+  }, []);
 
-    return products.filter((p) => {
-      const categoryMatch =
-        activeCategory === "All Products" || p.category === activeCategory;
-      const searchMatch =
-        !term ||
-        p.name.toLowerCase().includes(term) ||
-        p.category.toLowerCase().includes(term);
-      const favoriteMatch =
-        !showFavorites || favorites.includes(p.id);
+  // Fetch categories from backend API
+  const loadCategories = useCallback(async () => {
+    setIsCategoriesLoading(true);
+    try {
+      const data = await productService.getCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories(data);
+      } else {
+        setCategories([]);
+      }
+    } catch (err: unknown) {
+      console.error("[Storefront] Failed to load categories from backend:", err);
+      setCategories([]);
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  }, []);
 
-      return categoryMatch && searchMatch && favoriteMatch;
-    });
-  }, [activeCategory, search, showFavorites, favorites]);
+  // Fetch products from backend API sending categoryId and search
+  const loadProducts = useCallback(
+    async (catId: string | null, searchStr: string) => {
+      setIsLoading(true);
+      setApiError(null);
 
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const cartTotal = products.reduce(
-    (sum, p) => sum + p.price * (cart[p.id] || 0),
-    0
+      try {
+        const params: {
+          categoryId?: string;
+          search?: string;
+          page?: number;
+          size?: number;
+        } = {
+          page: 0,
+          size: 50,
+        };
+
+        // If specific category selected, send categoryId
+        if (catId && catId !== "All") {
+          params.categoryId = catId;
+        }
+
+        // If search entered, send search query parameter
+        if (searchStr.trim()) {
+          params.search = searchStr.trim();
+        }
+
+        const res = await productService.getStorefrontProducts(params);
+        const rawItems = res?.content || (Array.isArray(res) ? res : []);
+        const mapped = rawItems.map(mapBackendToStoreProduct);
+        setProducts(mapped);
+      } catch (err: unknown) {
+        console.error("[Storefront] Failed to load products:", err);
+        setApiError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load products from server. Please check your backend connection."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
   );
 
-  function selectCategory(name: string) {
-    setActiveCategory(name);
+  // Debounce search input by 300ms to prevent spamming backend requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Initial categories fetch on mount
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  // Re-fetch products whenever activeCategoryId or debouncedSearch changes
+  useEffect(() => {
+    loadProducts(activeCategoryId, debouncedSearch);
+  }, [activeCategoryId, debouncedSearch, loadProducts]);
+
+  // Scroll listener for mobile strip hiding/revealing
+  useEffect(() => {
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      setScrolling(true);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => setScrolling(false), 220);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+  }, []);
+
+  // Filter products by favorites if favorites tab active
+  const displayedProducts = useMemo(() => {
+    if (showFavorites) {
+      return products.filter((p) => favorites.some((f) => String(f) === String(p.id)));
+    }
+    return products;
+  }, [showFavorites, favorites, products]);
+
+  // Cart total calculations
+  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const cartTotal = useMemo(() => {
+    return Object.entries(cart).reduce((sum, [id, qty]) => {
+      const p = products.find((prod) => String(prod.id) === String(id));
+      return sum + (p ? p.price * qty : 0);
+    }, 0);
+  }, [cart, products]);
+
+  // Handle category selection using actual categoryId
+  function selectCategory(cat: BackendCategory | null) {
+    if (cat === null) {
+      setActiveCategoryId(null);
+      setActiveCategoryName("All Products");
+    } else {
+      const catId = getCategoryId(cat);
+      setActiveCategoryId(catId);
+      setActiveCategoryName(cat.name);
+    }
     setSearch("");
     setShowFavorites(false);
     document.getElementById("products")?.scrollIntoView({
@@ -123,17 +271,20 @@ export default function Home() {
     });
   }
 
-  function addToCart(p: Product) {
+  // Cart modification handlers
+  function addToCart(p: StoreProduct) {
     const next = {
       ...cart,
       [p.id]: (cart[p.id] || 0) + 1,
     };
-
     setCart(next);
     localStorage.setItem("rrv-cart", JSON.stringify(next));
+    window.dispatchEvent(new Event("storage"));
+    setNotice(`Added ${p.name} to cart!`);
+    setTimeout(() => setNotice(""), 2500);
   }
 
-  function changeQuantity(id: number, amount: number) {
+  function changeQuantity(id: string | number, amount: number) {
     const next = { ...cart };
     const qty = (next[id] || 0) + amount;
 
@@ -145,345 +296,829 @@ export default function Home() {
 
     setCart(next);
     localStorage.setItem("rrv-cart", JSON.stringify(next));
+    window.dispatchEvent(new Event("storage"));
   }
 
-  function toggleFavorite(id: number) {
-    setFavorites((old) =>
-      old.includes(id) ? old.filter((x) => x !== id) : [...old, id]
-    );
+  // Wishlist toggle handler
+  function toggleFavorite(p: StoreProduct) {
+    try {
+      const stored = getStoredWishlist();
+      const exists = stored.some((item) => String(item.id) === String(p.id));
+
+      if (exists) {
+        const nextList = stored.filter((item) => String(item.id) !== String(p.id));
+        saveStoredWishlist(nextList);
+        setFavorites((old) => old.filter((id) => String(id) !== String(p.id)));
+        setNotice(`Removed ${p.name} from Wishlist`);
+      } else {
+        const newItem: CustomerWishlistItem = {
+          id: typeof p.id === "number" ? p.id : Math.floor(Math.random() * 1000) + 100,
+          name: p.name,
+          category: p.category,
+          price: p.price,
+          unit: p.unit,
+          image: resolveImageUrl(p.image),
+          inStock: p.inStock ?? true,
+          badge: p.badge,
+        };
+        const nextList = [newItem, ...stored];
+        saveStoredWishlist(nextList);
+        setFavorites((old) => [...old, p.id]);
+        setNotice(`Saved ${p.name} to Wishlist ❤️`);
+      }
+      setTimeout(() => setNotice(""), 2500);
+    } catch {
+      setFavorites((old) =>
+        old.includes(p.id) ? old.filter((x) => x !== p.id) : [...old, p.id]
+      );
+    }
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f9f3] text-[#20392a]">
-      <header className="sticky top-0 z-40 border-b border-green-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-4 px-5 py-4">
-          <button
-            onClick={() => {
-              setActiveCategory("All Products");
-              setSearch("");
-              setShowFavorites(false);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="flex min-w-[210px] items-center gap-3 text-left"
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-3xl">🌱</span>
-            <span>
-              <strong className="block text-xl text-green-700">RRV</strong>
-              <strong className="block text-sm">Green Basket</strong>
-              <span className="text-xs text-gray-500">Freshness Delivered Daily</span>
-            </span>
-          </button>
+    <main className="min-h-screen bg-[#f6f9f3] pb-24 text-[#20392a] md:pb-0">
+      
+      {/* =========================================================================
+          1. HEADER NAVIGATION
+         ========================================================================= */}
+      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white">
+        <div className="mx-auto max-w-[1600px] px-3 sm:px-5 lg:px-6">
+          <div className="flex min-h-[68px] items-center gap-3 lg:gap-5">
 
-          <div className="hidden text-xs sm:block">
-            <span className="text-gray-500">⌖ Deliver to</span>
-            <strong className="mt-1 block">Kurnool, AP</strong>
-          </div>
-
-          <form
-            className="flex min-w-[230px] flex-1 overflow-hidden rounded-xl border border-green-100 bg-green-50/60"
-            onSubmit={(e) => {
-              e.preventDefault();
-              document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            <span className="px-3 py-3 text-gray-400">⌕</span>
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setActiveCategory("All Products");
+            {/* Logo */}
+            <button
+              onClick={() => {
+                selectCategory(null);
+                setSearch("");
                 setShowFavorites(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
-              placeholder="Search fruits, vegetables, groceries..."
-              aria-label="Search products"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-            />
-            <button className="m-1 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white">
-              Search
-            </button>
-          </form>
+              className="flex shrink-0 items-center gap-2 cursor-pointer"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white shadow-md shadow-emerald-700/20">
+                <Leaf size={23} />
+              </div>
 
-          <nav className="flex flex-wrap items-center gap-4 text-sm">
-            <button onClick={() => setNotice("Order history will be connected to the backend next.")}>Orders</button>
+              <div className="text-left leading-tight">
+                <h1 className="text-lg font-extrabold tracking-tight text-gray-900">
+                  <span className="text-green-700">RRV</span> Green Basket
+                </h1>
+                <p className="text-[9px] font-medium tracking-wide text-gray-500">
+                  FRESHNESS DELIVERED DAILY
+                </p>
+              </div>
+            </button>
+
+            {/* Mobile Location Selector */}
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-green-100 bg-green-50/70 px-2.5 py-2 text-left md:hidden cursor-pointer"
+            >
+              <MapPin size={18} className="shrink-0 text-green-700" />
+              <span className="min-w-0 leading-tight">
+                <span className="block text-[9px] text-gray-500">Deliver to</span>
+                <span className="block truncate text-[11px] font-bold text-gray-800">
+                  Kurnool, AP
+                </span>
+              </span>
+              <ChevronDown size={13} className="shrink-0 text-gray-500" />
+            </button>
+
+            {/* Desktop Search + Category Select (Synced with backend categoryId) */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                document.getElementById("products")?.scrollIntoView({
+                  behavior: "smooth",
+                });
+              }}
+              className="hidden h-[42px] min-w-0 w-full flex-1 overflow-hidden rounded-full border border-gray-200 bg-white focus-within:border-green-500 md:flex transition-all shadow-3xs"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
+                <Search size={17} className="shrink-0 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setShowFavorites(false);
+                  }}
+                  placeholder="Search fresh fruits, vegetables, mushrooms..."
+                  className="w-full min-w-0 bg-transparent text-xs font-medium outline-hidden placeholder:text-gray-400"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Category Dropdown in Search Bar */}
+              <div className="hidden items-center border-l border-gray-200 px-2 sm:flex">
+                <select
+                  value={activeCategoryId || "ALL"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "ALL") {
+                      selectCategory(null);
+                    } else {
+                      const matched = categories.find((c) => getCategoryId(c) === val);
+                      if (matched) selectCategory(matched);
+                    }
+                  }}
+                  className="max-w-[135px] cursor-pointer appearance-none bg-transparent pr-4 text-xs font-bold text-slate-700 outline-hidden"
+                >
+                  <option value="ALL">All Categories</option>
+                  {categories.map((cat) => {
+                    const catId = getCategoryId(cat);
+                    return (
+                      <option key={catId} value={catId}>
+                        {cat.name}
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown size={13} className="-ml-3 text-gray-400 pointer-events-none" />
+              </div>
+
+              <button
+                type="submit"
+                className="flex items-center justify-center bg-green-600 px-4 text-white transition hover:bg-green-700 cursor-pointer"
+                aria-label="Submit search"
+              >
+                <Search size={17} />
+              </button>
+            </form>
+
+            {/* Desktop Delivery Location */}
+            <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
+              <MapPin size={20} className="text-green-700" />
+              <div className="leading-tight">
+                <p className="text-[10px] text-gray-500">Deliver to</p>
+                <p className="flex items-center gap-1 text-xs font-bold text-gray-900">
+                  Kurnool, AP <ChevronDown size={12} />
+                </p>
+              </div>
+            </div>
+
+            {/* Customer Account / Auth Navigation */}
+            <div className="hidden shrink-0 border-l border-gray-100 pl-3 lg:block">
+              <CustomerNavAuth />
+            </div>
+
+            {/* Wishlist Button */}
             <button
               onClick={() => {
                 setShowFavorites((x) => !x);
                 setSearch("");
-                setActiveCategory("All Products");
-                document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+                document.getElementById("products")?.scrollIntoView({
+                  behavior: "smooth",
+                });
               }}
+              className={`hidden shrink-0 items-center gap-1.5 border-l border-gray-100 pl-3 text-gray-700 transition hover:text-green-700 md:flex cursor-pointer ${
+                showFavorites ? "text-green-700 font-bold" : ""
+              }`}
             >
-              ♡ Favorites ({favorites.length})
+              <Heart size={20} className={showFavorites ? "fill-green-600 text-green-600" : ""} />
+              <span className="hidden text-xs font-medium xl:block">Wishlist</span>
+              {favorites.length > 0 && (
+                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700">
+                  {favorites.length}
+                </span>
+              )}
             </button>
-            <button
-              onClick={() => {
-                window.location.href = "/cart";
-              }}
+
+            {/* Cart Button */}
+            <Link
+              href="/cart"
+              className="hidden shrink-0 items-center gap-2 border-l border-gray-100 pl-3 text-gray-800 transition hover:text-green-700 md:flex"
             >
-              🛒 Cart
-              <span className="rounded-full bg-orange-600 px-2 py-1 text-white">
-                {cartCount}
-              </span>
-              <span className="ml-1 font-semibold">₹{cartTotal}</span>
-            </button>
-            <a
-              href="/login"
-              className="rounded-xl border border-green-700 px-4 py-2 font-semibold text-green-800 transition hover:bg-green-50"
-            >
-              Login / Register
-            </a>
-          </nav>
-        </div>
-      </header>      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 px-5 py-5 lg:grid-cols-[245px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-2xl border border-green-100 bg-white p-4">
-          <h2 className="mb-4 px-2 font-bold">Shop Categories</h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
-            {categories.map((c) => (
-              <button
-                key={c.name}
-                onClick={() => selectCategory(c.name)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
-                  activeCategory === c.name && !showFavorites
-                    ? "bg-green-700 font-semibold text-white"
-                    : "text-gray-700 hover:bg-green-50"
-                }`}
-              >
-                <span>{c.icon}</span>{c.name}
-              </button>
-            ))}
+              <div className="relative">
+                <ShoppingCart size={21} />
+                {cartCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+              <div className="leading-tight">
+                <p className="text-[11px] font-semibold">Cart</p>
+                <p className="text-[10px] font-bold text-green-700">₹{cartTotal}</p>
+              </div>
+            </Link>
+
           </div>
 
-          <div className="mt-5 rounded-xl bg-gradient-to-br from-green-50 to-lime-100 p-4">
-            <div className="mb-2 text-2xl">🌾</div>
-            <strong className="text-sm">Support Local Farmers</strong>
-            <p className="mt-2 text-xs leading-5 text-gray-600">
-              Fresh choices that bring farm goodness closer to your home.
-            </p>
+          {/* Mobile Search Bar */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="mx-1 mb-2.5 flex h-[38px] items-center overflow-hidden rounded-full border border-gray-200 bg-white md:hidden shadow-3xs"
+          >
+            <Search size={16} className="ml-3 shrink-0 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setShowFavorites(false);
+              }}
+              placeholder="Search fruits, vegetables, groceries..."
+              aria-label="Search products"
+              className="min-w-0 flex-1 bg-transparent px-2 text-xs font-medium outline-hidden placeholder:text-gray-400"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="text-gray-400 p-1"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button
+              type="submit"
+              className="m-1 rounded-full bg-green-600 px-3.5 py-1 text-xs font-bold text-white cursor-pointer"
+            >
+              Search
+            </button>
+          </form>
+        </div>
+      </header>
+
+      {/* =========================================================================
+          2. MOBILE HORIZONTALLY SCROLLABLE CATEGORY CHIPS
+         ========================================================================= */}
+      <section
+        className={`sticky top-[110px] z-40 border-b border-green-100/70 bg-white/95 px-2.5 py-2 backdrop-blur-xl transition-all duration-300 ease-out md:hidden ${
+          scrolling ? "pointer-events-none -translate-y-full opacity-0" : "translate-y-0 opacity-100"
+        }`}
+      >
+        <div className="flex gap-2.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* "All Products" chip */}
+          <button
+            type="button"
+            onClick={() => selectCategory(null)}
+            className={`flex w-[68px] shrink-0 flex-col items-center gap-1 rounded-2xl border px-1.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
+              activeCategoryId === null && !showFavorites
+                ? "border-green-700 bg-green-50 text-green-800 shadow-xs ring-2 ring-green-600/20"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-green-50/50"
+            }`}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-sm">
+              ▦
+            </div>
+            <span className="line-clamp-1 w-full text-center">All</span>
+          </button>
+
+          {/* Dynamic Backend Categories */}
+          {categories.map((c) => {
+            const catId = getCategoryId(c);
+            const { img } = getCategoryVisuals(c);
+            const isActive = activeCategoryId === catId && !showFavorites;
+
+            return (
+              <button
+                key={catId}
+                type="button"
+                onClick={() => selectCategory(c)}
+                className={`flex w-[68px] shrink-0 flex-col items-center gap-1 rounded-2xl border px-1.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
+                  isActive
+                    ? "border-green-700 bg-green-50 text-green-800 shadow-xs ring-2 ring-green-600/20"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-green-50/50"
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={resolveImageUrl(img, 120)}
+                  alt={c.name}
+                  className="h-8 w-8 rounded-full object-cover ring-1 ring-white shadow-2xs"
+                />
+                <span className="line-clamp-1 w-full text-center">{c.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          3. MAIN CONTENT: DESKTOP SIDEBAR + STOREFRONT PRODUCTS GRID
+         ========================================================================= */}
+      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[245px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
+        
+        {/* Desktop Sidebar: Shop Categories */}
+        <aside
+          id="categories"
+          className="hidden h-fit scroll-mt-24 rounded-3xl border border-green-100 bg-white p-3.5 lg:sticky lg:top-[88px] lg:block lg:max-h-[calc(100vh-108px)] lg:overflow-y-auto lg:self-start shadow-xs"
+        >
+          <div className="flex items-center justify-between mb-3 px-2">
+            <h2 className="font-extrabold text-sm text-slate-900 tracking-tight">
+              Shop Categories
+            </h2>
+            {isCategoriesLoading && (
+              <RefreshCw size={12} className="animate-spin text-emerald-600" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-1.5">
+            {/* All Products option */}
+            <button
+              onClick={() => selectCategory(null)}
+              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
+                activeCategoryId === null && !showFavorites
+                  ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
+                  : "text-gray-700 hover:bg-green-50"
+              }`}
+            >
+              <span className="text-sm">▦</span>
+              <span>All Products</span>
+            </button>
+
+            {/* Dynamic Backend Categories */}
+            {categories.map((c) => {
+              const catId = getCategoryId(c);
+              const { icon } = getCategoryVisuals(c);
+              const isActive = activeCategoryId === catId && !showFavorites;
+
+              return (
+                <button
+                  key={catId}
+                  onClick={() => selectCategory(c)}
+                  className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
+                      : "text-gray-700 hover:bg-green-50"
+                  }`}
+                >
+                  <span className="text-sm">{icon}</span>
+                  <span className="truncate">{c.name}</span>
+                </button>
+              );
+            })}
           </div>
         </aside>
 
+        {/* Product Listing Main Section */}
         <section className="min-w-0">
-          {/* Compact Green Basket Hero Banner */}
-          {!search && !showFavorites && activeCategory === "All Products" && (
-            <section className="relative mb-6 min-h-[270px] overflow-hidden rounded-2xl bg-[#123d29] shadow-md sm:min-h-[290px]">
-              {/* Fresh produce background */}
-              <img
-                src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=85"
-                alt="Fresh fruits and vegetables"
-                className="absolute inset-0 h-full w-full object-cover object-center"
-              />
 
-              {/* Dark green overlay for readable text */}
-              <div className="absolute inset-0 bg-gradient-to-r from-[#103b28] via-[#103b28]/90 to-[#103b28]/20" />
+          {/* Desktop Circular Category Shortcuts */}
+          {!search && !showFavorites && (
+            <section className="mb-5 hidden md:block">
+              <div className="mb-3 flex items-center justify-between px-1">
+                <h2 className="text-sm font-extrabold text-gray-900 sm:text-base">
+                  Shop by category
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => selectCategory(null)}
+                  className="text-xs font-bold text-green-700 hover:underline cursor-pointer"
+                >
+                  View all
+                </button>
+              </div>
 
-              {/* Editable content and working button */}
-              <div className="relative z-10 flex min-h-[270px] items-center px-6 py-8 sm:min-h-[290px] sm:px-10 lg:px-14">
-                <div className="max-w-xl">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-lime-300 sm:text-sm">
-                    🌿 Fresh from local farms
-                  </p>
+              <div className="flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {categories.map((c) => {
+                  const catId = getCategoryId(c);
+                  const { img } = getCategoryVisuals(c);
+                  const isActive = activeCategoryId === catId;
 
-                  <h1 className="text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl">
-                    Fresh & Healthy
-                    <span className="block text-lime-300">
-                      Fruits & Vegetables
-                    </span>
-                  </h1>
-
-                  <p className="mt-3 max-w-md text-sm leading-6 text-white/90 sm:text-base">
-                    Fresh fruits, crisp vegetables and everyday essentials
-                    delivered for a healthier, happier family.
-                  </p>
-
-                  <button
-                    onClick={() => selectCategory("All Products")}
-                    className="mt-5 inline-flex items-center gap-3 rounded-lg bg-lime-300 px-6 py-3 font-bold text-green-950 transition hover:bg-lime-200"
-                  >
-                    Explore Fresh Produce
-                    <span aria-hidden="true">→</span>
-                  </button>
-
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white/90 sm:text-sm">
-                    <span>🌱 Nature-inspired choices</span>
-                    <span>🧺 Everyday freshness</span>
-                  </div>
-                </div>
+                  return (
+                    <button
+                      key={catId}
+                      type="button"
+                      onClick={() => selectCategory(c)}
+                      className={`group flex w-[88px] shrink-0 flex-col items-center gap-2 rounded-2xl border p-2 transition-all sm:w-[105px] cursor-pointer ${
+                        isActive
+                          ? "border-green-500 bg-green-50 shadow-xs ring-2 ring-emerald-500/20"
+                          : "border-green-100 bg-white hover:border-green-300 hover:bg-green-50/60"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={resolveImageUrl(img, 200)}
+                        alt={c.name}
+                        loading="lazy"
+                        className="h-16 w-16 rounded-full bg-green-50 object-cover sm:h-[76px] sm:w-[76px] transition-transform group-hover:scale-105"
+                      />
+                      <span className="line-clamp-2 min-h-8 text-center text-[10px] font-bold leading-4 text-gray-700 sm:text-xs">
+                        {c.name}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
 
-          <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl border border-green-50 bg-white p-4 shadow-sm sm:grid-cols-4">
-            {[
-              ["🚚", "Free Delivery", "On eligible orders"],
-              ["⚡", "Quick Delivery", "Convenience at home"],
-              ["🌿", "Fresh Quality", "Carefully selected"],
-              ["🤝", "Local Farmers", "Support local growers"],
-            ].map(([icon, title, description]) => (
-              <div key={title} className="flex gap-3 p-2">
-                <span className="text-2xl">{icon}</span>
-                <div>
-                  <strong className="block text-sm">{title}</strong>
-                  <span className="text-xs text-gray-500">{description}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
+          {/* Products Header */}
           <section id="products" className="scroll-mt-28">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700">
-                  {showFavorites ? "Your saved items" : search ? "Search results" : "Fresh picks for you"}
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700 flex items-center gap-1.5">
+                  <Sparkles size={13} />
+                  <span>
+                    {showFavorites
+                      ? "Your saved wishlist items"
+                      : search
+                      ? "Search results"
+                      : "Fresh picks for you"}
+                  </span>
                 </p>
-                <h2 className="mt-1 text-2xl font-extrabold">
-                  {showFavorites ? "Favorites" : search ? `Results for "${search}"` : activeCategory}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">{filteredProducts.length} products available</p>
-              </div>
-              <button
-                onClick={() => {
-                  setActiveCategory("All Products");
-                  setSearch("");
-                  setShowFavorites(false);
-                }}
-                className="text-sm font-semibold text-green-700 hover:underline"
-              >
-                View All →
-              </button>
-            </div>
 
-            {filteredProducts.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-green-200 bg-white px-5 py-12 text-center">
-                <div className="text-4xl">🔎</div>
-                <h3 className="mt-4 font-bold">No products found</h3>
-                <p className="mt-2 text-sm text-gray-500">Try another search or category.</p>
+                <h2 className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">
+                  {showFavorites
+                    ? "Wishlist Favorites"
+                    : search
+                    ? `Results for "${search}"`
+                    : activeCategoryName}
+                </h2>
+
+                <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-gray-500">
+                  <span>{displayedProducts.length} products available</span>
+                  {activeCategoryId && (
+                    <>
+                      <span>•</span>
+                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <Tag size={11} />
+                        <span>Filter: {activeCategoryName}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {(activeCategoryId !== null || search || showFavorites) && (
                 <button
                   onClick={() => {
-                    setActiveCategory("All Products");
+                    selectCategory(null);
                     setSearch("");
                     setShowFavorites(false);
                   }}
-                  className="mt-5 rounded-lg bg-green-700 px-5 py-3 text-sm font-semibold text-white"
+                  className="text-xs sm:text-sm font-bold text-green-700 hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  Show all products
+                  <span>Reset Filters (Show All) &rarr;</span>
+                </button>
+              )}
+            </div>
+
+            {/* Error State with Retry Button */}
+            {apiError && (
+              <div className="mb-6 rounded-3xl border border-rose-200 bg-rose-50/70 p-5 text-rose-800 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-bold">Unable to fetch products</h3>
+                    <p className="text-xs text-rose-600 mt-0.5">{apiError}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => loadProducts(activeCategoryId, debouncedSearch)}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs hover:bg-rose-700 cursor-pointer"
+                >
+                  <RefreshCw size={13} />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {/* Loading Skeleton Grid */}
+            {isLoading ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col justify-between h-full bg-white rounded-3xl border border-gray-100 p-3 shadow-xs animate-pulse"
+                  >
+                    <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-3" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-16 bg-slate-100 rounded-md" />
+                      <div className="h-4 w-3/4 bg-slate-100 rounded-md" />
+                      <div className="h-4 w-1/2 bg-slate-100 rounded-md" />
+                    </div>
+                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
+                      <div className="h-5 w-14 bg-slate-100 rounded-md" />
+                      <div className="h-8 w-8 bg-slate-100 rounded-xl" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : displayedProducts.length === 0 ? (
+              /* Empty State */
+              <div className="rounded-3xl border border-dashed border-green-200 bg-white px-5 py-14 text-center shadow-xs">
+                <div className="text-4xl mb-2">🔎</div>
+                <h3 className="text-base font-extrabold text-slate-900">No products found</h3>
+                <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                  {search
+                    ? `No items matching "${search}" in ${activeCategoryName}.`
+                    : `No produce items currently listed under ${activeCategoryName}.`}
+                </p>
+                <button
+                  onClick={() => {
+                    selectCategory(null);
+                    setSearch("");
+                    setShowFavorites(false);
+                  }}
+                  className="mt-5 rounded-2xl bg-[#00875a] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-700/20 hover:bg-[#00734d] transition-all cursor-pointer"
+                >
+                  Show All Products
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                {filteredProducts.map((p) => (
-                  <article key={p.id} className="overflow-hidden rounded-2xl border border-green-50 bg-white transition hover:-translate-y-1 hover:shadow-lg">
-                    <div className="relative bg-green-50">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = `/products/${p.id}`;
-                        }}
-                        aria-label={`View details for ${p.name}`}
-                        className="block w-full cursor-pointer text-left"
-                      >
-                        <img
-                          src={imageUrl(p.image)}
-                          alt={p.name}
-                          loading="lazy"
-                          className="h-40 w-full object-cover transition hover:opacity-90 sm:h-48"
-                        />
-                      </button>
+              /* Product Grid (Responsive 2-col mobile, 3-col tablet, 4-col desktop) */
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+                {displayedProducts.map((p) => {
+                  const originalPrice = p.originalPrice;
+                  const discount =
+                    originalPrice && originalPrice > p.price
+                      ? Math.round(((originalPrice - p.price) / originalPrice) * 100)
+                      : 0;
+                  const isFav = favorites.some((f) => String(f) === String(p.id));
+                  const cartQty = cart[p.id] || 0;
 
-                      {p.badge && (
-                        <span className="absolute left-2 top-2 rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
-                          {p.badge}
-                        </span>
-                      )}
-                      <button
-                        aria-label={`Toggle favorite for ${p.name}`}
-                        onClick={() => toggleFavorite(p.id)}
-                        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-xl shadow"
-                      >
-                        <span className={favorites.includes(p.id) ? "text-red-500" : "text-gray-500"}>
-                          {favorites.includes(p.id) ? "♥" : "♡"}
-                        </span>
-                      </button>
-                    </div>                    <div className="p-3">
-                      <p className="text-xs text-gray-500">{p.category}</p>
-                      <h3 className="mt-1 min-h-10 font-bold">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.location.href = `/products/${p.id}`;
-                          }}
-                          className="text-left hover:text-green-700 hover:underline"
-                        >
-                          {p.name}
-                        </button>
-                      </h3>
-                      <div className="mt-2">
-                        <strong className="text-lg">₹{p.price}</strong>
-                        <span className="text-xs text-gray-500"> / {p.unit}</span>
-                      </div>
-                      {cart[p.id] ? (
-                        <div className="mt-3 flex items-center justify-between rounded-lg border border-green-700 px-3 py-2">
-                          <button onClick={() => changeQuantity(p.id, -1)} className="font-bold text-green-700">−</button>
-                          <span className="font-semibold">{cart[p.id]}</span>
-                          <button onClick={() => changeQuantity(p.id, 1)} className="font-bold text-green-700">+</button>
+                  return (
+                    <article
+                      key={p.id}
+                      className="group relative flex flex-col justify-between h-full bg-white rounded-3xl border border-gray-100 p-2.5 sm:p-3 shadow-2xs hover:shadow-xl hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99] select-none"
+                    >
+                      <div>
+                        {/* Product Image Frame */}
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#f8faf7] to-[#f0f6ee] aspect-square w-full flex items-center justify-center p-3 sm:p-4 group/img">
+                          <Link
+                            href={`/products/${p.id}`}
+                            className="relative flex h-full w-full items-center justify-center overflow-hidden"
+                            aria-label={`View details for ${p.name}`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={resolveImageUrl(p.image)}
+                              alt={p.name}
+                              loading="lazy"
+                              className="h-full w-full object-contain drop-shadow-sm transition-transform duration-500 ease-out group-hover/img:scale-108"
+                            />
+                          </Link>
+
+                          {/* Product Badge */}
+                          {p.badge && (
+                            <span className="absolute left-2.5 top-2.5 rounded-lg bg-[#00875a] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-xs flex items-center gap-1 sm:text-[10px]">
+                              <Sparkles size={10} />
+                              <span>{p.badge}</span>
+                            </span>
+                          )}
+
+                          {/* Wishlist Heart Button */}
+                          <button
+                            type="button"
+                            aria-label={`Toggle favorite for ${p.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleFavorite(p);
+                            }}
+                            className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-90 shadow-2xs cursor-pointer ${
+                              isFav
+                                ? "bg-rose-50 text-rose-500 ring-1 ring-rose-200"
+                                : "bg-white/90 text-gray-400 hover:text-rose-500 hover:bg-rose-50/60 backdrop-blur-xs"
+                            }`}
+                          >
+                            <Heart
+                              size={16}
+                              className={`transition-colors ${isFav ? "fill-rose-500 text-rose-500" : ""}`}
+                            />
+                          </button>
+
+                          {/* Quick Add / Quantity Controls */}
+                          <div className="absolute bottom-2.5 right-2.5">
+                            {cartQty > 0 ? (
+                              <div className="flex h-9 items-center gap-1.5 rounded-xl border-2 border-[#00875a] bg-white px-2 shadow-md">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    changeQuantity(p.id, -1);
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center font-bold text-[#00875a] hover:bg-emerald-50 rounded-md transition-colors active:scale-90 cursor-pointer"
+                                  aria-label="Decrease quantity"
+                                >
+                                  <Minus size={13} strokeWidth={2.8} />
+                                </button>
+                                <span className="min-w-[1.2rem] text-center text-xs font-black text-slate-900">
+                                  {cartQty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    changeQuantity(p.id, 1);
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center font-bold text-[#00875a] hover:bg-emerald-50 rounded-md transition-colors active:scale-90 cursor-pointer"
+                                  aria-label="Increase quantity"
+                                >
+                                  <Plus size={13} strokeWidth={2.8} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                aria-label={`Add ${p.name} to cart`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(p);
+                                }}
+                                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#00875a] text-white shadow-md shadow-emerald-700/25 transition-all duration-200 hover:bg-[#00734d] hover:scale-110 active:scale-95 cursor-pointer"
+                              >
+                                <Plus size={18} strokeWidth={2.8} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <button onClick={() => addToCart(p)} className="mt-3 w-full rounded-lg bg-green-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800">
-                          + Add to Cart
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
+
+                        {/* Product Info Section */}
+                        <div className="pt-2.5 pb-1">
+                          {/* Category Pill & Unit */}
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md truncate max-w-[120px]">
+                              {p.category}
+                            </span>
+                            <span className="text-[10px] font-semibold text-gray-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                              {p.unit}
+                            </span>
+                          </div>
+
+                          {/* Product Title */}
+                          <Link
+                            href={`/products/${p.id}`}
+                            className="block mt-1 line-clamp-2 text-xs sm:text-sm font-bold text-slate-900 hover:text-[#00875a] transition-colors leading-snug min-h-[2.5rem]"
+                          >
+                            {p.name}
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Price & Delivery Row */}
+                      <div className="pt-2 border-t border-gray-100/90 flex items-end justify-between">
+                        <div>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                              ₹{p.price}
+                            </span>
+                            {discount > 0 && (
+                              <span className="text-[11px] font-semibold text-gray-400 line-through">
+                                ₹{p.originalPrice}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400 font-medium">
+                            ₹{p.price} / {p.unit}
+                          </p>
+                        </div>
+
+                        {discount > 0 ? (
+                          <span className="text-[10px] font-extrabold text-[#00875a] bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                            {discount}% OFF
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-gray-400">
+                            ⚡ 10 MINS
+                          </span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
 
-          {!search && !showFavorites && (
-            <section className="mt-10">
-              <div className="mb-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700">Explore our range</p>
-                <h2 className="mt-1 text-2xl font-extrabold">Shop by Category</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {categories.filter((c) => c.name !== "All Products").map((c) => (
-                  <button
-                    key={c.name}
-                    onClick={() => selectCategory(c.name)}
-                    className="overflow-hidden rounded-2xl border border-green-100 bg-white text-left transition hover:-translate-y-1 hover:shadow-md"
-                  >
-                    <img src={categoryImages[c.name]} alt={c.name} loading="lazy" className="h-28 w-full object-cover sm:h-36" />
-                    <div className="flex items-center justify-between p-3 text-sm font-bold">
-                      {c.name}<span className="text-green-700">→</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <footer className="mt-10 border-t border-green-100 py-7 text-sm text-gray-500">
-            <strong className="text-green-700">RRV Green Basket</strong>
-            <p className="mt-2">Freshness Delivered Daily · Supporting local farmers</p>
-            <p className="mt-3 text-xs">Demo product data and prices. Confirm official details with the client before launch.</p>
-          </footer>
+         <HomeFooter />
         </section>
       </div>
 
+      {/* =========================================================================
+          4. FIXED MOBILE BOTTOM NAVIGATION
+         ========================================================================= */}
+      <nav
+        className={`fixed inset-x-3 bottom-2 z-[100] rounded-[26px] border border-white/70 bg-white/75 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_8px_32px_rgba(22,55,35,0.18)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden ${
+          scrolling ? "pointer-events-none translate-y-[130%] opacity-0" : "translate-y-0 opacity-100"
+        }`}
+      >
+        <div className="mx-auto flex h-[64px] max-w-md items-center justify-around">
+          <button
+            type="button"
+            onClick={() => {
+              selectCategory(null);
+              setSearch("");
+              setShowFavorites(false);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`flex flex-1 flex-col items-center justify-center gap-1 cursor-pointer ${
+              !showFavorites && activeCategoryId === null && !search
+                ? "text-green-700 font-bold"
+                : "text-gray-400 hover:text-green-700"
+            }`}
+          >
+            <HomeIcon size={21} strokeWidth={2} />
+            <span className="text-[10px] font-semibold">Home</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowFavorites(true);
+              setSearch("");
+              document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className={`relative flex flex-1 flex-col items-center justify-center gap-1 cursor-pointer ${
+              showFavorites ? "text-green-800 font-bold" : "text-gray-400 hover:text-green-700"
+            }`}
+          >
+            <span className="relative">
+              <Heart
+                size={21}
+                strokeWidth={showFavorites ? 2.4 : 1.8}
+                className={showFavorites ? "fill-green-600 text-green-600" : ""}
+              />
+              {favorites.length > 0 && (
+                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-green-600 px-1 text-[8px] font-bold text-white">
+                  {favorites.length}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px] font-semibold">Wishlist</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowFavorites(false);
+              setSearch("");
+              document.getElementById("categories")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700 cursor-pointer"
+          >
+            <LayoutGrid size={21} strokeWidth={1.8} />
+            <span className="text-[10px] font-semibold">Categories</span>
+          </button>
+
+          <Link
+            href="/cart"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
+          >
+            <span className="relative">
+              <ShoppingCart size={21} strokeWidth={1.8} />
+              {cartCount > 0 && (
+                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-orange-500 px-1 text-[8px] font-bold text-white">
+                  {cartCount}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px] font-semibold">Cart</span>
+          </Link>
+
+          <Link
+            href="/customer/profile?tab=profile"
+            aria-label="My Account"
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
+          >
+            <UserRound size={21} strokeWidth={1.8} />
+            <span className="text-[10px] font-semibold">Account</span>
+          </Link>
+        </div>
+      </nav>
+
+      {/* Toast Notification */}
       {notice && (
-        <div role="status" className="fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-xl bg-green-950 px-5 py-3 text-center text-sm font-semibold text-white shadow-xl">
-          {notice}
-          <button onClick={() => setNotice("")} className="ml-4 text-lime-300" aria-label="Dismiss notification">✕</button>
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-2xl bg-slate-900/90 backdrop-blur-md px-5 py-3 text-center text-xs font-bold text-white shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3"
+        >
+          <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+          <span>{notice}</span>
+          <button
+            onClick={() => setNotice("")}
+            className="ml-3 text-slate-400 hover:text-white"
+            aria-label="Dismiss notification"
+          >
+            ✕
+          </button>
         </div>
       )}
 
+      {/* Desktop Floating Cart Pill */}
       {cartCount > 0 && (
-        <button
-          onClick={() => { window.location.href = "/cart"; }}
-          className="fixed bottom-5 right-5 z-30 rounded-full bg-green-700 px-5 py-4 font-bold text-white shadow-xl"
+        <Link
+          href="/cart"
+          className="fixed bottom-6 right-6 z-30 hidden rounded-2xl bg-[#00875a] hover:bg-[#00734d] px-6 py-4 font-black text-white shadow-2xl shadow-emerald-700/30 md:flex items-center gap-3 transition-all hover:scale-105 active:scale-95 cursor-pointer"
         >
-          🛒 {cartCount} items · ₹{cartTotal}
-        </button>
+          <ShoppingCart size={20} />
+          <span>{cartCount} items · ₹{cartTotal}</span>
+        </Link>
       )}
     </main>
+    
   );
+  
 }
