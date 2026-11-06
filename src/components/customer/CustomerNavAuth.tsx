@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
@@ -6,25 +7,34 @@ import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   User,
+  UserRound,
   Package,
   MapPin,
   Heart,
   Settings,
   HelpCircle,
   LogOut,
-  ChevronDown,
 } from "lucide-react";
+
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
 import CustomerLogoutDialog from "./CustomerLogoutDialog";
 
 export const CustomerNavAuth: React.FC = () => {
   const router = useRouter();
-  const { customer, isAuthenticated, isLoading, logout } = useCustomerAuth();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const { customer, isAuthenticated, isLoading, logout } =
+    useCustomerAuth();
+
+  const [mounted, setMounted] = useState(false);
+const [dropdownOpen, setDropdownOpen] = useState(false);
+const [showLogoutModal, setShowLogoutModal] = useState(false);
+const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+const dropdownRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  setMounted(true);
+}, []);
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -39,6 +49,7 @@ export const CustomerNavAuth: React.FC = () => {
     if (dropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -55,13 +66,16 @@ export const CustomerNavAuth: React.FC = () => {
     if (dropdownOpen) {
       document.addEventListener("keydown", handleKeyDown);
     }
+
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [dropdownOpen]);
 
+  // Logout handler
   const handleLogoutConfirm = async () => {
     setIsLoggingOut(true);
+
     try {
       await logout();
       setShowLogoutModal(false);
@@ -74,61 +88,63 @@ export const CustomerNavAuth: React.FC = () => {
     }
   };
 
-  // Compute display name or initials
+  // Customer details
   const displayName = customer?.fullName?.trim() || "Customer";
-  const firstName = displayName.split(" ")[0];
-  const initials = (displayName || "C")
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   // Loading skeleton
-  if (isLoading) {
-    return <div className="h-9 w-24 animate-pulse rounded-2xl bg-gray-100" />;
-  }
+ if (!mounted || isLoading) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="h-[21px] w-[21px] animate-pulse rounded-full bg-gray-200" />
+      <div className="h-2.5 w-12 animate-pulse rounded bg-gray-200" />
+    </div>
+  );
+}
 
-  // Not logged in: Show Login / Register button
+  // Not logged in: Login / Register
   if (!isAuthenticated || !customer) {
     return (
-      <div className="flex items-center gap-2">
-        <Link
-          href="/login"
-          className="rounded-2xl border border-emerald-700 bg-white px-4 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-50 active:scale-95 shadow-sm"
-        >
-          Login / Register
-        </Link>
-      </div>
+      <Link
+        href="/login"
+        aria-label="Login or Register"
+        className="flex flex-col items-center justify-center gap-1
+                   bg-transparent border-0 p-0
+                   text-gray-500 transition
+                   hover:text-emerald-700
+                   focus:outline-none"
+      >
+        <UserRound size={21} strokeWidth={1.8} />
+
+        <span className="text-[10px] font-semibold">
+          Account
+        </span>
+      </Link>
     );
   }
 
-  // Logged in: Show Profile Avatar & First Name with dropdown
+  // Logged in: Account icon matching mobile navigation
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div
+      className="relative inline-flex text-center"
+      ref={dropdownRef}
+    >
       <button
         type="button"
         onClick={() => setDropdownOpen((prev) => !prev)}
         aria-expanded={dropdownOpen}
         aria-haspopup="true"
-        className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 py-1 pl-1.5 pr-2.5 transition hover:border-emerald-300 hover:bg-emerald-100/60 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-1"
+        aria-label="My Account"
+        className="flex flex-col items-center justify-center gap-1
+                   bg-transparent border-0 p-0
+                   text-gray-500 transition
+                   hover:text-emerald-700
+                   focus:outline-none"
       >
-        {/* Avatar circle */}
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-700 to-green-800 text-xs font-bold text-white shadow-sm ring-2 ring-white">
-          {initials}
-        </div>
+        <UserRound size={21} strokeWidth={1.8} />
 
-        {/* First name on desktop */}
-        <div className="hidden sm:flex flex-col text-left leading-tight">
-          <span className="text-xs font-bold text-gray-900 max-w-[110px] truncate">
-            {firstName}
-          </span>
-          <span className="text-[10px] text-emerald-700 font-medium">
-            Account ▾
-          </span>
-        </div>
-
-        <ChevronDown className="w-3.5 h-3.5 text-emerald-800" />
+        <span className="text-[10px] font-semibold">
+          Account
+        </span>
       </button>
 
       {/* Dropdown Menu */}
@@ -136,14 +152,20 @@ export const CustomerNavAuth: React.FC = () => {
         <div
           role="menu"
           aria-orientation="vertical"
-          className="absolute right-0 mt-2 w-64 origin-top-right rounded-3xl bg-white p-2.5 shadow-2xl ring-1 ring-black/5 border border-gray-100 z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 top-full mt-2
+                     z-50 w-64 origin-top-right
+                     rounded-3xl border border-gray-100
+                     bg-white p-2.5 shadow-2xl
+                     ring-1 ring-black/5
+                     animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header section */}
-          <div className="px-3 py-2.5 border-b border-gray-100 mb-1.5">
-            <p className="text-xs font-bold text-gray-900 truncate">
+          <div className="mb-1.5 border-b border-gray-100 px-3 py-2.5">
+            <p className="truncate text-xs font-bold text-gray-900">
               {displayName}
             </p>
-            <p className="text-[11px] text-gray-500 truncate font-mono">
+
+            <p className="truncate font-mono text-[11px] text-gray-500">
               {customer.mobileNumber || customer.email}
             </p>
           </div>
@@ -153,9 +175,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=overview"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <LayoutDashboard className="w-4 h-4 text-emerald-700" />
+            <LayoutDashboard className="h-4 w-4 text-emerald-700" />
             <span>My Overview</span>
           </Link>
 
@@ -164,9 +189,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=profile"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <User className="w-4 h-4 text-emerald-700" />
+            <User className="h-4 w-4 text-emerald-700" />
             <span>My Profile</span>
           </Link>
 
@@ -175,9 +203,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=orders"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <Package className="w-4 h-4 text-emerald-700" />
+            <Package className="h-4 w-4 text-emerald-700" />
             <span>My Orders</span>
           </Link>
 
@@ -186,9 +217,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=addresses"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <MapPin className="w-4 h-4 text-emerald-700" />
+            <MapPin className="h-4 w-4 text-emerald-700" />
             <span>My Addresses</span>
           </Link>
 
@@ -197,9 +231,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=wishlist"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <Heart className="w-4 h-4 text-emerald-700" />
+            <Heart className="h-4 w-4 text-emerald-700" />
             <span>My Wishlist</span>
           </Link>
 
@@ -208,9 +245,12 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=settings"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <Settings className="w-4 h-4 text-emerald-700" />
+            <Settings className="h-4 w-4 text-emerald-700" />
             <span>Account Settings</span>
           </Link>
 
@@ -219,12 +259,16 @@ export const CustomerNavAuth: React.FC = () => {
             href="/customer/profile?tab=support"
             onClick={() => setDropdownOpen(false)}
             role="menuitem"
-            className="flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 transition"
+            className="flex items-center gap-3 rounded-2xl
+                       px-3 py-2 text-xs font-semibold
+                       text-gray-700 transition
+                       hover:bg-emerald-50 hover:text-emerald-900"
           >
-            <HelpCircle className="w-4 h-4 text-emerald-700" />
+            <HelpCircle className="h-4 w-4 text-emerald-700" />
             <span>Help &amp; Support</span>
           </Link>
 
+          {/* Divider */}
           <div className="my-1.5 border-t border-gray-100" />
 
           {/* 8. Logout */}
@@ -235,9 +279,12 @@ export const CustomerNavAuth: React.FC = () => {
               setShowLogoutModal(true);
             }}
             role="menuitem"
-            className="w-full flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition text-left"
+            className="flex w-full items-center gap-3
+                       rounded-2xl px-3 py-2 text-left
+                       text-xs font-semibold text-red-600
+                       transition hover:bg-red-50"
           >
-            <LogOut className="w-4 h-4 text-red-500" />
+            <LogOut className="h-4 w-4 text-red-500" />
             <span>Logout</span>
           </button>
         </div>

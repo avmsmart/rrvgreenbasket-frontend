@@ -218,7 +218,7 @@ class CustomerAuthService {
     return (
       process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://10.63.45.179:8082"
+      "http://192.168.0.148:8082"
     ).replace(/\/$/, "");
   }
 

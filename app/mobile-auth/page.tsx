@@ -1,146 +1,291 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { CustomerAuthError, normalizeMobileNumber } from "@/services/customer-auth.service";
 
 type Step = "mobile" | "otp" | "profile";
 
-export default function MobileAuthPage() {
+function MobileAuthPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get("redirect") || "/";
+
+  const {
+    customer,
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    loginSendOtp,
+    loginVerifyOtp,
+    registerSendOtp,
+    registerVerifyOtp,
+  } = useCustomerAuth();
 
   const [step, setStep] = useState<Step>("mobile");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [seconds, setSeconds] = useState(30);
+  const [cooldown, setCooldown] = useState(0);
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isExistingUser, setIsExistingUser] = useState(true);
 
+  const otpInputRef = useRef<HTMLInputElement>(null);
+
+  // If already authenticated, redirect
   useEffect(() => {
-    if (step !== "otp" || seconds <= 0) return;
-
-    const timer = setInterval(() => {
-      setSeconds((previous) => previous - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [step, seconds]);
-
-  function sendOtp() {
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
-      setMessage("Please enter a valid 10-digit mobile number.");
-      return;
+    if (!isAuthLoading && isAuthenticated) {
+      router.push(redirectTarget);
     }
+  }, [isAuthenticated, isAuthLoading, redirectTarget, router]);
 
-    setMessage("Demo OTP: 123456. No SMS has been sent.");
-    setSeconds(30);
-    setOtp("");
-    setStep("otp");
-  }
+  // Focus OTP input on step transition
+  useEffect(() => {
+    if (step === "otp") {
+      setTimeout(() => {
+        otpInputRef.current?.focus();
+      }, 100);
+    }
+  }, [step]);
 
-  function verifyOtp() {
-    if (otp !== "123456") {
-      setMessage("Incorrect OTP. Please enter 123456 for this demo.");
+  // Cooldown countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  // Step 1: Send Login or Register OTP
+  async function handleSendOtp() {
+    const cleanedMobile = mobile.replace(/\D/g, "");
+    if (cleanedMobile.length !== 10) {
+      setMessage("Please enter a valid 10-digit mobile number.");
+      setIsError(true);
       return;
     }
 
     setMessage("");
+    setIsError(false);
+    setLoading(true);
 
-    const savedProfile = localStorage.getItem("rrv-customer-profile");
+    const normalized = normalizeMobileNumber(cleanedMobile);
 
-    if (savedProfile) {
-      try {
-        const profile = JSON.parse(savedProfile);
-
-        if (profile.mobile === mobile) {
-          localStorage.setItem("rrv-customer-authenticated", "true");
-          router.push("/");
-          return;
+    try {
+      // First attempt login OTP
+      const res = await loginSendOtp(normalized);
+      setCooldown(res.cooldownSeconds || 60);
+      setMessage(res.message || `Verification OTP sent to ${normalized}`);
+      setIsExistingUser(true);
+      setOtp("");
+      setStep("otp");
+    } catch (err: unknown) {
+      if (err instanceof CustomerAuthError) {
+        if (err.statusCode === 404) {
+          // Customer not registered -> switch to profile completion
+          setIsExistingUser(false);
+          setMessage("Mobile number not registered. Please enter your name to register.");
+          setIsError(false);
+          setStep("profile");
+        } else if (err.statusCode === 429 && err.retryAfterSeconds) {
+          setCooldown(err.retryAfterSeconds);
+          setMessage(err.message);
+          setIsError(true);
+        } else {
+          setMessage(err.message);
+          setIsError(true);
         }
-      } catch {
-        localStorage.removeItem("rrv-customer-profile");
+      } else {
+        setMessage("Unable to connect to authentication server. Please try again.");
+        setIsError(true);
       }
+    } finally {
+      setLoading(false);
     }
-
-    setStep("profile");
   }
 
-  function resendOtp() {
-    setOtp("");
-    setSeconds(30);
-    setMessage("Demo OTP: 123456. No SMS has been sent.");
-  }
-
-  function completeProfile() {
-    if (!name.trim()) {
-      setMessage("Please enter your full name.");
+  // Step 2: Verify Login or Registration OTP
+  async function handleVerifyOtp() {
+    const cleanOtp = otp.replace(/\D/g, "").trim();
+    if (cleanOtp.length !== 6) {
+      setMessage("Please enter a valid 6-digit verification code.");
+      setIsError(true);
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setMessage("");
+    setIsError(false);
+    setLoading(true);
+
+    const normalized = normalizeMobileNumber(mobile);
+
+    try {
+      if (isExistingUser) {
+        await loginVerifyOtp(normalized, cleanOtp);
+      } else {
+        await registerVerifyOtp({
+          mobileNumber: normalized,
+          otp: cleanOtp,
+          fullName: name.trim() || undefined,
+          email: email.trim() || undefined,
+        });
+      }
+
+      setMessage("Authentication successful! Redirecting...");
+      setTimeout(() => {
+        router.push(redirectTarget);
+      }, 600);
+    } catch (err: unknown) {
+      if (err instanceof CustomerAuthError) {
+        setMessage(err.message);
+      } else {
+        setMessage("Incorrect OTP or session expired. Please try again.");
+      }
+      setIsError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Resend OTP
+  async function handleResendOtp() {
+    setOtp("");
+    setMessage("");
+    setIsError(false);
+    setLoading(true);
+
+    const normalized = normalizeMobileNumber(mobile);
+
+    try {
+      if (isExistingUser) {
+        const res = await loginSendOtp(normalized);
+        setCooldown(res.cooldownSeconds || 60);
+        setMessage(res.message || `Fresh verification OTP sent to ${normalized}`);
+      } else {
+        const res = await registerSendOtp({
+          fullName: name.trim() || "Customer",
+          mobileNumber: normalized,
+          email: email.trim() || undefined,
+        });
+        setCooldown(res.cooldownSeconds || 60);
+        setMessage(res.message || `Fresh verification OTP sent to ${normalized}`);
+      }
+    } catch (err: unknown) {
+      if (err instanceof CustomerAuthError) {
+        setMessage(err.message);
+        if (err.statusCode === 429 && err.retryAfterSeconds) {
+          setCooldown(err.retryAfterSeconds);
+        }
+      } else {
+        setMessage("Failed to resend verification code.");
+      }
+      setIsError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Step 3 (New User): Dispatch registration OTP after capturing profile
+  async function handleRegisterSendOtp() {
+    if (!name.trim() || name.trim().length < 2) {
+      setMessage("Please enter your full name (at least 2 characters).");
+      setIsError(true);
+      return;
+    }
+
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setMessage("Please enter a valid email address.");
+      setIsError(true);
       return;
     }
 
     setLoading(true);
+    setMessage("");
+    setIsError(false);
 
-    const profile = {
-      name: name.trim(),
-      mobile,
-      email: email.trim(),
-    };
+    const normalized = normalizeMobileNumber(mobile);
 
-    localStorage.setItem("rrv-customer-profile", JSON.stringify(profile));
-    localStorage.setItem("rrv-customer-authenticated", "true");
+    try {
+      const res = await registerSendOtp({
+        fullName: name.trim(),
+        mobileNumber: normalized,
+        email: email.trim() || undefined,
+      });
 
-    router.push("/");
+      setCooldown(res.cooldownSeconds || 60);
+      setMessage(res.message || `Verification OTP has been dispatched to ${normalized}`);
+      setStep("otp");
+    } catch (err: unknown) {
+      if (err instanceof CustomerAuthError) {
+        setMessage(err.message);
+        if (err.statusCode === 429 && err.retryAfterSeconds) {
+          setCooldown(err.retryAfterSeconds);
+        }
+      } else {
+        setMessage("Registration failed. Please verify your details.");
+      }
+      setIsError(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 caret-green-700 outline-none focus:border-green-700";
+    "w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 caret-green-700 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 transition";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-green-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-xl sm:p-9">
+      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-xl sm:p-9 border border-green-100">
         <div className="mb-8 text-center">
           <a href="/" className="text-2xl font-extrabold text-green-800">
             RRV Green Basket
           </a>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-1.5 text-xs sm:text-sm text-gray-500">
             Fresh groceries, delivered to your doorstep.
           </p>
         </div>
 
+        {/* Progress pill indicator */}
         <div className="mb-7 flex justify-center gap-2">
-          {(["mobile", "otp", "profile"] as Step[]).map((item, index) => (
-            <div
-              key={item}
-              className={`h-1.5 w-16 rounded-full ${
-                index <= ["mobile", "otp", "profile"].indexOf(step)
-                  ? "bg-green-700"
-                  : "bg-gray-200"
-              }`}
-            />
-          ))}
+          {(["mobile", "profile", "otp"] as Step[]).map((item, index) => {
+            const activeIndex = ["mobile", "profile", "otp"].indexOf(step);
+            return (
+              <div
+                key={item}
+                className={`h-1.5 w-16 rounded-full transition-colors ${
+                  index <= activeIndex ? "bg-green-700" : "bg-gray-200"
+                }`}
+              />
+            );
+          })}
         </div>
 
+        {/* Step: Enter Mobile */}
         {step === "mobile" && (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Login with Mobile
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Sign In with Mobile
             </h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Enter your mobile number to continue.
+            <p className="mt-1.5 text-xs sm:text-sm text-gray-500">
+              Enter your mobile number to receive a verification OTP.
             </p>
 
-            <label className="mt-7 block text-sm font-semibold text-gray-700">
-              Mobile Number
+            <label className="mt-6 block text-xs font-bold text-gray-700 mb-1">
+              Mobile Number <span className="text-red-500">*</span>
             </label>
 
-            <div className="mt-2 flex overflow-hidden rounded-xl border border-gray-300 focus-within:border-green-700">
-              <span className="flex items-center bg-gray-100 px-4 text-gray-700">
+            <div className="mt-1 flex overflow-hidden rounded-xl border border-gray-300 focus-within:border-green-700 focus-within:ring-2 focus-within:ring-green-100 bg-white">
+              <span className="flex items-center bg-gray-50 px-3.5 text-xs font-bold text-gray-600 border-r border-gray-200 select-none">
                 +91
               </span>
               <input
@@ -148,62 +293,154 @@ export default function MobileAuthPage() {
                 inputMode="numeric"
                 maxLength={10}
                 value={mobile}
-                onChange={(e) =>
-                  setMobile(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => {
+                  setMobile(e.target.value.replace(/\D/g, "").slice(0, 10));
+                  setMessage("");
+                }}
                 placeholder="Enter 10-digit number"
-                className="w-full bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 caret-green-700 outline-none"
-                style={{ color: "#111827", WebkitTextFillColor: "#111827" }}
+                className="w-full bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 caret-green-700 outline-none"
               />
             </div>
 
             <button
-              onClick={sendOtp}
-              className="mt-6 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white transition hover:bg-green-800"
+              onClick={handleSendOtp}
+              disabled={loading || mobile.replace(/\D/g, "").length !== 10}
+              className="mt-6 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white text-sm transition hover:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
             >
-              Continue
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Checking Account...</span>
+                </>
+              ) : (
+                <span>Continue →</span>
+              )}
             </button>
-          </>
+          </div>
         )}
 
-        {step === "otp" && (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Verify OTP
+        {/* Step: Complete Profile (New User) */}
+        {step === "profile" && (
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Complete Registration
             </h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Enter the six-digit code for +91 {mobile}.
+            <p className="mt-1.5 text-xs sm:text-sm text-gray-500">
+              Just a few details before receiving your OTP.
             </p>
 
-            <label className="mt-7 block text-sm font-semibold text-gray-700">
-              One-Time Password
+            <label className="mt-5 block text-xs font-bold text-gray-700">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setMessage("");
+              }}
+              placeholder="e.g. Mahendra Kumar"
+              className={`${inputClass} mt-1`}
+            />
+
+            <label className="mt-4 block text-xs font-bold text-gray-700">
+              Email Address <span className="text-gray-400 font-normal">(Optional)</span>
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setMessage("");
+              }}
+              placeholder="e.g. mahendra@example.com"
+              className={`${inputClass} mt-1`}
+            />
+
+            <label className="mt-4 block text-xs font-bold text-gray-700">
+              Mobile Number
+            </label>
+            <input
+              type="text"
+              value={`+91 ${mobile}`}
+              readOnly
+              className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 font-medium select-none"
+            />
+
+            <button
+              onClick={handleRegisterSendOtp}
+              disabled={loading || !name.trim()}
+              className="mt-6 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white text-sm transition hover:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
+            >
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Dispatching OTP...</span>
+                </>
+              ) : (
+                <span>Send Verification Code →</span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Step: Verify OTP */}
+        {step === "otp" && (
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Verify OTP
+            </h1>
+            <p className="mt-1.5 text-xs sm:text-sm text-gray-500">
+              Enter the 6-digit code for +91 {mobile}.
+            </p>
+
+            <label className="mt-6 block text-xs font-bold text-gray-700 mb-1">
+              One-Time Password (OTP)
             </label>
 
             <input
+              ref={otpInputRef}
               type="text"
               inputMode="numeric"
               maxLength={6}
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              placeholder="Enter 6-digit OTP"
-              className={`${inputClass} mt-2 text-center text-xl tracking-[0.5em]`}
-              style={{ color: "#111827", WebkitTextFillColor: "#111827" }}
+              onChange={(e) => {
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                setMessage("");
+              }}
+              placeholder="••••••"
+              className={`${inputClass} text-center text-xl font-mono font-bold tracking-[0.4em]`}
             />
 
             <button
-              onClick={verifyOtp}
-              className="mt-6 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white transition hover:bg-green-800"
+              onClick={handleVerifyOtp}
+              disabled={loading || otp.trim().length !== 6}
+              className="mt-6 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white text-sm transition hover:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
             >
-              Verify OTP
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <span>Verify &amp; Continue →</span>
+              )}
             </button>
 
-            <div className="mt-5 text-center text-sm text-gray-500">
-              {seconds > 0 ? (
-                <p>Resend OTP in {seconds}s</p>
+            <div className="mt-4 text-center text-xs text-gray-500">
+              {cooldown > 0 ? (
+                <p>
+                  Resend OTP in{" "}
+                  <span className="font-bold text-green-800 font-mono">
+                    {cooldown}s
+                  </span>
+                </p>
               ) : (
                 <button
-                  onClick={resendOtp}
-                  className="font-semibold text-green-700 hover:underline"
+                  type="button"
+                  disabled={loading}
+                  onClick={handleResendOtp}
+                  className="font-bold text-green-700 hover:underline"
                 >
                   Resend OTP
                 </button>
@@ -211,88 +448,53 @@ export default function MobileAuthPage() {
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 setStep("mobile");
+                setOtp("");
                 setMessage("");
               }}
-              className="mt-4 w-full text-sm font-semibold text-gray-600 hover:text-green-700"
+              className="mt-4 w-full text-xs font-semibold text-gray-500 hover:text-green-700 text-center"
             >
-              Change mobile number
+              ← Change mobile number
             </button>
-          </>
+          </div>
         )}
 
-        {step === "profile" && (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Complete Your Profile
-            </h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Just a few details before you start shopping.
-            </p>
-
-            <label className="mt-6 block text-sm font-semibold text-gray-700">
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              className={`${inputClass} mt-2`}
-              style={{ color: "#111827", WebkitTextFillColor: "#111827" }}
-            />
-
-            <label className="mt-5 block text-sm font-semibold text-gray-700">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className={`${inputClass} mt-2`}
-              style={{ color: "#111827", WebkitTextFillColor: "#111827" }}
-            />
-
-            <label className="mt-5 block text-sm font-semibold text-gray-700">
-              Mobile Number
-            </label>
-            <input
-              type="text"
-              value={`+91 ${mobile}`}
-              readOnly
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 text-gray-900"
-              style={{ color: "#111827", WebkitTextFillColor: "#111827" }}
-            />
-
-            <button
-              onClick={completeProfile}
-              disabled={loading}
-              className="mt-7 w-full rounded-xl bg-green-700 py-3.5 font-bold text-white transition hover:bg-green-800 disabled:opacity-60"
-            >
-              {loading ? "Please wait..." : "Complete Registration"}
-            </button>
-          </>
-        )}
-
+        {/* Message Banner */}
         {message && (
-          <p className="mt-5 rounded-lg bg-green-50 p-3 text-center text-sm text-green-800">
+          <div
+            className={`mt-5 rounded-xl p-3 text-center text-xs leading-relaxed ${
+              isError
+                ? "border border-red-200 bg-red-50 text-red-700"
+                : "border border-green-200 bg-green-50 text-green-800"
+            }`}
+          >
             {message}
-          </p>
+          </div>
         )}
 
-        <p className="mt-7 text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <a href="/login" className="font-semibold text-green-700 hover:underline">
-            Login
+        <p className="mt-7 text-center text-xs text-gray-500">
+          Prefer full login page?{" "}
+          <a href="/login" className="font-bold text-green-700 hover:underline">
+            Go to Customer Login
           </a>
-        </p>
-
-        <p className="mt-5 text-center text-xs text-gray-400">
-          By continuing, you agree to our Terms and Privacy Policy.
         </p>
       </div>
     </main>
+  );
+}
+
+export default function MobileAuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-green-50">
+          <div className="h-8 w-8 rounded-full border-3 border-green-700 border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <MobileAuthPageContent />
+    </Suspense>
   );
 }

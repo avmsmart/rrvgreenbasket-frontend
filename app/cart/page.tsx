@@ -2,6 +2,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  ShoppingCart,
+  ArrowLeft,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingBag,
+  Truck,
+  ShieldCheck,
+  Leaf,
+  ChevronRight,
+  Tag,
+  Heart,
+} from "lucide-react";
 
 type Product = {
   id: number;
@@ -48,7 +63,9 @@ const products: Product[] = [
 ];
 
 const imageUrl = (id: string) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=300&q=80`;
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=400&q=85`;
+
+const FREE_DELIVERY_LIMIT = 299;
 
 export default function CartPage() {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -88,6 +105,16 @@ export default function CartPage() {
     0
   );
 
+  const remainingForFreeDelivery = Math.max(
+    0,
+    FREE_DELIVERY_LIMIT - total
+  );
+
+  const deliveryProgress = Math.min(
+    100,
+    (total / FREE_DELIVERY_LIMIT) * 100
+  );
+
   function updateQuantity(id: number, quantity: number) {
     const next = items
       .map((item) =>
@@ -109,145 +136,359 @@ export default function CartPage() {
     );
   }
 
+  function clearCart() {
+    setItems([]);
+    localStorage.setItem("rrv-cart", JSON.stringify({}));
+  }
+
   if (!loaded) {
     return (
-      <main className="min-h-screen p-8">
-        Loading cart...
+      <main className="min-h-screen bg-[#f7f9f5] px-4 py-8">
+        <div className="mx-auto max-w-6xl animate-pulse space-y-6">
+          <div className="h-8 w-48 rounded-lg bg-gray-200" />
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="h-64 rounded-2xl bg-gray-200" />
+            <div className="h-64 rounded-2xl bg-gray-200" />
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f9f3] px-4 py-8 text-[#20392a] sm:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-extrabold sm:text-4xl">
-            Your Shopping Cart
-          </h1>
+    <main className="min-h-screen bg-[#f7f9f5] pb-28 text-[#20392a] sm:pb-12">
+      <div className="mx-auto max-w-6xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
 
-          <a
+        {/* Breadcrumb navigation */}
+        <nav className="mb-5 flex items-center gap-2 text-xs text-gray-500 sm:text-sm">
+          <Link
             href="/"
-            className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white hover:bg-green-800"
+            className="transition hover:text-green-700"
           >
-            Continue Shopping
-          </a>
+            Home
+          </Link>
+
+          <ChevronRight size={14} />
+
+          <span className="font-semibold text-gray-800">
+            Shopping Cart
+          </span>
+        </nav>
+
+        {/* Page heading */}
+        <div className="mb-6 flex items-center justify-between gap-3 sm:mb-8">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl">
+              <ShoppingCart className="text-green-700" size={27} />
+              My Cart
+            </h1>
+
+            <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+              {itemCount} {itemCount === 1 ? "item" : "items"} in your cart
+            </p>
+          </div>
+
+          {/* {items.length > 0 && (
+            // <Link
+            //   href="/"
+            //   className="flex shrink-0 items-center gap-1.5 rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-bold text-green-800 transition hover:bg-green-50 sm:px-4 sm:text-sm"
+            // >
+            //   <ArrowLeft size={15} />
+            //   <span>Continue Shopping</span>
+            // </Link>
+          )} */}
         </div>
 
-        {items.length === 0 ? (
-          <div className="rounded-2xl bg-white p-10 text-center shadow-sm">
-            <p className="text-xl font-semibold">
-              Your cart is empty.
-            </p>
-            <p className="mt-2 text-gray-600">
-              Add some fresh products to get started!
-            </p>
-            <a
-              href="/"
-              className="mt-5 inline-block rounded-xl bg-green-700 px-6 py-3 font-bold text-white"
-            >
-              Browse Products
-            </a>
-          </div>
-        ) : (
-          <div className="grid items-start gap-6 md:grid-cols-[1fr_320px]">
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center gap-4 rounded-2xl border border-green-100 bg-white p-4 shadow-sm"
-                >
-                  <img
-                    src={imageUrl(item.image)}
-                    alt={item.name}
-                    className="h-24 w-24 rounded-xl object-cover"
-                  />
+        {/* Empty cart */}
+        
+{/* Empty cart */}
+{items.length === 0 ? (
+  <div className="flex flex-col items-center px-4 py-8 text-center sm:py-10">
+
+    {/* Empty cart image */}
+    <img
+      src="/images/auth/empty-cart.png"
+      alt="Your shopping cart is empty"
+      className="mx-auto h-36 w-36 object-contain sm:h-44 sm:w-44"
+    />
+
+    {/* Heading */}
+    <h2 className="mt-3 text-lg font-extrabold text-gray-900 sm:text-xl">
+      Your cart is empty!
+    </h2>
+
+    {/* Description */}
+    <p className="mt-2 max-w-xs text-xs leading-5 text-gray-500 sm:text-sm">
+      Looks like you haven't added anything yet.
+      Explore our fresh fruits and vegetables!
+    </p>
+
+    {/* Continue shopping button */}
+    <Link
+      href="/"
+      className="mt-5 inline-flex items-center gap-2 rounded-lg
+                 bg-green-700 px-4 py-2.5 text-xs font-bold
+                 text-white transition hover:bg-green-800
+                 active:scale-95 sm:text-sm"
+    >
+      <ShoppingBag size={15} />
+      Continue Shopping
+    </Link>
+
+  </div>
+) : (
+  
+
+          <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px] lg:gap-8">
+
+            {/* Cart items */}
+            <section className="min-w-0">
+
+              {/* Delivery progress */}
+              <div className="mb-4 rounded-2xl border border-green-100 bg-white p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-50">
+                    <Truck size={18} className="text-green-700" />
+                  </div>
 
                   <div className="min-w-0 flex-1">
-                    <h2 className="font-bold text-gray-900">
-                      {item.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      ₹{item.price} / {item.unit}
-                    </p>
-                    <p className="mt-1 font-semibold text-green-800">
-                      ₹{item.price * item.quantity}
-                    </p>
-                  </div>
+                    {remainingForFreeDelivery > 0 ? (
+                      <p className="text-xs font-semibold text-gray-700 sm:text-sm">
+                        Add{" "}
+                        <span className="font-extrabold text-green-700">
+                          ₹{remainingForFreeDelivery}
+                        </span>{" "}
+                        more for free delivery!
+                      </p>
+                    ) : (
+                      <p className="text-xs font-bold text-green-700 sm:text-sm">
+                        Congratulations! You've unlocked free delivery.
+                      </p>
+                    )}
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      aria-label={`Decrease ${item.name} quantity`}
-                      onClick={() =>
-                        updateQuantity(item.id, item.quantity - 1)
-                      }
-                      className="rounded-lg border border-green-200 px-3 py-2 hover:bg-green-50"
-                    >
-                      −
-                    </button>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-green-600 transition-all duration-300"
+                        style={{ width: `${deliveryProgress}%` }}
+                      />
+                    </div>
 
-                    <span className="min-w-6 text-center font-semibold">
-                      {item.quantity}
-                    </span>
-
-                    <button
-                      aria-label={`Increase ${item.name} quantity`}
-                      onClick={() =>
-                        updateQuantity(item.id, item.quantity + 1)
-                      }
-                      className="rounded-lg border border-green-200 px-3 py-2 hover:bg-green-50"
-                    >
-                      +
-                    </button>
-
-                    <button
-                      onClick={() => updateQuantity(item.id, 0)}
-                      className="ml-1 font-semibold text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
+                    <div className="mt-1.5 flex justify-between text-[10px] text-gray-400 sm:text-xs">
+                      <span>₹0</span>
+                      <span>Free delivery at ₹{FREE_DELIVERY_LIMIT}</span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <aside className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm md:sticky md:top-6">
-              <h2 className="text-xl font-extrabold">
+              {/* Cart list heading */}
+              <div className="mb-3 flex items-center justify-between px-1">
+                <h2 className="text-base font-extrabold sm:text-lg">
+                  Cart Items ({items.length})
+                </h2>
+
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="flex items-center gap-1 text-xs font-semibold text-red-500 transition hover:text-red-700 sm:text-sm"
+                >
+                  <Trash2 size={14} />
+                  Clear Cart
+                </button>
+              </div>
+
+              {/* Individual product cards */}
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <article
+                    key={item.id}
+                    className="flex gap-3 rounded-2xl border border-green-100 bg-white p-3 shadow-sm transition hover:border-green-200 sm:gap-5 sm:p-4"
+                  >
+                    {/* Product image */}
+                    <Link
+                      href="/"
+                      className="h-[88px] w-[88px] shrink-0 overflow-hidden rounded-xl bg-green-50 sm:h-28 sm:w-28"
+                    >
+                      <img
+                        src={imageUrl(item.image)}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition duration-300 hover:scale-105"
+                      />
+                    </Link>
+
+                    {/* Product details */}
+                    <div className="flex min-w-0 flex-1 flex-col justify-between">
+                      <div>
+                        <h3 className="line-clamp-2 text-sm font-bold text-gray-900 sm:text-base">
+                          {item.name}
+                        </h3>
+
+                        <p className="mt-1 text-[11px] text-gray-500 sm:text-xs">
+                          ₹{item.price} / {item.unit}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        {/* Quantity control */}
+                        <div className="flex items-center overflow-hidden rounded-lg border border-green-200 bg-white">
+                          <button
+                            type="button"
+                            aria-label={`Decrease ${item.name} quantity`}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity - 1)
+                            }
+                            className="flex h-8 w-8 items-center justify-center text-green-800 transition hover:bg-green-50 active:bg-green-100 sm:h-9 sm:w-9"
+                          >
+                            <Minus size={14} />
+                          </button>
+
+                          <span className="min-w-7 text-center text-xs font-extrabold text-gray-800 sm:text-sm">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            aria-label={`Increase ${item.name} quantity`}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity + 1)
+                            }
+                            className="flex h-8 w-8 items-center justify-center text-green-800 transition hover:bg-green-50 active:bg-green-100 sm:h-9 sm:w-9"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+
+                        {/* Remove product */}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.name} from cart`}
+                          onClick={() => updateQuantity(item.id, 0)}
+                          className="flex items-center gap-1 rounded-lg px-1 py-1 text-[11px] font-semibold text-gray-400 transition hover:bg-red-50 hover:text-red-600 sm:text-xs"
+                        >
+                          <Trash2 size={13} />
+                          <span className="hidden xs:inline">Remove</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Item total */}
+                    <div className="flex shrink-0 flex-col items-end justify-between py-0.5">
+                      <span className="text-sm font-extrabold text-green-800 sm:text-base">
+                        ₹{item.price * item.quantity}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {/* Bottom continue shopping */}
+              <Link
+                href="/"
+                className="mt-5 hidden items-center gap-2 text-sm font-bold text-green-800 transition hover:text-green-600 sm:inline-flex"
+              >
+                <ArrowLeft size={16} />
+                Add more products to your basket
+              </Link>
+            </section>
+
+            {/* Order summary */}
+            <aside className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
+
+              <h2 className="text-lg font-extrabold sm:text-xl">
                 Order Summary
               </h2>
 
-              <div className="mt-5 flex justify-between text-gray-600">
-                <span>Items</span>
-                <span>{itemCount}</span>
+              {/* Item count */}
+              <div className="mt-5 flex justify-between text-sm text-gray-600">
+                <span>Items ({itemCount})</span>
+                <span className="font-semibold text-gray-800">
+                  ₹{total}
+                </span>
               </div>
 
-              <div className="mt-3 flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>₹{total}</span>
+              {/* Delivery */}
+              <div className="mt-3 flex justify-between text-sm text-gray-600">
+                <span>Delivery charges</span>
+                <span className="font-semibold text-green-700">
+                  {total >= FREE_DELIVERY_LIMIT ? "FREE" : "At checkout"}
+                </span>
               </div>
 
-              <div className="mt-4 border-t border-gray-200 pt-4">
-                <div className="flex justify-between text-lg font-extrabold">
-                  <span>Total</span>
-                  <span>₹{total}</span>
+              {/* Savings message */}
+              {total >= FREE_DELIVERY_LIMIT && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-green-50 p-3 text-xs font-semibold text-green-800">
+                  <Tag size={15} />
+                  You're enjoying free delivery!
                 </div>
+              )}
+
+              {/* Total */}
+              <div className="mt-5 border-t border-dashed border-gray-200 pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-extrabold text-gray-900">
+                    Subtotal
+                  </span>
+
+                  <span className="text-xl font-extrabold text-green-800 sm:text-2xl">
+                    ₹{total}
+                  </span>
+                </div>
+
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Taxes and delivery charges calculated at checkout.
+                </p>
               </div>
 
-              <button
-                onClick={() => {
-                  window.location.href = "/checkout";
-                }}
-                className="mt-6 w-full rounded-xl bg-green-700 px-5 py-3 font-bold text-white hover:bg-green-800"
+              {/* Desktop checkout button */}
+              <Link
+                href="/checkout"
+                className="mt-5 hidden w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-green-800 active:scale-[0.98] lg:flex"
               >
                 Proceed to Checkout
-              </button>
+                <ChevronRight size={18} />
+              </Link>
 
-              <p className="mt-3 text-xs text-gray-500">
-                Delivery charges, if applicable, will be shown at checkout.
-              </p>
+              {/* Trust information */}
+              {/* <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2.5 text-xs text-gray-500">
+                  <ShieldCheck size={17} className="shrink-0 text-green-700" />
+                  <span>Safe & secure checkout</span>
+                </div>
+
+                <div className="flex items-center gap-2.5 text-xs text-gray-500">
+                  <Leaf size={17} className="shrink-0 text-green-700" />
+                  <span>Freshness guaranteed</span>
+                </div>
+              </div> */}
             </aside>
           </div>
         )}
       </div>
+
+      {/* Mobile sticky checkout bar */}
+      {items.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-green-100 bg-white/95 p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500">
+                Total ({itemCount} {itemCount === 1 ? "item" : "items"})
+              </p>
+
+              <p className="text-lg font-extrabold text-green-800">
+                ₹{total}
+              </p>
+            </div>
+
+            <Link
+              href="/checkout"
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-extrabold text-white shadow-sm transition hover:bg-green-800 active:scale-[0.98]"
+            >
+              Proceed to Checkout
+              <ChevronRight size={18} />
+            </Link>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
