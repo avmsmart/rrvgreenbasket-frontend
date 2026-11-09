@@ -67,7 +67,7 @@ export class CustomerAddressService {
     }
 
     // 4. Default address service fallback
-    return "http://192.168.0.148:8082";
+    return "http://192.168.0.107:8082";
   }
 
   /**

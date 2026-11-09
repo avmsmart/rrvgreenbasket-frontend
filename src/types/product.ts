@@ -192,6 +192,8 @@ export interface BackendCategory {
   imageUrl?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   icon?: string;
   // Compatibility fields
   id?: string | number;

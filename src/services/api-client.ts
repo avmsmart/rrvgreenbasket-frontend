@@ -145,7 +145,14 @@ class ApiClient {
       ...((customHeaders as Record<string, string>) || {}),
     };
 
-    if (!skipAuth) {
+    // Public endpoints (e.g. /api/products/categories) should never send Authorization or session cookies
+    const isPublicCategories =
+      normalizedEndpoint === "/products/categories" ||
+      normalizedEndpoint === "/api/products/categories" ||
+      normalizedEndpoint.endsWith("/products/categories");
+    const isPublicEndpoint = skipAuth || isPublicCategories;
+
+    if (!isPublicEndpoint) {
       const rawToken = getAuthToken();
       if (rawToken) {
         const cleanToken = rawToken.replace(/^Bearer\s+/i, "").trim();
@@ -159,12 +166,18 @@ class ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    const fetchConfig: RequestInit = {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    };
+
+    if (isPublicEndpoint) {
+      fetchConfig.credentials = "omit";
+    }
+
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers,
-        signal: controller.signal,
-      });
+      const response = await fetch(url, fetchConfig);
 
       clearTimeout(timer);
 
@@ -177,8 +190,8 @@ class ApiClient {
           errorData = await response.text();
         }
 
-        // Auto-clear admin token and dispatch event on 401 Unauthorized for non-login endpoints
-        if (response.status === 401 && !endpoint.includes("/login")) {
+        // Auto-clear admin token and dispatch event on 401 Unauthorized for non-login, non-public endpoints
+        if (response.status === 401 && !endpoint.includes("/login") && !isPublicEndpoint) {
           removeAuthToken();
         }
 

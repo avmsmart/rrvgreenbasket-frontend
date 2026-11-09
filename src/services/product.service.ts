@@ -55,7 +55,7 @@ export class AdminProductService {
    * Builds Authorization & content headers.
    * Never prints token to console.
    */
-  private getHeaders(isMultipart = false): Record<string, string> {
+  private getHeaders(isMultipart = false, skipAuth = false): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: "application/json",
     };
@@ -64,11 +64,13 @@ export class AdminProductService {
       headers["Content-Type"] = "application/json";
     }
 
-    const token = getAuthToken();
-    if (token) {
-      const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
-      if (cleanToken) {
-        headers["Authorization"] = `Bearer ${cleanToken}`;
+    if (!skipAuth) {
+      const token = getAuthToken();
+      if (token) {
+        const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
+        if (cleanToken) {
+          headers["Authorization"] = `Bearer ${cleanToken}`;
+        }
       }
     }
 
@@ -81,7 +83,8 @@ export class AdminProductService {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    isMultipart = false
+    isMultipart = false,
+    skipAuth = false
   ): Promise<T> {
     const baseUrl = this.getBaseUrl();
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -92,16 +95,23 @@ export class AdminProductService {
     const url = `${cleanBaseUrl}${normalizedEndpoint}`;
 
     const headers = {
-      ...this.getHeaders(isMultipart),
+      ...this.getHeaders(isMultipart, skipAuth),
       ...((options.headers as Record<string, string>) || {}),
     };
 
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+    };
+
+    // For public endpoints (skipAuth = true), strictly omit session cookies and credentials
+    if (skipAuth) {
+      fetchOptions.credentials = "omit";
+    }
+
     let response: Response;
     try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      response = await fetch(url, fetchOptions);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Network error contacting product service";
@@ -121,8 +131,8 @@ export class AdminProductService {
         errorData = await response.text();
       }
 
-      // Handle 401 Unauthorized
-      if (response.status === 401) {
+      // Handle 401 Unauthorized for authenticated endpoints
+      if (response.status === 401 && !skipAuth) {
         removeAuthToken();
         throw new ApiError(
           "Admin session expired or unauthorized. Please sign in again.",
@@ -172,8 +182,9 @@ export class AdminProductService {
   }
 
   /**
-   * GET /api/admin/products/categories
-   * Single reusable method that retrieves active categories from the Spring Boot backend.
+   * GET /api/products/categories
+   * Public API endpoint that retrieves active categories from the Spring Boot backend.
+   * Authentication is NOT required. Does NOT send Authorization Bearer token or admin session cookies.
    *
    * Confirmed backend structure:
    * {
@@ -187,7 +198,9 @@ export class AdminProductService {
    *       "description": "Fresh and seasonal farm-fresh fruits.",
    *       "imageUrl": null,
    *       "sortOrder": 1,
-   *       "isActive": true
+   *       "isActive": true,
+   *       "createdAt": "2026-11-09T16:12:10.937Z",
+   *       "updatedAt": "2026-11-09T16:12:10.937Z"
    *     }, ...
    *   ],
    *   "timestamp": "..."
@@ -206,12 +219,12 @@ export class AdminProductService {
 
     this.categoriesPromise = (async () => {
       try {
-        const endpoint = "/api/admin/products/categories";
+        const endpoint = "/api/products/categories";
 
-        // Execute GET request with proper Authorization header via this.request
+        // Execute public GET request without Authorization header or admin credentials (skipAuth = true)
         const rawResponse = await this.request<
           CategoryApiResponse | BackendCategory[] | { data: BackendCategory[] }
-        >(endpoint, { method: "GET" });
+        >(endpoint, { method: "GET" }, false, true);
 
         // Extract categories array from response.data (handling unwrapped or envelope responses)
         let rawList: unknown = rawResponse;
@@ -253,6 +266,8 @@ export class AdminProductService {
               imageUrl: typeof cat.imageUrl === "string" ? cat.imageUrl : null,
               sortOrder: typeof cat.sortOrder === "number" ? cat.sortOrder : 0,
               isActive: cat.isActive !== false,
+              createdAt: typeof cat.createdAt === "string" ? cat.createdAt : undefined,
+              updatedAt: typeof cat.updatedAt === "string" ? cat.updatedAt : undefined,
             });
           }
         }
