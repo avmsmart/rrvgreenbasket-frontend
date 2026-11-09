@@ -18,6 +18,7 @@ import {
   Ticket,
   BarChart3,
   Layers,
+  FolderTree,
   Settings,
   ArrowRight,
   User,
@@ -28,8 +29,10 @@ import {
 } from "lucide-react";
 import { ADMIN_NAV_ITEMS } from "@/constants/navigation";
 import { MASTER_PRODUCTS_DATA, MOCK_ORDERS_DATA, MOCK_CUSTOMERS_PAGE17 } from "@/data";
-import { getSavedCoupons, getSavedSectors } from "@/data/shared-store";
+import { getSavedCoupons } from "@/data/shared-store";
 import { ProduceImage } from "@/components/common/ProduceImage";
+import { categoryService } from "@/services/category.service";
+import { Category } from "@/types/category";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -50,16 +53,28 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Ticket,
   BarChart3,
   Layers,
+  FolderTree,
   Settings,
 };
 
-type SearchTab = "all" | "products" | "orders" | "customers" | "sectors" | "coupons" | "pages";
+type SearchTab = "all" | "products" | "orders" | "customers" | "categories" | "coupons" | "pages";
 
 export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SearchTab>("all");
+  const [categories, setCategories] = useState<Category[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // Load public categories when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      categoryService
+        .getPublicCategories()
+        .then((cats) => setCategories(cats))
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -123,16 +138,17 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
     ).slice(0, 6);
   }, [q]);
 
-  const matchingSectors = useMemo(() => {
+  const matchingCategories = useMemo(() => {
     if (!q) return [];
-    return getSavedSectors()
+    return categories
       .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          (s.description && s.description.toLowerCase().includes(q))
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.slug.toLowerCase().includes(q) ||
+          (c.description && c.description.toLowerCase().includes(q))
       )
       .slice(0, 5);
-  }, [q]);
+  }, [categories, q]);
 
   const matchingCoupons = useMemo(() => {
     if (!q) return [];
@@ -157,7 +173,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
     matchingProducts.length +
     matchingOrders.length +
     matchingCustomers.length +
-    matchingSectors.length +
+    matchingCategories.length +
     matchingCoupons.length +
     matchingPages.length;
 
@@ -170,11 +186,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-10 sm:pt-20 px-3 sm:px-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
@@ -185,13 +201,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products, orders, customers, sectors, coupons, pages..."
+            placeholder="Search products, orders, customers, categories, coupons, pages..."
             className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -209,14 +225,14 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
               { id: "products", label: "Products", count: matchingProducts.length },
               { id: "orders", label: "Orders", count: matchingOrders.length },
               { id: "customers", label: "Customers", count: matchingCustomers.length },
-              { id: "sectors", label: "Sectors", count: matchingSectors.length },
+              { id: "categories", label: "Categories", count: matchingCategories.length },
               { id: "coupons", label: "Coupons", count: matchingCoupons.length },
               { id: "pages", label: "Pages", count: matchingPages.length },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as SearchTab)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   activeTab === tab.id
                     ? "bg-[#00875a] text-white shadow-3xs"
                     : "text-slate-600 hover:bg-slate-200/70"
@@ -238,50 +254,52 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
         )}
 
         {/* Results Container */}
-        <div className="overflow-y-auto p-3 sm:p-4 space-y-4 flex-1">
-          {/* 1. If Query is empty: Show Popular Quick Shortcuts */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* 1. Empty Query State (Quick links) */}
           {!q && (
             <div className="space-y-4 py-2">
               <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-[#00875a]" />
-                  Quick Module Navigation
-                </span>
+                  <span>Popular Quick Searches</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {["Tomatoes", "Onions", "Potato", "Fruits", "Organic", "Delivery", "Coupons"].map(
+                    (tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => setQuery(tag)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-[#00875a] hover:border-emerald-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Quick Navigation
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {ADMIN_NAV_ITEMS.slice(0, 6).map((item) => {
-                    const Icon = ICON_MAP[item.iconName] || Home;
+                    const IconComponent = ICON_MAP[item.iconName] || Home;
                     return (
                       <button
                         key={item.id}
                         onClick={() => handleSelect(item.path)}
-                        className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 text-left transition-all group"
+                        className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer"
                       >
-                        <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 group-hover:text-[#00875a]">
-                          <Icon className="w-4 h-4" />
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-[#00875a] flex items-center justify-center text-slate-600 group-hover:text-white transition-colors">
+                          <IconComponent className="w-3.5 h-3.5" />
                         </div>
-                        <span className="text-xs font-bold text-slate-800 group-hover:text-[#00875a] truncate">
+                        <span className="text-xs font-bold text-slate-700 group-hover:text-[#00875a]">
                           {item.label}
                         </span>
                       </button>
                     );
                   })}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                  Popular Produce Searches
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {["Tomato", "Onion", "Potato", "Broccoli", "Capsicum", "Spinach", "Carrot", "Mushroom"].map((term) => (
-                    <button
-                      key={term}
-                      onClick={() => setQuery(term)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-                    >
-                      {term}
-                    </button>
-                  ))}
                 </div>
               </div>
             </div>
@@ -295,7 +313,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
               </div>
               <h4 className="text-sm font-bold text-slate-800">No results found for &quot;{query}&quot;</h4>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                We couldn&apos;t find any products, orders, customers, sectors, or coupons matching your search.
+                We couldn&apos;t find any products, orders, customers, categories, or coupons matching your search.
               </p>
             </div>
           )}
@@ -307,7 +325,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                 <span>Products ({matchingProducts.length})</span>
                 <button
                   onClick={() => handleSelect(`/admin/products?search=${encodeURIComponent(query)}`)}
-                  className="text-[#00875a] hover:underline normal-case font-bold"
+                  className="text-[#00875a] hover:underline normal-case font-bold cursor-pointer"
                 >
                   View all in Products →
                 </button>
@@ -326,29 +344,22 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                           <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#00875a] truncate">
                             {p.name}
                           </span>
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded">
                             {p.erpCode || p.id}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 truncate">
-                          {p.category} • In Stock: {p.stock} {p.unit}
+                          {p.category} • Pack: {(p as any).packQty || p.unit || "1 Kg"}
                         </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
-                      <div className="font-black text-xs sm:text-sm text-slate-900">
-                        ₹ {p.price} / {p.unit}
+                      <div className="font-black text-xs sm:text-sm text-[#00875a]">
+                        ₹{p.pricePerKg}
+                        <span className="text-[10px] text-slate-400 font-normal"> /Kg</span>
                       </div>
-                      <span
-                        className={`text-[10px] font-extrabold px-2 py-0.2 rounded-full ${
-                          p.stock > 10
-                            ? "bg-emerald-50 text-emerald-700"
-                            : p.stock > 0
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {p.status}
+                      <span className="text-[10px] font-extrabold px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-700">
+                        {p.stockStatus}
                       </span>
                     </div>
                   </div>
@@ -364,9 +375,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                 <span>Orders ({matchingOrders.length})</span>
                 <button
                   onClick={() => handleSelect(`/admin/orders?search=${encodeURIComponent(query)}`)}
-                  className="text-[#00875a] hover:underline normal-case font-bold"
+                  className="text-[#00875a] hover:underline normal-case font-bold cursor-pointer"
                 >
-                  View all in Orders →
+                  View in Orders →
                 </button>
               </div>
               <div className="space-y-1.5">
@@ -382,23 +393,23 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-black text-xs text-slate-900 group-hover:text-[#00875a]">
+                          <span className="font-mono font-black text-xs sm:text-sm text-slate-900 group-hover:text-[#00875a]">
                             {o.id}
                           </span>
-                          <span className="font-bold text-xs text-slate-700 truncate">
+                          <span className="text-[11px] font-semibold text-slate-700">
                             {o.customerName}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 truncate">
-                          {o.itemsCount} items • {o.orderDate || o.orderTime}
+                          {o.customerPhone} • {o.itemsCount} items
                         </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
-                      <div className="font-black text-xs sm:text-sm text-slate-900">
-                        ₹ {o.amount}
+                      <div className="font-black text-xs text-slate-900">
+                        ₹{((o as any).totalAmount || (o as any).finalAmount || (o as any).total || 0).toLocaleString()}
                       </div>
-                      <span className="text-[10px] font-extrabold px-2 py-0.2 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-[10px] font-extrabold px-2 py-0.2 rounded-full bg-slate-100 text-slate-600">
                         {o.status}
                       </span>
                     </div>
@@ -415,7 +426,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                 <span>Customers ({matchingCustomers.length})</span>
                 <button
                   onClick={() => handleSelect(`/admin/customers?search=${encodeURIComponent(query)}`)}
-                  className="text-[#00875a] hover:underline normal-case font-bold"
+                  className="text-[#00875a] hover:underline normal-case font-bold cursor-pointer"
                 >
                   View in Customers →
                 </button>
@@ -428,8 +439,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                     className="flex items-center justify-between p-2.5 rounded-2xl bg-white hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all shadow-3xs group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                        <User className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center flex-shrink-0">
+                        {c.name.charAt(0)}
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#00875a] truncate">
@@ -441,11 +452,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
-                      <div className="font-black text-xs text-slate-900">
-                        ₹ {c.totalSpent} spent
+                      <div className="font-bold text-xs text-slate-800">
+                        {(c as any).ordersCount ?? (c as any).totalOrders ?? 0} orders
                       </div>
-                      <span className="text-[10px] text-slate-500 font-semibold">
-                        {c.totalOrders} orders
+                      <span className="text-[10px] text-slate-400">
+                        Spent ₹{c.totalSpent.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -454,44 +465,47 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
             </div>
           )}
 
-          {/* 6. Sectors Results */}
-          {(activeTab === "all" || activeTab === "sectors") && matchingSectors.length > 0 && (
+          {/* 6. Categories Results */}
+          {(activeTab === "all" || activeTab === "categories") && matchingCategories.length > 0 && (
             <div>
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                <span>Sectors ({matchingSectors.length})</span>
+                <span>Categories ({matchingCategories.length})</span>
                 <button
-                  onClick={() => handleSelect(`/admin/sectors?search=${encodeURIComponent(query)}`)}
-                  className="text-[#00875a] hover:underline normal-case font-bold"
+                  onClick={() => handleSelect(`/admin/categories?search=${encodeURIComponent(query)}`)}
+                  className="text-[#00875a] hover:underline normal-case font-bold cursor-pointer"
                 >
-                  View in Sectors →
+                  View in Categories →
                 </button>
               </div>
               <div className="space-y-1.5">
-                {matchingSectors.map((s) => (
+                {matchingCategories.map((c) => (
                   <div
-                    key={s.id}
-                    onClick={() => handleSelect(`/admin/sectors?search=${encodeURIComponent(s.name)}`)}
+                    key={c.publicId}
+                    onClick={() => handleSelect(`/admin/categories?search=${encodeURIComponent(c.name)}`)}
                     className="flex items-center justify-between p-2.5 rounded-2xl bg-white hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all shadow-3xs group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-lg flex-shrink-0">
-                        {s.icon || "📦"}
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#00875a] flex items-center justify-center flex-shrink-0">
+                        <FolderTree className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#00875a] truncate">
-                          {s.name}
+                          {c.name}
                         </div>
                         <div className="text-[11px] text-slate-400 truncate">
-                          {s.description || `${s.productsCount || 0} products mapped`}
+                          {c.description || `slug: ${c.slug}`}
                         </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
-                      <div className="font-bold text-xs text-slate-900">
-                        {s.productsCount || 0} items
-                      </div>
-                      <span className="text-[10px] font-extrabold px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-700">
-                        {s.status}
+                      <span
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          c.isActive
+                            ? "bg-[#eaf8f0] text-[#00875a] border-[#bbf7d0]"
+                            : "bg-rose-50 text-rose-600 border-rose-200"
+                        }`}
+                      >
+                        {c.isActive ? "Active" : "Inactive"}
                       </span>
                     </div>
                   </div>
@@ -507,7 +521,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                 <span>Coupons &amp; Offers ({matchingCoupons.length})</span>
                 <button
                   onClick={() => handleSelect(`/admin/coupons?search=${encodeURIComponent(query)}`)}
-                  className="text-[#00875a] hover:underline normal-case font-bold"
+                  className="text-[#00875a] hover:underline normal-case font-bold cursor-pointer"
                 >
                   View in Coupons →
                 </button>

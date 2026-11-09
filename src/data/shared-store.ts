@@ -1,7 +1,6 @@
 "use client";
 
 import { Coupon, CouponActivity } from "@/types/coupon";
-import { Sector } from "@/types/sector";
 import { StoreSettings } from "@/types/settings";
 import { RegisteredAdminAccount } from "@/types/auth";
 
@@ -215,108 +214,6 @@ export const INITIAL_COUPON_ACTIVITIES: CouponActivity[] = [
 ];
 
 /* =========================================================================
-   2. SECTORS INITIAL REFERENCE DATA (PDF PAGE 13)
-   ========================================================================= */
-export const INITIAL_SECTORS_DATA: Sector[] = [
-  {
-    id: "SEC-01",
-    name: "Fresh Vegetables",
-    description: "Farm fresh seasonal vegetables",
-    icon: "🥦",
-    productsCount: 86,
-    status: "Active",
-    isFeatured: true,
-    displayOrder: 1,
-    totalOrders: 120,
-    revenue: 48250,
-  },
-  {
-    id: "SEC-02",
-    name: "Fresh Fruits",
-    description: "Fresh and juicy seasonal fruits",
-    icon: "🍎",
-    productsCount: 64,
-    status: "Active",
-    isFeatured: true,
-    displayOrder: 2,
-    totalOrders: 98,
-    revenue: 36480,
-  },
-  {
-    id: "SEC-03",
-    name: "Groceries",
-    description: "Daily essentials and groceries",
-    icon: "🌾",
-    productsCount: 38,
-    status: "Active",
-    isFeatured: false,
-    displayOrder: 3,
-    totalOrders: 56,
-    revenue: 18670,
-  },
-  {
-    id: "SEC-04",
-    name: "Dairy Products",
-    description: "Milk, curd, paneer and more",
-    icon: "🥛",
-    productsCount: 22,
-    status: "Active",
-    isFeatured: false,
-    displayOrder: 4,
-    totalOrders: 38,
-    revenue: 12420,
-  },
-  {
-    id: "SEC-05",
-    name: "Snacks & Foods",
-    description: "Healthy snacks and ready foods",
-    icon: "🍪",
-    productsCount: 18,
-    status: "Active",
-    isFeatured: true,
-    displayOrder: 5,
-    totalOrders: 28,
-    revenue: 8540,
-  },
-  {
-    id: "SEC-06",
-    name: "Beverages",
-    description: "Juices, drinks and refreshments",
-    icon: "🧃",
-    productsCount: 12,
-    status: "Active",
-    isFeatured: false,
-    displayOrder: 6,
-    totalOrders: 18,
-    revenue: 5400,
-  },
-  {
-    id: "SEC-07",
-    name: "Organic Products",
-    description: "Chemical-free organic items",
-    icon: "🌿",
-    productsCount: 6,
-    status: "Active",
-    isFeatured: false,
-    displayOrder: 7,
-    totalOrders: 12,
-    revenue: 3200,
-  },
-  {
-    id: "SEC-08",
-    name: "Household Items",
-    description: "Cleaning and home essentials",
-    icon: "🧼",
-    productsCount: 2,
-    status: "Active",
-    isFeatured: false,
-    displayOrder: 8,
-    totalOrders: 6,
-    revenue: 1100,
-  },
-];
-
-/* =========================================================================
    3. STORE SETTINGS INITIAL REFERENCE DATA (PDF PAGE 14)
    ========================================================================= */
 export const INITIAL_SETTINGS_DATA: StoreSettings = {
@@ -377,7 +274,6 @@ export const INITIAL_SETTINGS_DATA: StoreSettings = {
    ========================================================================= */
 const KEYS = {
   COUPONS: "rrv_store_coupons_v1",
-  SECTORS: "rrv_store_sectors_v1",
   SETTINGS: "rrv_store_settings_v1",
   COUPON_ACTIVITIES: "rrv_store_coupon_acts_v1",
   AUTH_2FA_ENABLED: "rrv_auth_2fa_enabled_v1",
@@ -447,15 +343,6 @@ export function recordCouponRedemption(
     timestamp: "Just now",
   };
   safeSet(KEYS.COUPON_ACTIVITIES, [newActivity, ...activities], "rrv:coupons:updated");
-}
-
-// Sectors
-export function getSavedSectors(): Sector[] {
-  return safeGet<Sector[]>(KEYS.SECTORS, INITIAL_SECTORS_DATA);
-}
-
-export function saveSectors(sectors: Sector[]): void {
-  safeSet(KEYS.SECTORS, sectors, "rrv:sectors:updated");
 }
 
 // Settings

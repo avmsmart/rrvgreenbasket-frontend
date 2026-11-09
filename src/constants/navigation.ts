@@ -8,7 +8,8 @@ export interface NavItem {
 }
 
 /**
- * Admin Sidebar Navigation Items matching exact UI/UX Reference Screenshot
+ * Admin Sidebar Navigation Items
+ * Order: Dashboard -> Products -> Inventory -> Orders -> Customers -> Category Management
  */
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
@@ -36,6 +37,18 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     iconName: "ShoppingCart",
   },
   {
+    id: "customers",
+    label: "Customers",
+    path: "/admin/customers",
+    iconName: "UserCheck",
+  },
+  {
+    id: "categories",
+    label: "Category Management",
+    path: "/admin/categories",
+    iconName: "FolderTree",
+  },
+  {
     id: "procurement",
     label: "Procurement",
     path: "/admin/procurement",
@@ -54,18 +67,6 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     iconName: "Truck",
   },
   {
-    id: "customers",
-    label: "Customers",
-    path: "/admin/customers",
-    iconName: "UserCheck",
-  },
-  {
-    id: "delivery-partners",
-    label: "Delivery Partners",
-    path: "/admin/delivery-partners",
-    iconName: "Share2",
-  },
-  {
     id: "payments",
     label: "Payments",
     path: "/admin/payments",
@@ -82,12 +83,6 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Reports & Analytics",
     path: "/admin/reports",
     iconName: "BarChart3",
-  },
-  {
-    id: "sectors",
-    label: "Sectors",
-    path: "/admin/sectors",
-    iconName: "Layers",
   },
   {
     id: "settings",

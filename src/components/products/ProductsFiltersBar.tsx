@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -9,26 +8,19 @@ import {
   Table as TableIcon,
   LayoutGrid,
   Plus,
+  ArrowUpDown,
 } from "lucide-react";
-
-export type ProductCategoryTab = "All" | string;
+import { BackendCategory } from "@/types";
 
 interface ProductsFiltersBarProps {
-  activeTab: ProductCategoryTab;
-  onTabChange: (tab: ProductCategoryTab) => void;
-  counts: {
-    all: number;
-    english: number;
-    indian: number;
-  };
+  categories: BackendCategory[];
+  selectedCategory: string;
+  onCategoryChange: (categoryId: string) => void;
+  totalProductsCount: number;
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  selectedUom: string;
-  onUomChange: (uom: string) => void;
-  selectedStatus: string;
-  onStatusChange: (status: string) => void;
-  selectedAvailability?: string;
-  onAvailabilityChange?: (avail: string) => void;
+  sortBy: string;
+  onSortByChange: (sort: string) => void;
   viewMode: "table" | "grid";
   onViewModeChange: (mode: "table" | "grid") => void;
   onExportCsv: () => void;
@@ -37,17 +29,14 @@ interface ProductsFiltersBarProps {
 }
 
 export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
-  activeTab,
-  onTabChange,
-  counts,
+  categories,
+  selectedCategory,
+  onCategoryChange,
+  totalProductsCount,
   searchQuery,
   onSearchChange,
-  selectedUom,
-  onUomChange,
-  selectedStatus,
-  onStatusChange,
-  selectedAvailability = "All",
-  onAvailabilityChange,
+  sortBy,
+  onSortByChange,
   viewMode,
   onViewModeChange,
   onExportCsv,
@@ -56,14 +45,14 @@ export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
 }) => {
   return (
     <div className="space-y-4">
-      {/* Header Actions */}
+      {/* Header Actions & Backend Category Tabs */}
       <div className="flex items-center justify-between border-b border-slate-200/90 pb-3 flex-wrap gap-3">
-        {/* All Products Tab */}
-        <div className="flex items-center gap-2">
+        {/* Dynamic Backend Category Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 max-w-full">
           <button
-            onClick={() => onTabChange("All")}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === "All"
+            onClick={() => onCategoryChange("All")}
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              selectedCategory === "All"
                 ? "bg-[#00875a] text-white shadow-md shadow-emerald-200"
                 : "bg-white text-slate-600 hover:bg-slate-100/80 border border-slate-200/80"
             }`}
@@ -71,22 +60,43 @@ export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
             <span>All Products</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                activeTab === "All"
+                selectedCategory === "All"
                   ? "bg-white/20 text-white"
                   : "bg-slate-100 text-slate-500"
               }`}
             >
-              {counts.all}
+              {totalProductsCount}
             </span>
           </button>
+
+          {categories.map((cat) => {
+            const isSelected =
+              selectedCategory === cat.publicId ||
+              selectedCategory.toLowerCase() === cat.name.toLowerCase() ||
+              (cat.slug && selectedCategory === cat.slug);
+
+            return (
+              <button
+                key={cat.publicId}
+                onClick={() => onCategoryChange(cat.publicId)}
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  isSelected
+                    ? "bg-[#00875a] text-white shadow-md shadow-emerald-200"
+                    : "bg-white text-slate-600 hover:bg-slate-100/80 border border-slate-200/80"
+                }`}
+              >
+                <span>{cat.name}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Export and Add Product */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             onClick={onExportCsv}
             title="Export CSV"
-            className="px-3 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>CSV</span>
@@ -95,7 +105,7 @@ export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
           <button
             onClick={onExportPdf}
             title="Export PDF"
-            className="px-3 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <FileText className="w-4 h-4 text-rose-600" />
             <span>PDF</span>
@@ -111,8 +121,8 @@ export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200/90 shadow-3xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      {/* Search and Category Sorting Row */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200/90 shadow-3xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -126,50 +136,39 @@ export const ProductsFiltersBar: React.FC<ProductsFiltersBarProps> = ({
           />
         </div>
 
-        {/* Filter Controls */}
+        {/* Category Filter & Sorting Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Availability */}
-          {onAvailabilityChange && (
+          {/* Category Dropdown Selector */}
+          <select
+            aria-label="Filter by Category"
+            value={selectedCategory}
+            onChange={(e) => onCategoryChange(e.target.value)}
+            className="px-3 py-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+          >
+            <option value="All">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.publicId} value={cat.publicId}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Sort based upon Category and attributes */}
+          <div className="relative flex items-center">
             <select
-              aria-label="Filter by product availability"
-              value={selectedAvailability}
-              onChange={(e) => onAvailabilityChange(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+              aria-label="Sort products"
+              value={sortBy}
+              onChange={(e) => onSortByChange(e.target.value)}
+              className="pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
             >
-              <option value="All">All Availability</option>
-              <option value="true">Available</option>
-              <option value="false">Unavailable</option>
+              <option value="category-asc">Sort: Category (A-Z)</option>
+              <option value="category-desc">Sort: Category (Z-A)</option>
+              <option value="name-asc">Sort: Product Name (A-Z)</option>
+              <option value="price-asc">Sort: Price (Low to High)</option>
+              <option value="price-desc">Sort: Price (High to Low)</option>
             </select>
-          )}
-
-          {/* Product Status */}
-          <select
-            aria-label="Filter by product status"
-            value={selectedStatus}
-            onChange={(e) => onStatusChange(e.target.value)}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-          >
-            <option value="All">All Statuses</option>
-            <option value="ACTIVE">In Stock (Active)</option>
-            <option value="INACTIVE">Out of Stock (Inactive)</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
-
-          {/* UOM */}
-          <select
-            aria-label="Filter by unit of measurement"
-            value={selectedUom}
-            onChange={(e) => onUomChange(e.target.value)}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-          >
-            <option value="All">All Units (UOM)</option>
-            <option value="Kg">Kg</option>
-            <option value="kg">kg</option>
-            <option value="Nos">Nos</option>
-            <option value="Pkt">Pkt</option>
-            <option value="1 bunch">1 bunch</option>
-          </select>
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
+          </div>
 
           {/* View Toggle */}
           <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200/70">

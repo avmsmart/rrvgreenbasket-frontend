@@ -10,6 +10,6 @@ export * from "./procurement";
 export * from "./packing";
 export * from "./payment";
 export * from "./coupon";
-export * from "./sector";
+export * from "./category";
 export * from "./settings";
 export * from "./dashboard";

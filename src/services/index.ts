@@ -11,5 +11,5 @@ export * from "./delivery.service";
 export * from "./customer.service";
 export * from "./payment.service";
 export * from "./coupon.service";
-export * from "./sector.service";
+export * from "./category.service";
 export * from "./settings.service";

@@ -9,7 +9,7 @@ import {
   Boxes,
   ReceiptText,
   Tag,
-  Bike,
+  FolderTree,
   ArrowRight,
 } from "lucide-react";
 
@@ -356,12 +356,12 @@ export const DashboardChartsRow: React.FC<DashboardChartsRowProps> = ({
             </Link>
 
             <Link
-              href="/admin/delivery-partners"
+              href="/admin/categories"
               className="w-full text-left p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/80 font-bold text-xs flex items-center justify-between group transition-all shadow-3xs"
             >
               <div className="flex items-center gap-2.5">
-                <Bike className="w-4 h-4 text-slate-500" />
-                <span>Assign Delivery Partner</span>
+                <FolderTree className="w-4 h-4 text-slate-500" />
+                <span>Category Management</span>
               </div>
               <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-500" />
             </Link>

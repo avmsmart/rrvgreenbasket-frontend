@@ -7,6 +7,7 @@
  */
 
 import { getAuthToken, removeAuthToken, ApiError } from "./api-client";
+import { categoryService } from "./category.service";
 import {
   AdminProduct,
   AdminProductPageData,
@@ -184,117 +185,13 @@ export class AdminProductService {
   /**
    * GET /api/products/categories
    * Public API endpoint that retrieves active categories from the Spring Boot backend.
-   * Authentication is NOT required. Does NOT send Authorization Bearer token or admin session cookies.
+   * Delegates to CategoryService.getPublicCategories without admin credentials.
    *
-   * Confirmed backend structure:
-   * {
-   *   "success": true,
-   *   "message": "Categories retrieved successfully",
-   *   "data": [
-   *     {
-   *       "publicId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c01",
-   *       "name": "Fruits",
-   *       "slug": "fruits",
-   *       "description": "Fresh and seasonal farm-fresh fruits.",
-   *       "imageUrl": null,
-   *       "sortOrder": 1,
-   *       "isActive": true,
-   *       "createdAt": "2026-11-09T16:12:10.937Z",
-   *       "updatedAt": "2026-11-09T16:12:10.937Z"
-   *     }, ...
-   *   ],
-   *   "timestamp": "..."
-   * }
-   *
-   * @param forceRefresh - When true, bypasses the in-memory cache and re-queries the backend
+   * @param forceRefresh - When true, bypasses in-memory cache and re-queries backend
    */
   async getCategories(forceRefresh = false): Promise<BackendCategory[]> {
-    if (!forceRefresh && this.categoriesCache && this.categoriesCache.length > 0) {
-      return this.categoriesCache;
-    }
-
-    if (!forceRefresh && this.categoriesPromise) {
-      return this.categoriesPromise;
-    }
-
-    this.categoriesPromise = (async () => {
-      try {
-        const endpoint = "/api/products/categories";
-
-        // Execute public GET request without Authorization header or admin credentials (skipAuth = true)
-        const rawResponse = await this.request<
-          CategoryApiResponse | BackendCategory[] | { data: BackendCategory[] }
-        >(endpoint, { method: "GET" }, false, true);
-
-        // Extract categories array from response.data (handling unwrapped or envelope responses)
-        let rawList: unknown = rawResponse;
-        if (rawResponse && typeof rawResponse === "object") {
-          if ("data" in rawResponse && (rawResponse as { data: unknown }).data !== undefined) {
-            rawList = (rawResponse as { data: unknown }).data;
-          }
-        }
-
-        // Validate that categories is an array
-        if (!Array.isArray(rawList)) {
-          console.error("[AdminProductService] Expected category array, got:", rawResponse);
-          throw new ApiError(
-            "Category API returned invalid data format: expected an array in response.data",
-            500,
-            rawResponse
-          );
-        }
-
-        // Validate items and ensure publicId (UUID) is present
-        const validated: BackendCategory[] = [];
-        for (const item of rawList) {
-          if (item && typeof item === "object") {
-            const cat = item as Record<string, unknown>;
-            const publicId = typeof cat.publicId === "string" ? cat.publicId.trim() : "";
-            const name = typeof cat.name === "string" ? cat.name.trim() : "";
-            const slug = typeof cat.slug === "string" ? cat.slug.trim() : "";
-
-            if (!publicId) {
-              console.warn("[AdminProductService] Skipping category without publicId UUID:", item);
-              continue;
-            }
-
-            validated.push({
-              publicId,
-              name: name || "Unnamed Category",
-              slug: slug || publicId,
-              description: typeof cat.description === "string" ? cat.description : undefined,
-              imageUrl: typeof cat.imageUrl === "string" ? cat.imageUrl : null,
-              sortOrder: typeof cat.sortOrder === "number" ? cat.sortOrder : 0,
-              isActive: cat.isActive !== false,
-              createdAt: typeof cat.createdAt === "string" ? cat.createdAt : undefined,
-              updatedAt: typeof cat.updatedAt === "string" ? cat.updatedAt : undefined,
-            });
-          }
-        }
-
-        // Filter active categories and sort by sortOrder (ascending)
-        const sorted = validated
-          .filter((c) => c.isActive !== false)
-          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
-        this.categoriesCache = sorted;
-        return sorted;
-      } catch (err: unknown) {
-        this.categoriesCache = null;
-        this.categoriesPromise = null;
-
-        // Re-throw descriptive error - never silently return an empty array on failures
-        if (err instanceof ApiError) {
-          throw err;
-        }
-        const message = err instanceof Error ? err.message : "Failed to load product categories";
-        throw new ApiError(message, 500, err);
-      } finally {
-        this.categoriesPromise = null;
-      }
-    })();
-
-    return this.categoriesPromise;
+    const cats = await categoryService.getPublicCategories(forceRefresh);
+    return cats as unknown as BackendCategory[];
   }
 
   /**
