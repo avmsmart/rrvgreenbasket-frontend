@@ -9,7 +9,7 @@ export interface NavItem {
 
 /**
  * Admin Sidebar Navigation Items
- * Order: Dashboard -> Products -> Inventory -> Orders -> Customers -> Category Management
+ * Order: Dashboard -> Products -> Inventory -> Orders -> Customers -> Category Management -> Reviews ... -> Settings
  */
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
@@ -37,6 +37,12 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     iconName: "ShoppingCart",
   },
   {
+    id: "delivery",
+    label: "Delivery Management",
+    path: "/admin/delivery",
+    iconName: "Truck",
+  },
+  {
     id: "customers",
     label: "Customers",
     path: "/admin/customers",
@@ -49,6 +55,12 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     iconName: "FolderTree",
   },
   {
+    id: "reviews",
+    label: "Reviews",
+    path: "/admin/reviews",
+    iconName: "Star",
+  },
+  {
     id: "procurement",
     label: "Procurement",
     path: "/admin/procurement",
@@ -59,12 +71,6 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Packing",
     path: "/admin/packing",
     iconName: "PackageCheck",
-  },
-  {
-    id: "delivery",
-    label: "Delivery",
-    path: "/admin/delivery",
-    iconName: "Truck",
   },
   {
     id: "payments",

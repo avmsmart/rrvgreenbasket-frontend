@@ -89,7 +89,7 @@ export const OrderAnalyticsWidgets: React.FC<OrderAnalyticsWidgetsProps> = ({
   const outForDeliveryPct = Math.round((stats.outForDelivery / total) * 100) || 0;
   const processingPct = Math.round((stats.processing / total) * 100) || 0;
   const pendingPct = Math.round((stats.pending / total) * 100) || 0;
-  const cancelledPct = Math.round((stats.cancelled / total) * 100) || 0;
+  const cancelledPct = Math.round(((stats.cancelled ?? 0) / total) * 100) || 0;
 
   // SVG Circumference for radius 38: 2 * Math.PI * 38 ≈ 238.76
   const C = 238.76;

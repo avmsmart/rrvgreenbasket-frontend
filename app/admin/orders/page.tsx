@@ -13,20 +13,23 @@ import {
   OrderAnalyticsWidgets,
 } from "@/components/orders";
 import { orderService } from "@/services/order.service";
-import { Order, OrderStatus, OrderStatsSummary } from "@/types";
+import { Order, OrderStatus, OrderStatsSummary, OrderBusinessSettingsResponse } from "@/types";
 import { getSystemDateFormatted } from "@/utils";
 import { recordCouponRedemption } from "@/data/shared-store";
+import { Clock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function OrdersManagementPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStatsSummary>({
-    totalOrders: 128,
-    pending: 18,
-    processing: 28,
-    outForDelivery: 32,
-    delivered: 116,
-    cancelled: 10,
+    totalOrders: 0,
+    pending: 0,
+    processing: 0,
+    outForDelivery: 0,
+    delivered: 0,
+    cancelled: 0,
   });
+  const [settings, setSettings] = useState<OrderBusinessSettingsResponse | null>(null);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filters & Search state
@@ -85,6 +88,32 @@ export default function OrdersManagementPage() {
       isMounted = false;
     };
   }, [dateFilter]);
+
+  // Load Order Acceptance & Business Window Settings
+  useEffect(() => {
+    orderService
+      .getOrderSettings()
+      .then((s) => {
+        if (s) setSettings(s);
+      })
+      .catch((e) => {
+        console.warn("Failed to load order settings:", e);
+      });
+  }, []);
+
+  const handleToggleAcceptance = async () => {
+    if (!settings || isUpdatingSettings) return;
+    setIsUpdatingSettings(true);
+    try {
+      const next = !settings.orderAcceptanceEnabled;
+      const updated = await orderService.updateOrderAcceptanceStatus(next);
+      setSettings(updated);
+    } catch (e) {
+      console.error("Failed to toggle order acceptance:", e);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
 
   // Client-side filtering & sorting for instant snappy interactivity
   const filteredOrders = useMemo(() => {
@@ -308,6 +337,63 @@ export default function OrdersManagementPage() {
           <span>Create Manual Order</span>
         </button>
       </div>
+
+      {/* Operating Window & Acceptance Control Banner */}
+      {settings && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`h-3 w-3 rounded-full ${
+                settings.orderAcceptanceEnabled
+                  ? "bg-emerald-500 ring-4 ring-emerald-100 animate-pulse"
+                  : "bg-amber-500 ring-4 ring-amber-100"
+              }`}
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900">
+                  Store Order Acceptance:
+                </span>
+                <span
+                  className={`text-xs font-extrabold ${
+                    settings.orderAcceptanceEnabled ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
+                  {settings.orderAcceptanceEnabled ? "ACTIVE (ACCEPTING ORDERS)" : "PAUSED"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                <Clock className="h-3 w-3" />
+                <span>
+                  Operating Hours: {settings.openingTime?.slice(0, 5) || "06:00"} – {settings.closingTime?.slice(0, 5) || "22:00"}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={isUpdatingSettings}
+            onClick={handleToggleAcceptance}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition shadow-xs disabled:opacity-50 ${
+              settings.orderAcceptanceEnabled
+                ? "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+                : "bg-emerald-700 text-white hover:bg-emerald-800"
+            }`}
+          >
+            {isUpdatingSettings ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Updating...</span>
+              </>
+            ) : settings.orderAcceptanceEnabled ? (
+              <span>Pause Orders</span>
+            ) : (
+              <span>Resume Orders</span>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* 3. 6 Summary Metric Cards */}
       <OrderStatsCards

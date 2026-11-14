@@ -307,6 +307,13 @@ export interface AdminProductQueryParams {
   sort?: string;
 }
 
+export interface ProductWeightVariant {
+  key: string;
+  label: string;
+  unit: string;
+  multiplier: number;
+}
+
 export interface StoreProduct {
   id: string | number;
   publicId?: string;
@@ -319,7 +326,14 @@ export interface StoreProduct {
   image: string;
   badge?: string;
   inStock?: boolean;
+  adminEnabled?: boolean;
+  available?: boolean;
+  status?: string;
   description?: string;
+  pricePerKg?: number;
+  quantityUnit?: string;
+  defaultQuantityKg?: number;
+  variants?: ProductWeightVariant[];
 }
 
 export interface ProductAvailabilityRequest {
@@ -341,6 +355,7 @@ export interface Product {
   slug?: string;
   excelName?: string;
   category: ProductCategory | string;
+  categoryId?: string;
   categoryObj?: AdminProductCategory;
   price: number;
   pricePerKg?: number;

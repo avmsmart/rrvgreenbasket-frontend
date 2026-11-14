@@ -41,7 +41,20 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Sync state from storage
   const syncFromStorage = useCallback(() => {
     const token = customerTokenStorage.getAccessToken();
-    const user = customerTokenStorage.getUser();
+    let user = customerTokenStorage.getUser();
+    if (token && !user) {
+      user = {
+        publicId: "customer",
+        mobileNumber: "",
+        fullName: "Customer",
+        email: "",
+        role: "CUSTOMER",
+        status: "ACTIVE",
+      };
+      try {
+        localStorage.setItem("rrv_customer_user", JSON.stringify(user));
+      } catch {}
+    }
     setAccessToken(token);
     setCustomer(user);
     setIsLoading(false);
@@ -80,8 +93,10 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
     otp: string
   ): Promise<CustomerAuthData> => {
     const authData = await customerAuthService.loginVerifyOtp(mobileNumber, otp);
-    setCustomer(authData.user);
-    setAccessToken(authData.accessToken);
+    const resolvedToken = authData.accessToken || customerTokenStorage.getAccessToken();
+    const resolvedUser = authData.user || customerTokenStorage.getUser();
+    setCustomer(resolvedUser);
+    setAccessToken(resolvedToken);
     return authData;
   };
 
@@ -95,8 +110,10 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
     data: CustomerRegisterVerifyOtpRequest
   ): Promise<CustomerAuthData> => {
     const authData = await customerAuthService.registerVerifyOtp(data);
-    setCustomer(authData.user);
-    setAccessToken(authData.accessToken);
+    const resolvedToken = authData.accessToken || customerTokenStorage.getAccessToken();
+    const resolvedUser = authData.user || customerTokenStorage.getUser();
+    setCustomer(resolvedUser);
+    setAccessToken(resolvedToken);
     return authData;
   };
 
@@ -118,7 +135,7 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         customer,
         accessToken,
-        isAuthenticated: !!accessToken,
+        isAuthenticated: !!accessToken || (typeof window !== "undefined" && !!localStorage.getItem("rrv_customer_access_token")),
         isLoading,
         loginSendOtp,
         loginVerifyOtp,

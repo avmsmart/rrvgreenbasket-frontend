@@ -13,3 +13,7 @@ export * from "./coupon";
 export * from "./category";
 export * from "./settings";
 export * from "./dashboard";
+export * from "./wishlist";
+export * from "./review";
+export * from "./contact";
+export * from "./cart";

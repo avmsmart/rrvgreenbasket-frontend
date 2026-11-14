@@ -246,16 +246,26 @@ export class AdminProductService {
       : `/api/admin/products${queryString ? `?${queryString}` : ""}`;
 
     try {
-      return await this.request<AdminProductPageData>(primaryEndpoint, {
-        method: "GET",
-      });
+      return await this.request<AdminProductPageData>(
+        primaryEndpoint,
+        {
+          method: "GET",
+        },
+        false,
+        isStorefront
+      );
     } catch (err: unknown) {
       if (isStorefront && err instanceof ApiError && err.status === 404) {
         // Fallback to /api/admin/products if public storefront endpoint is unmapped
         const fallbackEndpoint = `/api/admin/products${queryString ? `?${queryString}` : ""}`;
-        return await this.request<AdminProductPageData>(fallbackEndpoint, {
-          method: "GET",
-        });
+        return await this.request<AdminProductPageData>(
+          fallbackEndpoint,
+          {
+            method: "GET",
+          },
+          false,
+          true
+        );
       }
       throw err;
     }
@@ -269,8 +279,141 @@ export class AdminProductService {
   }
 
   /**
+   * Fetches all products across all pages from Product Service admin API.
+   * Reused by Inventory Service for full catalogue synchronization.
+   */
+  async getAllProducts(params?: AdminProductQueryParams): Promise<AdminProduct[]> {
+    try {
+      const firstPage = await this.getProducts({ ...params, page: 0, size: 100 });
+      let allProducts: AdminProduct[] = [];
+
+      if (Array.isArray(firstPage)) {
+        allProducts = firstPage;
+      } else if (firstPage && Array.isArray(firstPage.content)) {
+        allProducts = [...firstPage.content];
+        const totalPages = firstPage.totalPages || 1;
+        for (let p = 1; p < totalPages; p++) {
+          const nextPage = await this.getProducts({ ...params, page: p, size: 100 });
+          if (nextPage && Array.isArray(nextPage.content)) {
+            allProducts.push(...nextPage.content);
+          } else if (Array.isArray(nextPage)) {
+            allProducts.push(...(nextPage as AdminProduct[]));
+          }
+        }
+      } else if (firstPage && typeof firstPage === "object" && Array.isArray((firstPage as any).data)) {
+        allProducts = (firstPage as any).data;
+      }
+
+      return allProducts;
+    } catch (adminErr) {
+      // Fallback: try public storefront products if admin products fails
+      try {
+        const publicPage = await this.getStorefrontProducts({ ...params, size: 100 });
+        if (Array.isArray(publicPage)) return publicPage;
+        if (publicPage && Array.isArray(publicPage.content)) return publicPage.content;
+        if (publicPage && typeof publicPage === "object" && Array.isArray((publicPage as any).data)) {
+          return (publicPage as any).data;
+        }
+      } catch {
+        // If storefront also fails, rethrow original admin error
+      }
+      throw adminErr;
+    }
+  }
+
+  /**
+   * Public storefront product lookup by publicId or ID
+   * Strictly unauthenticated - never requires admin login
+   */
+  async getStorefrontProductById(rawId: string): Promise<AdminProduct | null> {
+    if (!rawId?.trim()) return null;
+
+    const needle = decodeURIComponent(rawId).toLowerCase().trim();
+
+    // 1. Try public endpoint directly: GET /api/products/{rawId}
+    // Strictly unauthenticated - never requires admin login
+    try {
+      const res = await this.request<AdminProduct | { data: AdminProduct }>(
+        `/api/products/${encodeURIComponent(rawId)}`,
+        { method: "GET" },
+        false,
+        true // skipAuth = true
+      );
+      if (res && typeof res === "object") {
+        if ("data" in res && res.data) {
+          return res.data;
+        }
+        if ("name" in res || "publicId" in res) {
+          return res as AdminProduct;
+        }
+      }
+    } catch {
+      // Proceed to storefront catalog lookup
+    }
+
+    // 2. Fallback: Search in public storefront catalog (matches by publicId, id, slug, or name)
+    try {
+      const list = await this.getStorefrontProducts({ size: 100 });
+      const rawProducts: AdminProduct[] = Array.isArray(list)
+        ? list
+        : Array.isArray((list as unknown as { content?: AdminProduct[] })?.content)
+        ? (list as unknown as { content: AdminProduct[] }).content
+        : Array.isArray((list as unknown as { data?: AdminProduct[] })?.data)
+        ? (list as unknown as { data: AdminProduct[] }).data
+        : [];
+
+      if (rawProducts.length > 0) {
+        const found = rawProducts.find((p) => {
+          const pId = String(p.id || "").toLowerCase();
+          const pPub = (p.publicId || "").toLowerCase();
+          const pSlug = (p.slug || "").toLowerCase();
+          const pName = (p.name || "").toLowerCase();
+
+          return (
+            pPub === needle ||
+            pId === needle ||
+            pSlug === needle ||
+            pSlug.endsWith(`-${needle}`) ||
+            needle.endsWith(`-${pSlug}`) ||
+            pName === needle ||
+            pName.replace(/\s+/g, "-") === needle ||
+            needle.replace(/\s+/g, "-") === pName.replace(/\s+/g, "-") ||
+            (pSlug && needle.includes(pSlug)) ||
+            (needle && pSlug.includes(needle))
+          );
+        });
+
+        if (found) {
+          // If found has a publicId, try to get full details, else return found
+          if (found.publicId && found.publicId !== rawId) {
+            try {
+              const fullRes = await this.request<AdminProduct | { data: AdminProduct }>(
+                `/api/products/${encodeURIComponent(found.publicId)}`,
+                { method: "GET" },
+                false,
+                true
+              );
+              if (fullRes && typeof fullRes === "object") {
+                if ("data" in fullRes && fullRes.data) return fullRes.data;
+                if ("name" in fullRes) return fullRes as AdminProduct;
+              }
+            } catch {
+              // use found
+            }
+          }
+          return found;
+        }
+      }
+    } catch (catalogErr) {
+      console.warn("[getStorefrontProductById] Catalog fallback lookup failed:", catalogErr);
+    }
+
+    return null;
+  }
+
+  /**
    * GET /api/admin/products/{publicId}
-   * Fetch complete product details
+   * Fetch complete product details (ADMIN ONLY)
    */
   async getProductById(publicId: string): Promise<AdminProduct> {
     return this.request<AdminProduct>(
@@ -547,6 +690,12 @@ export function mapAdminProductToUIProduct(p: AdminProduct): Product {
     name: p.name,
     excelName: p.name,
     category: categoryName,
+    categoryId:
+      typeof p.category === "object" && p.category?.publicId
+        ? p.category.publicId
+        : (p as any).categoryId
+        ? String((p as any).categoryId)
+        : undefined,
     categoryObj: typeof p.category === "object" && p.category !== null ? p.category : undefined,
     price: p.pricePerKg ?? 0,
     pricePerKg: p.pricePerKg ?? 0,
@@ -625,6 +774,9 @@ export function mapBackendToStoreProduct(p: AdminProduct | Product): StoreProduc
   const unitVal = p.quantityUnit || p.unit || "kg";
   const idVal = p.publicId || p.id || Math.random().toString();
 
+  const isEnabled = p.adminEnabled !== false && p.available !== false;
+  const inStockStatus = p.status !== "Out of Stock" && p.status !== "INACTIVE";
+
   return {
     id: idVal,
     publicId: p.publicId || String(idVal),
@@ -636,8 +788,14 @@ export function mapBackendToStoreProduct(p: AdminProduct | Product): StoreProduc
     unit: unitVal,
     image: rawImage,
     badge: p.isFeatured ? "Featured" : (p as { badge?: string }).badge,
-    inStock: p.available !== false,
+    inStock: isEnabled && inStockStatus,
+    adminEnabled: p.adminEnabled !== false,
+    available: p.available !== false,
+    status: p.status,
     description: p.description || p.shortDescription,
+    pricePerKg: p.pricePerKg,
+    quantityUnit: p.quantityUnit,
+    defaultQuantityKg: p.defaultQuantityKg,
   };
 }
 

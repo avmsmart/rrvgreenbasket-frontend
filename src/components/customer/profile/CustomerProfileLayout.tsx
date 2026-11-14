@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { customerTokenStorage } from "@/services/customer-auth.service";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
 import CustomerLogoutDialog from "@/components/customer/CustomerLogoutDialog";
 import CustomerProfileSidebar, { ProfileTab } from "./CustomerProfileSidebar";
@@ -77,7 +78,8 @@ export const CustomerProfileLayout: React.FC<CustomerProfileLayoutProps> = ({
   }
 
   // Unauthenticated guard
-  if (!isAuthenticated || !customer) {
+  const hasAuth = isAuthenticated || !!customerTokenStorage.getAccessToken();
+  if (!hasAuth) {
     return (
       <main className="min-h-screen bg-[#f8faf7] text-gray-900">
         <header className="sticky top-0 z-40 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 sm:px-10">

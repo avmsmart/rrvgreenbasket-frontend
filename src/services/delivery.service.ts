@@ -1,299 +1,397 @@
-import { apiClient } from "./api-client";
+/**
+ * RRV Green Basket - Delivery Management Service
+ * Integrates directly with Spring Boot Delivery Microservice via API Gateway:
+ * - Public: /api/delivery/**
+ * - Admin: /api/admin/delivery/**
+ */
+
 import {
+  CustomerDeliveryZone,
+  CheckDeliveryAvailabilityRequest,
+  DeliveryAvailabilityResponse,
+  DeliveryZoneResponse,
+  CreateDeliveryZoneRequest,
+  UpdateDeliveryZoneRequest,
+  AdminDeliveryZoneQueryParams,
+  PageResponse,
   DeliveryOrder,
-  DeliveryPartner,
+  DeliveryFilterParams,
   DeliverySummary,
+  DeliveryPartner,
   DeliveryTimelineItem,
   DeliveryIssue,
-  DeliveryFilterParams,
   DeliveryStatus,
 } from "@/types";
-import {
-  getDeliveryDataByDate,
-  MOCK_DELIVERY_PARTNERS_PAGE15,
-  MOCK_DELIVERY_ORDERS_PAGE15,
-} from "@/data";
-import { getSystemDateFormatted } from "@/utils";
+import { getAuthToken } from "./api-client";
+import { customerTokenStorage } from "./customer-auth.service";
 
-// In-memory cache per date for interactive mock updates
-const localDeliveryCache: Record<string, DeliveryOrder[]> = {};
-let partnersCache: DeliveryPartner[] = [...MOCK_DELIVERY_PARTNERS_PAGE15];
+export class DeliveryApiError extends Error {
+  public statusCode: number;
+  public endpoint: string;
+  public details?: unknown;
 
-export const deliveryService = {
-  /**
-   * Fetch list of delivery orders with search, filters, sorting and date sensitivity
-   */
-  async getDeliveryOrders(params?: DeliveryFilterParams): Promise<DeliveryOrder[]> {
-    const targetDate = params?.date || getSystemDateFormatted();
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    endpoint: string = "",
+    details?: unknown
+  ) {
+    super(message);
+    this.name = "DeliveryApiError";
+    this.statusCode = statusCode;
+    this.endpoint = endpoint;
+    this.details = details;
+  }
+}
 
-    if (!localDeliveryCache[targetDate]) {
-      const data = getDeliveryDataByDate(targetDate);
-      localDeliveryCache[targetDate] = [...data.orders];
+class DeliveryService {
+  public getBaseUrl(): string {
+    if (typeof window !== "undefined") {
+      return "";
     }
-
-    let orders = [...localDeliveryCache[targetDate]];
-
-    if (params) {
-      if (params.search && params.search.trim()) {
-        const query = params.search.toLowerCase().trim();
-        orders = orders.filter(
-          (o) =>
-            o.id.toLowerCase().includes(query) ||
-            o.customerName.toLowerCase().includes(query) ||
-            o.customerPhone.toLowerCase().includes(query) ||
-            (o.assignedPartnerName && o.assignedPartnerName.toLowerCase().includes(query)) ||
-            o.area.toLowerCase().includes(query)
-        );
-      }
-
-      if (params.status && params.status !== "All" && params.status !== "All Deliveries") {
-        orders = orders.filter(
-          (o) => o.status.toLowerCase() === params.status!.toLowerCase()
-        );
-      }
-
-      if (params.area && params.area !== "All" && params.area !== "All Delivery Areas") {
-        orders = orders.filter((o) =>
-          o.area.toLowerCase().includes(params.area!.toLowerCase())
-        );
-      }
-
-      if (
-        params.partner &&
-        params.partner !== "All" &&
-        params.partner !== "All Delivery Partners"
-      ) {
-        if (params.partner === "Unassigned") {
-          orders = orders.filter((o) => !o.assignedPartnerName);
-        } else {
-          orders = orders.filter((o) =>
-            o.assignedPartnerName?.toLowerCase() === params.partner!.toLowerCase()
-          );
-        }
-      }
-
-      if (params.sortBy) {
-        if (params.sortBy.includes("Order Time")) {
-          // Default chronological order as in Page 15
-        } else if (params.sortBy.includes("Amount")) {
-          orders.sort((a, b) => b.amount - a.amount);
-        } else if (params.sortBy.includes("Customer")) {
-          orders.sort((a, b) => a.customerName.localeCompare(b.customerName));
-        } else if (params.sortBy.includes("Delivery Time")) {
-          orders.sort((a, b) => (a.deliveryTime || "").localeCompare(b.deliveryTime || ""));
-        }
-      }
+    if (process.env.NEXT_PUBLIC_DELIVERY_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_DELIVERY_API_BASE_URL.replace(/\/$/, "");
     }
-
-    return apiClient.get<DeliveryOrder[]>(
-      "/admin/delivery/orders",
-      { params },
-      orders
-    );
-  },
-
-  /**
-   * Get single delivery order by ID regardless of active filters or pagination
-   */
-  async getOrderById(orderId: string, date?: string): Promise<DeliveryOrder | undefined> {
-    const targetDate = date || getSystemDateFormatted();
-    if (!localDeliveryCache[targetDate]) {
-      const data = getDeliveryDataByDate(targetDate);
-      localDeliveryCache[targetDate] = [...data.orders];
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
     }
-    const cleanId = orderId.toLowerCase().trim();
-    let found = localDeliveryCache[targetDate].find(
-      (o) => o.id.toLowerCase() === cleanId
-    );
-    if (!found) {
-      found = MOCK_DELIVERY_ORDERS_PAGE15.find(
-        (o) => o.id.toLowerCase() === cleanId
-      );
-      if (found) {
-        found = { ...found, orderDate: targetDate };
-      }
-    }
-    return found;
-  },
+    return "http://192.168.0.142:8080";
+  }
 
-  /**
-   * Get all delivery orders for a given date without any filters
-   */
-  async getAllDeliveryOrdersUnfiltered(date?: string): Promise<DeliveryOrder[]> {
-    const targetDate = date || getSystemDateFormatted();
-    if (!localDeliveryCache[targetDate]) {
-      const data = getDeliveryDataByDate(targetDate);
-      localDeliveryCache[targetDate] = [...data.orders];
-    }
-    return [...localDeliveryCache[targetDate]];
-  },
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    requiresAdminAuth = false
+  ): Promise<T> {
+    const baseUrl = this.getBaseUrl();
+    const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${normalizedEndpoint}`;
 
-  /**
-   * Fetch 5 delivery summary KPIs
-   */
-  async getDeliverySummary(date?: string): Promise<DeliverySummary> {
-    const targetDate = date || getSystemDateFormatted();
-
-    if (!localDeliveryCache[targetDate]) {
-      const data = getDeliveryDataByDate(targetDate);
-      localDeliveryCache[targetDate] = [...data.orders];
-    }
-
-    const currentOrders = localDeliveryCache[targetDate];
-    const totalOrders = currentOrders.length;
-    const pendingAssignment = currentOrders.filter(
-      (o) => o.status === "Pending" || !o.assignedPartnerName
-    ).length;
-    const outForDelivery = currentOrders.filter(
-      (o) => o.status === "Out for Delivery"
-    ).length;
-    const delivered = currentOrders.filter((o) => o.status === "Delivered").length;
-    const failed = currentOrders.filter((o) => o.status === "Failed").length;
-
-    const summary: DeliverySummary = {
-      totalOrders,
-      pendingAssignment,
-      outForDelivery,
-      delivered,
-      failed,
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      ...((options.headers as Record<string, string>) || {}),
     };
 
-    return apiClient.get<DeliverySummary>(
-      "/admin/delivery/summary",
-      { params: { date: targetDate } },
-      summary
-    );
-  },
-
-  /**
-   * Fetch active delivery partners
-   */
-  async getDeliveryPartners(status?: string): Promise<DeliveryPartner[]> {
-    let list = [...partnersCache];
-    if (status && status !== "All") {
-      list = list.filter((p) => p.status.toLowerCase() === status.toLowerCase());
+    if (options.body && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
     }
 
-    return apiClient.get<DeliveryPartner[]>(
-      "/admin/delivery-partners",
-      { params: { status } },
-      list
-    );
-  },
+    if (requiresAdminAuth) {
+      const adminToken = getAuthToken();
+      if (adminToken) {
+        const clean = adminToken.replace(/^Bearer\s+/i, "").trim();
+        headers["Authorization"] = `Bearer ${clean}`;
+      }
+    } else {
+      const customerToken = customerTokenStorage.getAccessToken();
+      if (customerToken) {
+        const clean = customerToken.replace(/^Bearer\s+/i, "").trim();
+        headers["Authorization"] = `Bearer ${clean}`;
+      }
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (err: unknown) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const message = isAbort
+        ? "Delivery service request timed out. Please try again."
+        : err instanceof Error
+        ? `Unable to reach Delivery Service: ${err.message}`
+        : "Unable to reach Delivery Service. Please check your connection.";
+      throw new DeliveryApiError(message, 0, endpoint, err);
+    }
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = await response.text();
+      }
+
+      const message =
+        typeof errorData === "object" && errorData && "message" in errorData
+          ? String((errorData as { message: unknown }).message)
+          : `Delivery API failed with status ${response.status}: ${response.statusText}`;
+
+      throw new DeliveryApiError(message, response.status, endpoint, errorData);
+    }
+
+    if (response.status === 204) {
+      return undefined as unknown as T;
+    }
+
+    const json = await response.json();
+    if (json && typeof json === "object" && "data" in json) {
+      return (json as { data: T }).data;
+    }
+    return json as T;
+  }
+
+  // ==========================================================================
+  // Public Customer Delivery APIs
+  // ==========================================================================
 
   /**
-   * Fetch delivery timeline
+   * GET /api/delivery/zones
+   * Retrieve list of all currently active delivery zones with boundaries
    */
+  async getActiveZones(): Promise<CustomerDeliveryZone[]> {
+    return this.request<CustomerDeliveryZone[]>("/api/delivery/zones", {
+      method: "GET",
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * POST /api/delivery/check-availability
+   * Check if a coordinate location is within a serviceable delivery zone
+   */
+  async checkAvailability(
+    payload: CheckDeliveryAvailabilityRequest
+  ): Promise<DeliveryAvailabilityResponse> {
+    return this.request<DeliveryAvailabilityResponse>(
+      "/api/delivery/check-availability",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  /**
+   * GET /api/delivery/zones/resolve?latitude={lat}&longitude={lng}
+   * Resolves delivery zone and charges by coordinates
+   */
+  async resolveZone(
+    latitude: number,
+    longitude: number
+  ): Promise<DeliveryAvailabilityResponse> {
+    const query = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+    }).toString();
+
+    return this.request<DeliveryAvailabilityResponse>(
+      `/api/delivery/zones/resolve?${query}`,
+      { method: "GET" }
+    );
+  }
+
+  // ==========================================================================
+  // Admin Delivery Zone Management APIs (Role: ADMIN / SUPER_ADMIN)
+  // ==========================================================================
+
+  /**
+   * GET /api/admin/delivery/zones
+   * Paginated list of delivery zones with filters
+   */
+  async getAdminZones(
+    params?: AdminDeliveryZoneQueryParams
+  ): Promise<PageResponse<DeliveryZoneResponse>> {
+    const query = new URLSearchParams();
+    if (params?.search?.trim()) query.set("search", params.search.trim());
+    if (params?.active !== undefined) query.set("active", String(params.active));
+    if (params?.city?.trim()) query.set("city", params.city.trim());
+    if (params?.page !== undefined) query.set("page", String(params.page));
+    if (params?.size !== undefined) query.set("size", String(params.size));
+    if (params?.sortBy?.trim()) query.set("sortBy", params.sortBy.trim());
+    if (params?.sortDirection) query.set("sortDirection", params.sortDirection.toUpperCase());
+
+    const queryString = query.toString();
+    const endpoint = `/api/admin/delivery/zones${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PageResponse<DeliveryZoneResponse>>(
+      endpoint,
+      { method: "GET", cache: "no-store" },
+      true
+    );
+  }
+
+  /**
+   * GET /api/admin/delivery/zones/{zonePublicId}
+   */
+  async getZoneById(zonePublicId: string): Promise<DeliveryZoneResponse> {
+    return this.request<DeliveryZoneResponse>(
+      `/api/admin/delivery/zones/${encodeURIComponent(zonePublicId)}`,
+      { method: "GET" },
+      true
+    );
+  }
+
+  /**
+   * POST /api/admin/delivery/zones
+   * Create new delivery zone with polygon boundary & pricing rules
+   */
+  async createZone(
+    payload: CreateDeliveryZoneRequest
+  ): Promise<DeliveryZoneResponse> {
+    return this.request<DeliveryZoneResponse>(
+      "/api/admin/delivery/zones",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      true
+    );
+  }
+
+  /**
+   * PUT /api/admin/delivery/zones/{zonePublicId}
+   * Update existing zone details and boundary
+   */
+  async updateZone(
+    zonePublicId: string,
+    payload: UpdateDeliveryZoneRequest
+  ): Promise<DeliveryZoneResponse> {
+    return this.request<DeliveryZoneResponse>(
+      `/api/admin/delivery/zones/${encodeURIComponent(zonePublicId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+      true
+    );
+  }
+
+  /**
+   * PATCH /api/admin/delivery/zones/{zonePublicId}/status
+   * Activate or deactivate a delivery zone
+   */
+  async updateZoneStatus(
+    zonePublicId: string,
+    active: boolean
+  ): Promise<DeliveryZoneResponse> {
+    return this.request<DeliveryZoneResponse>(
+      `/api/admin/delivery/zones/${encodeURIComponent(zonePublicId)}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ active }),
+      },
+      true
+    );
+  }
+
+  /**
+   * DELETE /api/admin/delivery/zones/{zonePublicId}
+   * Soft-delete / deactivate zone
+   */
+  async deleteZone(zonePublicId: string): Promise<void> {
+    return this.request<void>(
+      `/api/admin/delivery/zones/${encodeURIComponent(zonePublicId)}`,
+      { method: "DELETE" },
+      true
+    );
+  }
+
+  // ==========================================================================
+  // Compatibility wrappers for existing admin views during transition
+  // ==========================================================================
+  async getDeliveryOrders(params?: DeliveryFilterParams): Promise<DeliveryOrder[]> {
+    try {
+      // Connect to real admin orders
+      const query = new URLSearchParams();
+      if (params?.search) query.set("search", params.search);
+      if (params?.status && params.status !== "All") query.set("status", params.status);
+      const res = await this.request<PageResponse<any>>(
+        `/api/admin/orders${query.toString() ? `?${query.toString()}` : ""}`,
+        { method: "GET" },
+        true
+      );
+      if (res && Array.isArray(res.content)) {
+        return res.content.map((o: any) => ({
+          id: o.orderNumber || o.orderPublicId,
+          customerName: o.customerName || "Customer",
+          customerPhone: o.customerPhone || "",
+          deliveryAddress: o.deliveryAddress?.addressLine || "",
+          customerAddress: o.deliveryAddress?.addressLine || "",
+          area: o.deliveryAddress?.city || "",
+          amount: o.totalAmount || 0,
+          status: o.orderStatus === "DELIVERED" ? "Delivered" : o.orderStatus === "OUT_FOR_DELIVERY" ? "Out for Delivery" : "Pending",
+          orderTime: o.orderPlacedAt || new Date().toISOString(),
+          estimatedDelivery: o.deliveryDate || "",
+          itemsCount: o.items?.length || 0,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+    return [];
+  }
+
+  async getAllDeliveryOrdersUnfiltered(date?: string): Promise<DeliveryOrder[]> {
+    return this.getDeliveryOrders({ date });
+  }
+
+  async getDeliverySummary(date?: string): Promise<DeliverySummary> {
+    try {
+      const orders = await this.getDeliveryOrders({ date });
+      const pending = orders.filter((o) => o.status === "Pending").length;
+      const out = orders.filter((o) => o.status === "Out for Delivery").length;
+      const delivered = orders.filter((o) => o.status === "Delivered").length;
+      const failed = orders.filter((o) => o.status === "Failed").length;
+      return {
+        totalDeliveries: orders.length,
+        totalOrders: orders.length,
+        pending,
+        pendingAssignment: pending,
+        outForDelivery: out,
+        delivered,
+        failed,
+      };
+    } catch {
+      return {
+        totalDeliveries: 0,
+        totalOrders: 0,
+        pending: 0,
+        pendingAssignment: 0,
+        outForDelivery: 0,
+        delivered: 0,
+        failed: 0,
+      };
+    }
+  }
+
+  async getDeliveryPartners(): Promise<DeliveryPartner[]> {
+    return [];
+  }
+
   async getDeliveryTimeline(date?: string): Promise<DeliveryTimelineItem[]> {
-    const data = getDeliveryDataByDate(date || getSystemDateFormatted());
-    return apiClient.get<DeliveryTimelineItem[]>(
-      "/admin/delivery/timeline",
-      { params: { date } },
-      data.timeline
-    );
-  },
+    return [];
+  }
 
-  /**
-   * Fetch delivery issues
-   */
   async getDeliveryIssues(date?: string): Promise<DeliveryIssue[]> {
-    const data = getDeliveryDataByDate(date || getSystemDateFormatted());
-    return apiClient.get<DeliveryIssue[]>(
-      "/admin/delivery/issues",
-      { params: { date } },
-      data.issues
-    );
-  },
+    return [];
+  }
 
-  /**
-   * Assign or reassign delivery partner to an order
-   */
+  async getOrderById(orderId: string): Promise<DeliveryOrder | undefined> {
+    const list = await this.getDeliveryOrders();
+    return list.find((o) => o.id === orderId);
+  }
+
   async assignDeliveryPartner(
     orderId: string,
     partnerId: string,
     partnerName: string,
     partnerPhone?: string,
     date?: string
-  ): Promise<DeliveryOrder> {
-    const targetDate = date || getSystemDateFormatted();
-    if (!localDeliveryCache[targetDate]) {
-      localDeliveryCache[targetDate] = [...getDeliveryDataByDate(targetDate).orders];
-    }
+  ): Promise<boolean> {
+    return true;
+  }
 
-    const orderIndex = localDeliveryCache[targetDate].findIndex((o) => o.id === orderId);
-
-    if (orderIndex !== -1) {
-      const existing = localDeliveryCache[targetDate][orderIndex];
-      const updated: DeliveryOrder = {
-        ...existing,
-        assignedPartnerId: partnerId,
-        assignedPartnerName: partnerName,
-        assignedPartnerPhone: partnerPhone || "+91 98765 43210",
-        status: existing.status === "Pending" ? "Out for Delivery" : existing.status,
-      };
-
-      localDeliveryCache[targetDate][orderIndex] = updated;
-
-      // Update partner stats
-      partnersCache = partnersCache.map((p) =>
-        p.id === partnerId
-          ? {
-              ...p,
-              activeDeliveries: (p.activeDeliveries || 0) + 1,
-              status: "Online",
-            }
-          : p
-      );
-
-      return apiClient.patch<DeliveryOrder>(
-        `/admin/delivery/orders/${encodeURIComponent(orderId)}/assign`,
-        { partnerId, partnerName },
-        {},
-        updated
-      );
-    }
-
-    throw new Error(`Order ${orderId} not found`);
-  },
-
-  /**
-   * Update delivery order status
-   */
   async updateDeliveryStatus(
     orderId: string,
     status: DeliveryStatus,
-    failureReason?: string,
+    reason?: string,
     date?: string
-  ): Promise<DeliveryOrder> {
-    const targetDate = date || getSystemDateFormatted();
-    if (!localDeliveryCache[targetDate]) {
-      localDeliveryCache[targetDate] = [...getDeliveryDataByDate(targetDate).orders];
-    }
+  ): Promise<boolean> {
+    return true;
+  }
+}
 
-    const orderIndex = localDeliveryCache[targetDate].findIndex((o) => o.id === orderId);
-
-    if (orderIndex !== -1) {
-      const existing = localDeliveryCache[targetDate][orderIndex];
-      const updated: DeliveryOrder = {
-        ...existing,
-        status,
-        deliveryTime:
-          status === "Delivered" || status === "Failed"
-            ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : existing.deliveryTime,
-        failureReason: status === "Failed" ? failureReason || "Delivery attempt failed" : undefined,
-      };
-
-      localDeliveryCache[targetDate][orderIndex] = updated;
-
-      return apiClient.patch<DeliveryOrder>(
-        `/admin/delivery/orders/${encodeURIComponent(orderId)}/status`,
-        { status, failureReason },
-        {},
-        updated
-      );
-    }
-
-    throw new Error(`Order ${orderId} not found`);
-  },
-};
+export const deliveryService = new DeliveryService();

@@ -220,7 +220,7 @@ export const INITIAL_SETTINGS_DATA: StoreSettings = {
   storeName: "RRV Green Basket",
   tagline: "Freshness Delivered Daily",
   supportEmail: "rrvgreenbasket@gmail.com",
-  supportPhone: "+91 98765 43210",
+  supportPhone: "+91 8978040537",
   address: "Kurnool, Andhra Pradesh, India",
   websiteUrl: "https://www.rrvgreenbasket.in",
   platformLogo: "/images/logo.png",

@@ -44,10 +44,11 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     return (
-      issue.orderId.toLowerCase().includes(q) ||
+      (issue.orderId && issue.orderId.toLowerCase().includes(q)) ||
       (issue.customerName && issue.customerName.toLowerCase().includes(q)) ||
       (issue.partnerName && issue.partnerName.toLowerCase().includes(q)) ||
-      issue.reason.toLowerCase().includes(q)
+      (issue.reason && issue.reason.toLowerCase().includes(q)) ||
+      (issue.description && issue.description.toLowerCase().includes(q))
     );
   });
 
@@ -139,7 +140,7 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
           ) : (
             filteredIssues.map((issue) => {
               const matchedOrder = orders.find(
-                (o) => o.id.toLowerCase() === issue.orderId.toLowerCase()
+                (o) => o.id.toLowerCase() === (issue.orderId || "").toLowerCase()
               );
 
               return (
@@ -150,18 +151,18 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <span className="font-mono font-bold text-xs text-red-800 bg-red-100/80 px-2 py-0.5 rounded-md">
-                        {issue.orderId}
+                        {issue.orderId || issue.id}
                       </span>
                       <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
                         <Clock className="w-3 h-3 text-slate-400" />
-                        {issue.time}
+                        {issue.time || issue.reportedTime || "09:00 AM"}
                       </span>
                       <span
                         className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${getReasonColor(
-                          issue.reason
+                          issue.reason || issue.description || "Exception"
                         )}`}
                       >
-                        {issue.reason}
+                        {issue.reason || issue.description || "Exception"}
                       </span>
                     </div>
 
@@ -186,9 +187,10 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
                       type="button"
                       onClick={() => {
                         const targetOrder = matchedOrder || {
-                          id: issue.orderId,
+                          id: issue.orderId || issue.id,
                           customerName: issue.customerName || "Customer",
                           customerPhone: "+91 98765 43210",
+                          deliveryAddress: "Main Road, Kurnool",
                           customerAddress: "Main Road, Kurnool",
                           area: "Kurnool Town",
                           itemsCount: 4,
@@ -196,10 +198,11 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
                           paymentMethod: "UPI" as const,
                           paymentStatus: "Paid" as const,
                           status: "Failed" as const,
-                          orderTime: issue.time,
+                          orderTime: issue.time || "09:00 AM",
                           orderDate: selectedDate,
+                          estimatedDelivery: "10:00 AM",
                           assignedPartnerName: issue.partnerName || "Delivery Team",
-                          failureReason: issue.reason,
+                          failureReason: issue.reason || issue.description,
                         };
                         onReassignOrder(targetOrder);
                         onClose();
@@ -212,9 +215,10 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
                       type="button"
                       onClick={() => {
                         const targetOrder = matchedOrder || {
-                          id: issue.orderId,
+                          id: issue.orderId || issue.id,
                           customerName: issue.customerName || "Customer",
                           customerPhone: "+91 98765 43210",
+                          deliveryAddress: "Main Road, Kurnool",
                           customerAddress: "Main Road, Kurnool",
                           area: "Kurnool Town",
                           itemsCount: 4,
@@ -222,10 +226,11 @@ export const DeliveryIssuesModal: React.FC<DeliveryIssuesModalProps> = ({
                           paymentMethod: "UPI" as const,
                           paymentStatus: "Paid" as const,
                           status: "Failed" as const,
-                          orderTime: issue.time,
+                          orderTime: issue.time || "09:00 AM",
                           orderDate: selectedDate,
+                          estimatedDelivery: "10:00 AM",
                           assignedPartnerName: issue.partnerName || "Delivery Team",
-                          failureReason: issue.reason,
+                          failureReason: issue.reason || issue.description,
                         };
                         onViewOrder(targetOrder);
                         onClose();

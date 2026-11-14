@@ -9,3 +9,5 @@ export * from "./LiveTrackingModal";
 export * from "./DeliveryDetailsDrawer";
 export * from "./DeliveryIssuesModal";
 export * from "./AllPartnersModal";
+export * from "./DeliveryZonesManager";
+export * from "./DeliveryLocationPicker";

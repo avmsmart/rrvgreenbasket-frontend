@@ -59,14 +59,53 @@ export function normalizeMobileNumber(input: string): string {
 
 /**
  * Customer token storage.
- * Kept separate from admin authentication.
+ * Kept strictly separate from admin authentication.
  */
 export const customerTokenStorage = {
   getAccessToken(): string | null {
     if (typeof window === "undefined") return null;
 
     try {
-      return localStorage.getItem(CUSTOMER_ACCESS_TOKEN_KEY);
+      const candidates = [
+        localStorage.getItem(CUSTOMER_ACCESS_TOKEN_KEY),
+        localStorage.getItem("rrv_customer_access_token"),
+        localStorage.getItem("rrv_green_basket_auth_token"),
+        localStorage.getItem("token"),
+        localStorage.getItem("accessToken"),
+        localStorage.getItem("customer_token"),
+      ];
+
+      for (const t of candidates) {
+        if (
+          t &&
+          typeof t === "string" &&
+          t.trim().length > 0 &&
+          t !== "undefined" &&
+          t !== "null"
+        ) {
+          return t.replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
+        }
+      }
+
+      // Check cookie fallback if localStorage was somehow empty
+      if (typeof document !== "undefined" && document.cookie) {
+        const match = document.cookie.match(new RegExp(`(^|;\\s*)${CUSTOMER_ACCESS_TOKEN_KEY}=([^;]+)`));
+        if (match && match[2]) {
+          const cookieVal = decodeURIComponent(match[2])
+            .replace(/^Bearer\s+/i, "")
+            .replace(/^["']|["']$/g, "")
+            .trim();
+          if (cookieVal && cookieVal !== "undefined" && cookieVal !== "null") {
+            try {
+              localStorage.setItem(CUSTOMER_ACCESS_TOKEN_KEY, cookieVal);
+              localStorage.setItem("rrv_customer_access_token", cookieVal);
+            } catch {}
+            return cookieVal;
+          }
+        }
+      }
+
+      return null;
     } catch {
       return null;
     }
@@ -76,7 +115,11 @@ export const customerTokenStorage = {
     if (typeof window === "undefined") return null;
 
     try {
-      return localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY);
+      return (
+        localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY) ||
+        localStorage.getItem("rrv_customer_refresh_token") ||
+        null
+      );
     } catch {
       return null;
     }
@@ -87,7 +130,10 @@ export const customerTokenStorage = {
 
     try {
       const raw = localStorage.getItem(CUSTOMER_USER_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (raw) {
+        return JSON.parse(raw);
+      }
+      return null;
     } catch {
       return null;
     }
@@ -104,45 +150,94 @@ export const customerTokenStorage = {
     }
   },
 
-  saveSession(authData: CustomerAuthData): void {
-    if (typeof window === "undefined") return;
+  saveSession(authData: CustomerAuthData, fallbackMobile?: string): void {
+    if (typeof window === "undefined" || !authData) return;
 
     try {
-      const expiresIn = authData.expiresInSeconds || 86400;
+      const anyData = authData as unknown as Record<string, any>;
 
-      localStorage.setItem(
-        CUSTOMER_ACCESS_TOKEN_KEY,
-        authData.accessToken
-      );
-      localStorage.setItem(
-        CUSTOMER_REFRESH_TOKEN_KEY,
-        authData.refreshToken
-      );
+      const rawAccess =
+        anyData.accessToken ||
+        anyData.token ||
+        anyData.jwt ||
+        anyData.data?.accessToken ||
+        anyData.data?.token ||
+        anyData.data?.jwt ||
+        "";
+      const cleanAccess = rawAccess ? String(rawAccess).replace(/^Bearer\s+/i, "").trim() : "";
+
+      const rawRefresh =
+        anyData.refreshToken ||
+        anyData.refresh_token ||
+        anyData.data?.refreshToken ||
+        anyData.data?.refresh_token ||
+        "";
+
+      const expiresIn =
+        anyData.expiresInSeconds ||
+        anyData.expires_in ||
+        anyData.data?.expiresInSeconds ||
+        anyData.data?.expires_in ||
+        2592000; // 30 days default
+
+      const rawUser =
+        anyData.user ||
+        anyData.customer ||
+        anyData.data?.user ||
+        anyData.data?.customer ||
+        null;
+
+      // Always resolve a solid customer user object even if backend only sent tokens
+      const resolvedUser: CustomerUser = {
+        publicId: rawUser?.publicId || rawUser?.id || rawUser?.userId || `cust-${Date.now()}`,
+        mobileNumber: rawUser?.mobileNumber || rawUser?.mobile || fallbackMobile || "",
+        fullName: rawUser?.fullName || rawUser?.name || "Customer",
+        email: rawUser?.email || "",
+        role: rawUser?.role || "CUSTOMER",
+        status: rawUser?.status || "ACTIVE",
+      };
+
+      if (cleanAccess) {
+        localStorage.setItem(CUSTOMER_ACCESS_TOKEN_KEY, cleanAccess);
+        localStorage.setItem("rrv_customer_access_token", cleanAccess);
+        localStorage.setItem("rrv_green_basket_auth_token", cleanAccess);
+        localStorage.setItem("token", cleanAccess);
+        localStorage.setItem("accessToken", cleanAccess);
+
+        document.cookie = `${CUSTOMER_ACCESS_TOKEN_KEY}=${encodeURIComponent(
+          cleanAccess
+        )}; path=/; max-age=${expiresIn}; SameSite=Lax`;
+        document.cookie = `rrv_customer_access_token=${encodeURIComponent(
+          cleanAccess
+        )}; path=/; max-age=${expiresIn}; SameSite=Lax`;
+      }
+
+      if (rawRefresh) {
+        localStorage.setItem(CUSTOMER_REFRESH_TOKEN_KEY, rawRefresh);
+        localStorage.setItem("rrv_customer_refresh_token", rawRefresh);
+      }
+
       localStorage.setItem(
         CUSTOMER_TOKEN_TYPE_KEY,
-        authData.tokenType || "Bearer"
+        anyData.tokenType || "Bearer"
       );
-      localStorage.setItem(
-        CUSTOMER_USER_KEY,
-        JSON.stringify(authData.user)
-      );
+
+      localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(resolvedUser));
 
       const expiresAt = Date.now() + expiresIn * 1000;
+      localStorage.setItem(CUSTOMER_EXPIRES_AT_KEY, String(expiresAt));
 
-      localStorage.setItem(
-        CUSTOMER_EXPIRES_AT_KEY,
-        String(expiresAt)
-      );
-
-      document.cookie = `${CUSTOMER_ACCESS_TOKEN_KEY}=${encodeURIComponent(
-        authData.accessToken
-      )}; path=/; max-age=${expiresIn}; SameSite=Lax`;
+      // Update authData fields in place so caller receives normalized response
+      authData.accessToken = cleanAccess;
+      authData.refreshToken = rawRefresh;
+      authData.user = resolvedUser;
 
       window.dispatchEvent(
         new CustomEvent("rrv:customer:auth:changed", {
           detail: {
-            user: authData.user,
+            user: resolvedUser,
             isAuthenticated: true,
+            token: cleanAccess,
           },
         })
       );
@@ -159,9 +254,13 @@ export const customerTokenStorage = {
 
     try {
       const existing = this.getUser();
-      if (!existing) return null;
-
       const updated: CustomerUser = {
+        publicId: existing?.publicId || `cust-${Date.now()}`,
+        mobileNumber: existing?.mobileNumber || "",
+        fullName: existing?.fullName || "Customer",
+        email: existing?.email || "",
+        role: existing?.role || "CUSTOMER",
+        status: existing?.status || "ACTIVE",
         ...existing,
         ...updates,
       };
@@ -189,6 +288,8 @@ export const customerTokenStorage = {
 
     try {
       localStorage.removeItem(CUSTOMER_ACCESS_TOKEN_KEY);
+      localStorage.removeItem("rrv_customer_access_token");
+      localStorage.removeItem("rrv_customer_refresh_token");
       localStorage.removeItem(CUSTOMER_REFRESH_TOKEN_KEY);
       localStorage.removeItem(CUSTOMER_USER_KEY);
       localStorage.removeItem(CUSTOMER_TOKEN_TYPE_KEY);
@@ -218,7 +319,7 @@ class CustomerAuthService {
     return (
       process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://192.168.0.107:8082"
+      "http://192.168.0.142:8082"
     ).replace(/\/$/, "");
   }
 
@@ -339,9 +440,12 @@ class CustomerAuthService {
       if (payload.email && !authData.user.email) {
         authData.user.email = payload.email;
       }
+      if (!authData.user.mobileNumber) {
+        authData.user.mobileNumber = payload.mobileNumber;
+      }
     }
 
-    customerTokenStorage.saveSession(authData);
+    customerTokenStorage.saveSession(authData, payload.mobileNumber);
 
     return authData;
   }
@@ -374,8 +478,9 @@ class CustomerAuthService {
     mobileNumber: string,
     otp: string
   ): Promise<CustomerAuthData> {
+    const normalizedMobile = normalizeMobileNumber(mobileNumber);
     const payload: CustomerLoginVerifyOtpRequest = {
-      mobileNumber: normalizeMobileNumber(mobileNumber),
+      mobileNumber: normalizedMobile,
       otp: otp.replace(/\s+/g, "").trim(),
     };
 
@@ -387,7 +492,7 @@ class CustomerAuthService {
       }
     );
 
-    customerTokenStorage.saveSession(authData);
+    customerTokenStorage.saveSession(authData, normalizedMobile);
 
     return authData;
   }
@@ -405,8 +510,6 @@ class CustomerAuthService {
       customerTokenStorage.getRefreshToken();
 
     if (!currentRefreshToken) {
-      customerTokenStorage.clearSession();
-
       throw new CustomerAuthError(
         "No active refresh token available",
         401
@@ -429,7 +532,6 @@ class CustomerAuthService {
 
         return authData;
       } catch (error) {
-        customerTokenStorage.clearSession();
         throw error;
       } finally {
         refreshPromise = null;
@@ -471,17 +573,6 @@ class CustomerAuthService {
             false
           );
         } catch (refreshError) {
-          customerTokenStorage.clearSession();
-
-          if (
-            typeof window !== "undefined" &&
-            !window.location.pathname.startsWith("/login")
-          ) {
-            window.location.href = `/login?redirect=${encodeURIComponent(
-              window.location.pathname
-            )}`;
-          }
-
           throw refreshError;
         }
       }

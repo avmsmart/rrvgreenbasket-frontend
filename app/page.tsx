@@ -7,6 +7,9 @@ import HomeFooter from "@/components/HomeFooter";
 import {
   Search,
   MapPin,
+  LocateFixed,
+  Loader2,
+  CheckCircle2,
   Heart,
   ShoppingCart,
   Leaf,
@@ -19,7 +22,6 @@ import {
   RefreshCw,
   Plus,
   Minus,
-  CheckCircle2,
   X,
   Tag,
 } from "lucide-react";
@@ -28,12 +30,12 @@ import {
   getCategoryId,
   mapBackendToStoreProduct,
 } from "@/services/product.service";
-import { BackendCategory, StoreProduct } from "@/types";
-import {
-  getStoredWishlist,
-  saveStoredWishlist,
-  CustomerWishlistItem,
-} from "@/data/customer-profile-mock";
+import { BackendCategory, StoreProduct, ProductWeightVariant } from "@/types";
+import { ProductCard } from "@/components/customer";
+import { resolveImageUrl } from "@/utils/image-utils";
+import { useWishlist } from "@/context/WishlistContext";
+import { useStoreSettings } from "@/context/StoreSettingsContext";
+import { useCart } from "@/context/CartContext";
 
 // Category image fallbacks for storefront visual badges
 const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
@@ -70,16 +72,6 @@ const DEFAULT_CATEGORY_ICONS: Record<string, string> = {
   "Household Items": "🧺",
 };
 
-const resolveImageUrl = (img?: string, width = 600) => {
-  if (!img) {
-    return `https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=${width}&q=85`;
-  }
-  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:") || img.startsWith("/")) {
-    return img;
-  }
-  return `https://images.unsplash.com/${img}?auto=format&fit=crop&w=${width}&q=85`;
-};
-
 const getCategoryVisuals = (cat: BackendCategory) => {
   const name = cat.name || "";
   const img = cat.imageUrl || DEFAULT_CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGES.Vegetables;
@@ -88,6 +80,9 @@ const getCategoryVisuals = (cat: BackendCategory) => {
 };
 
 export default function Home() {
+  // Public Store Branding Settings
+  const { settings } = useStoreSettings();
+
   // Category state (driven dynamically from backend API)
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -95,50 +90,214 @@ export default function Home() {
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<StoreProduct[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Wishlist state from centralized context
+  const { wishlistCount, isWishlisted, toggleWishlist, checkBulkWishlistStatus } = useWishlist();
+
+  // Cart state from centralized CartContext (connected to Spring Boot Cart Service)
+  const { itemCount: cartCount, totalAmount: cartTotal, addToCart } = useCart();
 
   // Search state
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
 
-  // Cart state
-  const [cart, setCart] = useState<Record<string | number, number>>({});
-
   // Favorites (Wishlist) state
-  const [favorites, setFavorites] = useState<(string | number)[]>([]);
   const [showFavorites, setShowFavorites] = useState<boolean>(false);
 
   // UI state
   const [notice, setNotice] = useState<string>("");
   const [scrolling, setScrolling] = useState<boolean>(false);
 
-  // Synchronize cart from localStorage and window storage events
-  const syncCartFromStorage = useCallback(() => {
+  // Delivery location selector (embedded directly in the navigation)
+  type DeliveryLocation = {
+    latitude: number;
+    longitude: number;
+    address: string;
+    displayName: string;
+  };
+  type LocationSuggestion = { lat: string; lon: string; display_name: string };
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<DeliveryLocation | null>(null);
+  const [locationCandidate, setLocationCandidate] = useState<DeliveryLocation | null>(null);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [deliveryCheckLoading, setDeliveryCheckLoading] = useState(false);
+  type DeliveryAvailability = {
+    available: boolean;
+    zonePublicId?: string;
+    zoneName?: string;
+    deliveryCharge?: number;
+    minimumOrderAmount?: number;
+    freeDeliveryThreshold?: number;
+    estimatedDeliveryTime?: string;
+    message?: string;
+  };
+  const [deliveryAvailability, setDeliveryAvailability] = useState<DeliveryAvailability | null>(null);
+
+  useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("rrv-cart") || "{}");
-      setCart(saved);
+      const saved = localStorage.getItem("rrv-delivery-location");
+      if (saved) {
+        const parsed = JSON.parse(saved) as DeliveryLocation & { deliveryAvailability?: DeliveryAvailability };
+        if (parsed?.address && Number.isFinite(parsed.latitude) && Number.isFinite(parsed.longitude)) {
+          setSelectedLocation(parsed);
+          if (parsed.deliveryAvailability) setDeliveryAvailability(parsed.deliveryAvailability);
+        }
+      }
     } catch {
-      setCart({});
+      localStorage.removeItem("rrv-delivery-location");
     }
   }, []);
 
   useEffect(() => {
-    syncCartFromStorage();
-    window.addEventListener("storage", syncCartFromStorage);
-    return () => window.removeEventListener("storage", syncCartFromStorage);
-  }, [syncCartFromStorage]);
-
-  // Synchronize favorites from customer wishlist
-  useEffect(() => {
-    try {
-      const stored = getStoredWishlist();
-      setFavorites(stored.map((item) => item.id));
-    } catch {
-      setFavorites([]);
+    if (!locationOpen || !locationQuery.trim() || locationCandidate?.address === locationQuery) {
+      setLocationSuggestions([]);
+      return;
     }
-  }, []);
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        setLocationLoading(true);
+        const params = new URLSearchParams({
+          q: `${locationQuery}, Kurnool, Andhra Pradesh, India`,
+          format: "jsonv2",
+          addressdetails: "1",
+          limit: "5",
+        });
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+          signal: controller.signal,
+          headers: { "Accept-Language": "en" },
+        });
+        if (!response.ok) throw new Error("Address search is unavailable. Please try again.");
+        setLocationSuggestions(await response.json());
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setLocationError(error instanceof Error ? error.message : "Unable to search this address.");
+        }
+      } finally {
+        setLocationLoading(false);
+      }
+    }, 550);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [locationQuery, locationOpen, locationCandidate]);
+
+  async function getReadableLocation(latitude: number, longitude: number): Promise<DeliveryLocation> {
+    const params = new URLSearchParams({
+      lat: String(latitude), lon: String(longitude), format: "jsonv2", addressdetails: "1",
+    });
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+      headers: { "Accept-Language": "en" },
+    });
+    if (!response.ok) throw new Error("Could not find the address for this location.");
+    const data = await response.json();
+    return {
+      latitude,
+      longitude,
+      address: data.display_name || "Selected map location",
+      displayName: data.address?.suburb || data.address?.neighbourhood || data.address?.village ||
+        data.address?.town || data.address?.city || "Selected location",
+    };
+  }
+
+  function detectCustomerLocation() {
+    setLocationError("");
+    if (!navigator.geolocation) {
+      setLocationError("Your browser does not support location detection.");
+      return;
+    }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const result = await getReadableLocation(coords.latitude, coords.longitude);
+        setLocationCandidate(result);
+        setLocationQuery(result.address);
+        setLocationSuggestions([]);
+      } catch (error) {
+        setLocationError(error instanceof Error ? error.message : "Unable to detect your address.");
+      } finally { setLocationLoading(false); }
+    }, (error) => {
+      setLocationLoading(false);
+      setLocationError(error.code === error.PERMISSION_DENIED
+        ? "Location permission denied. Allow access or search for your address."
+        : error.code === error.TIMEOUT ? "Location request timed out. Please try again."
+        : "Your current location could not be detected.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }
+
+  async function chooseLocationSuggestion(item: LocationSuggestion) {
+    try {
+      setLocationLoading(true);
+      setLocationError("");
+      const result = await getReadableLocation(Number(item.lat), Number(item.lon));
+      setLocationCandidate(result);
+      setLocationQuery(result.address);
+      setLocationSuggestions([]);
+    } catch (error) {
+      setLocationError(error instanceof Error ? error.message : "Unable to select this address.");
+    } finally { setLocationLoading(false); }
+  }
+
+  async function confirmDeliveryLocation() {
+    if (!locationCandidate || deliveryCheckLoading) return;
+
+    setDeliveryCheckLoading(true);
+    setLocationError("");
+    setDeliveryAvailability(null);
+
+    try {
+      const apiBaseUrl = (
+        process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL ||
+        process.env.NEXT_PUBLIC_API_BASE_URL ||
+        "http://192.168.0.138:8082"
+      ).replace(/\/$/, "");
+
+      const response = await fetch(`${apiBaseUrl}/api/delivery/check-availability`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          latitude: locationCandidate.latitude,
+          longitude: locationCandidate.longitude,
+          address: locationCandidate.address,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || "Unable to check delivery availability. Please try again.");
+      }
+
+      // API response shape: { success, message, data: { available, zoneName, ... } }
+      const availability = result?.data as DeliveryAvailability | undefined;
+      if (!availability || typeof availability.available !== "boolean") {
+        throw new Error("The delivery service returned an unexpected response.");
+      }
+
+      setSelectedLocation(locationCandidate);
+      setDeliveryAvailability(availability);
+      localStorage.setItem("rrv-delivery-location", JSON.stringify({
+        ...locationCandidate,
+        deliveryAvailability: availability,
+      }));
+      setLocationOpen(false);
+      setNotice(availability.available
+        ? availability.message || `Delivery is available${availability.zoneName ? ` in ${availability.zoneName}` : ""}.`
+        : availability.message || "Sorry, delivery is not available at this location.");
+    } catch (error) {
+      console.error("[Delivery] Availability check failed:", error);
+      setLocationError(error instanceof Error ? error.message : "Could not verify this delivery location.");
+    } finally {
+      setDeliveryCheckLoading(false);
+    }
+  }
 
   // Fetch categories from backend API
   const loadCategories = useCallback(async () => {
@@ -189,6 +348,14 @@ export default function Home() {
         const rawItems = res?.content || (Array.isArray(res) ? res : []);
         const mapped = rawItems.map(mapBackendToStoreProduct);
         setProducts(mapped);
+        if (mapped.length > 0) {
+          setAllProducts((prev) => {
+            const map = new Map<string, StoreProduct>();
+            prev.forEach((p) => map.set(String(p.id), p));
+            mapped.forEach((p) => map.set(String(p.id), p));
+            return Array.from(map.values());
+          });
+        }
       } catch (err: unknown) {
         console.error("[Storefront] Failed to load products:", err);
         setApiError(
@@ -221,6 +388,14 @@ export default function Home() {
     loadProducts(activeCategoryId, debouncedSearch);
   }, [activeCategoryId, debouncedSearch, loadProducts]);
 
+  // Bulk check wishlist status for displayed products
+  useEffect(() => {
+    if (products.length > 0) {
+      const ids = products.map((p) => p.publicId || String(p.id)).filter(Boolean);
+      checkBulkWishlistStatus(ids);
+    }
+  }, [products, checkBulkWishlistStatus]);
+
   // Scroll listener for mobile strip hiding/revealing
   useEffect(() => {
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -236,22 +411,44 @@ export default function Home() {
     };
   }, []);
 
-  // Filter products by favorites if favorites tab active
+  // Filter products by search, category, and favorites
   const displayedProducts = useMemo(() => {
-    if (showFavorites) {
-      return products.filter((p) => favorites.some((f) => String(f) === String(p.id)));
-    }
-    return products;
-  }, [showFavorites, favorites, products]);
+    const source = products.length > 0 ? products : allProducts;
+    let list = [...source];
 
-  // Cart total calculations
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const cartTotal = useMemo(() => {
-    return Object.entries(cart).reduce((sum, [id, qty]) => {
-      const p = products.find((prod) => String(prod.id) === String(id));
-      return sum + (p ? p.price * qty : 0);
-    }, 0);
-  }, [cart, products]);
+    // 1. Favorites Filter
+    if (showFavorites) {
+      list = list.filter((p) => isWishlisted(p.publicId || String(p.id)));
+    }
+
+    // 2. Category Filter (by categoryId or case-insensitive category name)
+    if (activeCategoryId && activeCategoryId !== "All") {
+      const activeNameLower = (activeCategoryName || "").toLowerCase().trim();
+      list = list.filter((p) => {
+        const matchesId = p.categoryId && String(p.categoryId) === String(activeCategoryId);
+        const pCatLower = (p.category || "").toLowerCase().trim();
+        const matchesName =
+          activeNameLower &&
+          activeNameLower !== "all products" &&
+          (pCatLower === activeNameLower ||
+            pCatLower.includes(activeNameLower) ||
+            activeNameLower.includes(pCatLower));
+        return Boolean(matchesId || matchesName);
+      });
+    }
+
+    // 3. Search Filter (matches search substring in product name or category)
+    const query = (search || debouncedSearch).trim().toLowerCase();
+    if (query) {
+      list = list.filter((p) => {
+        const nameMatch = p.name && p.name.toLowerCase().includes(query);
+        const catMatch = p.category && p.category.toLowerCase().includes(query);
+        return Boolean(nameMatch || catMatch);
+      });
+    }
+
+    return list;
+  }, [showFavorites, isWishlisted, products, allProducts, activeCategoryId, activeCategoryName, search, debouncedSearch]);
 
   // Handle category selection using actual categoryId
   function selectCategory(cat: BackendCategory | null) {
@@ -271,67 +468,36 @@ export default function Home() {
     });
   }
 
-  // Cart modification handlers
-  function addToCart(p: StoreProduct) {
-    const next = {
-      ...cart,
-      [p.id]: (cart[p.id] || 0) + 1,
-    };
-    setCart(next);
-    localStorage.setItem("rrv-cart", JSON.stringify(next));
-    window.dispatchEvent(new Event("storage"));
-    setNotice(`Added ${p.name} to cart!`);
-    setTimeout(() => setNotice(""), 2500);
-  }
-
-  function changeQuantity(id: string | number, amount: number) {
-    const next = { ...cart };
-    const qty = (next[id] || 0) + amount;
-
-    if (qty <= 0) {
-      delete next[id];
-    } else {
-      next[id] = qty;
+  // Cart modification handler connecting to Spring Boot Cart Service
+  async function handleAddToCart(p: StoreProduct, variant: ProductWeightVariant, qty: number = 1) {
+    if (!selectedLocation) {
+      setNotice("Please select and confirm your delivery location first.");
+      setLocationOpen(true);
+      return;
     }
-
-    setCart(next);
-    localStorage.setItem("rrv-cart", JSON.stringify(next));
-    window.dispatchEvent(new Event("storage"));
+    if (!deliveryAvailability?.available) {
+      setNotice("Delivery is not available at your selected location. Please choose another location.");
+      setLocationOpen(true);
+      return;
+    }
+    const pPublicId = p.publicId || String(p.id);
+    const multiplier =
+      Number.isFinite(Number(variant.multiplier)) && variant.multiplier > 0
+        ? variant.multiplier
+        : 1;
+    const quantityKg = Number((qty * multiplier).toFixed(3));
+    const sellingPrice = Math.round((p.price || 0) * multiplier);
+    await addToCart(pPublicId, quantityKg, p.name, {
+      productImageUrl: p.image,
+      pricePerKg: sellingPrice,
+      unitOfMeasure: variant.unit || p.unit || "KG",
+    });
   }
 
   // Wishlist toggle handler
   function toggleFavorite(p: StoreProduct) {
-    try {
-      const stored = getStoredWishlist();
-      const exists = stored.some((item) => String(item.id) === String(p.id));
-
-      if (exists) {
-        const nextList = stored.filter((item) => String(item.id) !== String(p.id));
-        saveStoredWishlist(nextList);
-        setFavorites((old) => old.filter((id) => String(id) !== String(p.id)));
-        setNotice(`Removed ${p.name} from Wishlist`);
-      } else {
-        const newItem: CustomerWishlistItem = {
-          id: typeof p.id === "number" ? p.id : Math.floor(Math.random() * 1000) + 100,
-          name: p.name,
-          category: p.category,
-          price: p.price,
-          unit: p.unit,
-          image: resolveImageUrl(p.image),
-          inStock: p.inStock ?? true,
-          badge: p.badge,
-        };
-        const nextList = [newItem, ...stored];
-        saveStoredWishlist(nextList);
-        setFavorites((old) => [...old, p.id]);
-        setNotice(`Saved ${p.name} to Wishlist ❤️`);
-      }
-      setTimeout(() => setNotice(""), 2500);
-    } catch {
-      setFavorites((old) =>
-        old.includes(p.id) ? old.filter((x) => x !== p.id) : [...old, p.id]
-      );
-    }
+    const publicId = p.publicId || String(p.id);
+    toggleWishlist(publicId, p.name);
   }
 
   return (
@@ -354,34 +520,53 @@ export default function Home() {
               }}
               className="flex shrink-0 items-center gap-2 cursor-pointer"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white shadow-md shadow-emerald-700/20">
-                <Leaf size={23} />
-              </div>
+              {settings.logoUrl ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-green-100 p-0.5 shadow-sm overflow-hidden">
+                  <img
+                    src={settings.logoUrl}
+                    alt={settings.storeName}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white shadow-md shadow-emerald-700/20">
+                  <Leaf size={23} />
+                </div>
+              )}
 
               <div className="text-left leading-tight">
                 <h1 className="text-lg font-extrabold tracking-tight text-gray-900">
-                  <span className="text-green-700">RRV</span> Green Basket
+                  {settings.storeName || "RRV Green Basket"}
                 </h1>
-                <p className="text-[9px] font-medium tracking-wide text-gray-500">
-                  FRESHNESS DELIVERED DAILY
+                <p className="text-[9px] font-medium tracking-wide text-gray-500 uppercase">
+                  {settings.brandTagline || "FRESHNESS DELIVERED DAILY"}
                 </p>
               </div>
             </button>
 
-            {/* Mobile Location Selector */}
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-green-100 bg-green-50/70 px-2.5 py-2 text-left md:hidden cursor-pointer"
-            >
-              <MapPin size={18} className="shrink-0 text-green-700" />
-              <span className="min-w-0 leading-tight">
-                <span className="block text-[9px] text-gray-500">Deliver to</span>
-                <span className="block truncate text-[11px] font-bold text-gray-800">
-                  Kurnool, AP
+            {/* Mobile Delivery Location Selector - opens inside the navigation */}
+            <div className="relative min-w-0 flex-1 md:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setLocationCandidate(selectedLocation);
+                  setLocationQuery(selectedLocation?.address || "");
+                  setLocationError("");
+                  setLocationOpen((open) => !open);
+                }}
+                className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-green-100 bg-green-50/70 px-2.5 py-2 text-left"
+                aria-expanded={locationOpen}
+              >
+                <MapPin size={18} className="shrink-0 text-green-700" />
+                <span className="min-w-0 leading-tight">
+                  <span className="block text-[9px] text-gray-500">Deliver to</span>
+                  <span className="block truncate text-[11px] font-bold text-gray-800">
+                    {selectedLocation?.displayName || "Select location"}
+                  </span>
                 </span>
-              </span>
-              <ChevronDown size={13} className="shrink-0 text-gray-500" />
-            </button>
+                <ChevronDown size={13} className="shrink-0 text-gray-500" />
+              </button>
+            </div>
 
             {/* Desktop Search + Category Select (Synced with backend categoryId) */}
             <form
@@ -452,15 +637,28 @@ export default function Home() {
               </button>
             </form>
 
-            {/* Desktop Delivery Location */}
-            <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
-              <MapPin size={20} className="text-green-700" />
-              <div className="leading-tight">
-                <p className="text-[10px] text-gray-500">Deliver to</p>
-                <p className="flex items-center gap-1 text-xs font-bold text-gray-900">
-                  Kurnool, AP <ChevronDown size={12} />
-                </p>
-              </div>
+            {/* Desktop Delivery Location Selector - same navigation flow */}
+            <div className="relative hidden shrink-0 lg:block">
+              <button
+                type="button"
+                onClick={() => {
+                  setLocationCandidate(selectedLocation);
+                  setLocationQuery(selectedLocation?.address || "");
+                  setLocationError("");
+                  setLocationOpen((open) => !open);
+                }}
+                className="flex items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-green-50"
+                aria-expanded={locationOpen}
+              >
+                <MapPin size={20} className="text-green-700" />
+                <span className="leading-tight">
+                  <span className="block text-[10px] text-gray-500">Deliver to</span>
+                  <span className="flex max-w-[180px] items-center gap-1 truncate text-xs font-bold text-gray-900">
+                    {selectedLocation?.displayName || "Select location"}
+                    <ChevronDown size={12} />
+                  </span>
+                </span>
+              </button>
             </div>
 
             {/* Customer Account / Auth Navigation */}
@@ -468,31 +666,28 @@ export default function Home() {
               <CustomerNavAuth />
             </div>
 
-            {/* Wishlist Button */}
-            <button
-              onClick={() => {
-                setShowFavorites((x) => !x);
-                setSearch("");
-                document.getElementById("products")?.scrollIntoView({
-                  behavior: "smooth",
-                });
-              }}
-              className={`hidden shrink-0 items-center gap-1.5 border-l border-gray-100 pl-3 text-gray-700 transition hover:text-green-700 md:flex cursor-pointer ${
-                showFavorites ? "text-green-700 font-bold" : ""
-              }`}
+            {/* Wishlist Link with Live Backend Count */}
+            <Link
+              href="/wishlist"
+              data-nav-wishlist
+              className="hidden shrink-0 items-center gap-1.5 border-l border-gray-100 pl-3 text-gray-700 transition hover:text-green-700 md:flex cursor-pointer"
+              aria-label="View Wishlist"
             >
-              <Heart size={20} className={showFavorites ? "fill-green-600 text-green-600" : ""} />
+              <div className="relative">
+                <Heart size={20} className={wishlistCount > 0 ? "fill-rose-50 text-rose-500" : ""} />
+                {wishlistCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white shadow-2xs">
+                    {wishlistCount}
+                  </span>
+                )}
+              </div>
               <span className="hidden text-xs font-medium xl:block">Wishlist</span>
-              {favorites.length > 0 && (
-                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700">
-                  {favorites.length}
-                </span>
-              )}
-            </button>
+            </Link>
 
             {/* Cart Button */}
             <Link
               href="/cart"
+              data-nav-cart
               className="hidden shrink-0 items-center gap-2 border-l border-gray-100 pl-3 text-gray-800 transition hover:text-green-700 md:flex"
             >
               <div className="relative">
@@ -548,6 +743,83 @@ export default function Home() {
           </form>
         </div>
       </header>
+
+      {/* Shared location panel anchored below the navigation. It is not a separate page. */}
+      {locationOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/25" onClick={() => setLocationOpen(false)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose delivery location"
+            onClick={(event) => event.stopPropagation()}
+            className="absolute left-3 right-3 top-[76px] mx-auto max-w-md rounded-2xl border border-green-100 bg-white p-4 shadow-2xl sm:left-auto sm:right-8 sm:top-[78px]"
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900">Where should we deliver?</h2>
+                <p className="mt-1 text-xs text-gray-500">Choose your location before shopping.</p>
+              </div>
+              <button type="button" onClick={() => setLocationOpen(false)} className="rounded-full bg-gray-100 p-1.5 text-gray-600" aria-label="Close location selector">
+                <X size={16} />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={detectCustomerLocation}
+              disabled={locationLoading}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-bold text-green-800 disabled:opacity-60"
+            >
+              {locationLoading ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}
+              Use my current location
+            </button>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={locationQuery}
+                onChange={(event) => {
+                  setLocationQuery(event.target.value);
+                  setLocationCandidate(null);
+                  setLocationError("");
+                }}
+                placeholder="Search locality, street or landmark"
+                className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-9 text-xs outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+              />
+              {locationLoading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-green-700" />}
+            </div>
+            {locationSuggestions.length > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
+                {locationSuggestions.map((item, index) => (
+                  <button
+                    key={`${item.lat}-${item.lon}-${index}`}
+                    type="button"
+                    onClick={() => chooseLocationSuggestion(item)}
+                    className="flex w-full items-start gap-2 border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-green-50"
+                  >
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-green-700" />
+                    <span className="text-[11px] leading-4 text-gray-700">{item.display_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {locationCandidate && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-green-800"><CheckCircle2 size={14} /> Confirm this location</p>
+                <p className="mt-1 text-[11px] leading-4 text-gray-700">{locationCandidate.address}</p>
+              </div>
+            )}
+            {locationError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] text-red-700">{locationError}</p>}
+            <button
+              type="button"
+              onClick={confirmDeliveryLocation}
+              disabled={!locationCandidate || locationLoading || deliveryCheckLoading}
+              className="mt-3 w-full rounded-xl bg-green-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {deliveryCheckLoading ? <><Loader2 size={14} className="animate-spin" /> Checking availability...</> : "Confirm location"}
+            </button>
+            <p className="mt-2 text-center text-[10px] text-gray-400">Delivery serviceability must be verified by the server at checkout.</p>
+          </section>
+        </div>
+      )}
 
       {/* =========================================================================
           2. MOBILE HORIZONTALLY SCROLLABLE CATEGORY CHIPS
@@ -664,56 +936,6 @@ export default function Home() {
         {/* Product Listing Main Section */}
         <section className="min-w-0">
 
-          {/* Desktop Circular Category Shortcuts */}
-          {!search && !showFavorites && (
-            <section className="mb-5 hidden md:block">
-              <div className="mb-3 flex items-center justify-between px-1">
-                <h2 className="text-sm font-extrabold text-gray-900 sm:text-base">
-                  Shop by category
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => selectCategory(null)}
-                  className="text-xs font-bold text-green-700 hover:underline cursor-pointer"
-                >
-                  View all
-                </button>
-              </div>
-
-              <div className="flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {categories.map((c) => {
-                  const catId = getCategoryId(c);
-                  const { img } = getCategoryVisuals(c);
-                  const isActive = activeCategoryId === catId;
-
-                  return (
-                    <button
-                      key={catId}
-                      type="button"
-                      onClick={() => selectCategory(c)}
-                      className={`group flex w-[88px] shrink-0 flex-col items-center gap-2 rounded-2xl border p-2 transition-all sm:w-[105px] cursor-pointer ${
-                        isActive
-                          ? "border-green-500 bg-green-50 shadow-xs ring-2 ring-emerald-500/20"
-                          : "border-green-100 bg-white hover:border-green-300 hover:bg-green-50/60"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={resolveImageUrl(img, 200)}
-                        alt={c.name}
-                        loading="lazy"
-                        className="h-16 w-16 rounded-full bg-green-50 object-cover sm:h-[76px] sm:w-[76px] transition-transform group-hover:scale-105"
-                      />
-                      <span className="line-clamp-2 min-h-8 text-center text-[10px] font-bold leading-4 text-gray-700 sm:text-xs">
-                        {c.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
           {/* Products Header */}
           <section id="products" className="scroll-mt-28">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -787,21 +1009,22 @@ export default function Home() {
 
             {/* Loading Skeleton Grid */}
             {isLoading ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
-                {Array.from({ length: 8 }).map((_, i) => (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 2xl:grid-cols-6">
+                {Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={i}
-                    className="flex flex-col justify-between h-full bg-white rounded-3xl border border-gray-100 p-3 shadow-xs animate-pulse"
+                    className="flex flex-col justify-between h-full bg-white rounded-xl border border-emerald-100/80 p-2.5 sm:p-3 shadow-2xs animate-pulse"
                   >
-                    <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-3" />
+                    <div className="w-full aspect-square rounded-lg bg-slate-100 mb-2" />
                     <div className="space-y-2">
                       <div className="h-3 w-16 bg-slate-100 rounded-md" />
                       <div className="h-4 w-3/4 bg-slate-100 rounded-md" />
+                      <div className="h-7 w-full bg-slate-100 rounded-md" />
                       <div className="h-4 w-1/2 bg-slate-100 rounded-md" />
                     </div>
-                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
-                      <div className="h-5 w-14 bg-slate-100 rounded-md" />
-                      <div className="h-8 w-8 bg-slate-100 rounded-xl" />
+                    <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                      <div className="h-7 w-16 bg-slate-100 rounded-lg" />
+                      <div className="h-7 flex-1 bg-slate-100 rounded-lg" />
                     </div>
                   </div>
                 ))}
@@ -828,165 +1051,19 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              /* Product Grid (Responsive 2-col mobile, 3-col tablet, 4-col desktop) */
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+              /* Product Grid (Responsive: 2-col mobile, 3-col small, 4-col lg, 6-col 2xl) */
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 2xl:grid-cols-6">
                 {displayedProducts.map((p) => {
-                  const originalPrice = p.originalPrice;
-                  const discount =
-                    originalPrice && originalPrice > p.price
-                      ? Math.round(((originalPrice - p.price) / originalPrice) * 100)
-                      : 0;
-                  const isFav = favorites.some((f) => String(f) === String(p.id));
-                  const cartQty = cart[p.id] || 0;
+                  const isFav = isWishlisted(p.publicId || String(p.id));
 
                   return (
-                    <article
+                    <ProductCard
                       key={p.id}
-                      className="group relative flex flex-col justify-between h-full bg-white rounded-3xl border border-gray-100 p-2.5 sm:p-3 shadow-2xs hover:shadow-xl hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99] select-none"
-                    >
-                      <div>
-                        {/* Product Image Frame */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#f8faf7] to-[#f0f6ee] aspect-square w-full flex items-center justify-center p-3 sm:p-4 group/img">
-                          <Link
-                            href={`/products/${p.id}`}
-                            className="relative flex h-full w-full items-center justify-center overflow-hidden"
-                            aria-label={`View details for ${p.name}`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={resolveImageUrl(p.image)}
-                              alt={p.name}
-                              loading="lazy"
-                              className="h-full w-full object-contain drop-shadow-sm transition-transform duration-500 ease-out group-hover/img:scale-108"
-                            />
-                          </Link>
-
-                          {/* Product Badge */}
-                          {p.badge && (
-                            <span className="absolute left-2.5 top-2.5 rounded-lg bg-[#00875a] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-xs flex items-center gap-1 sm:text-[10px]">
-                              <Sparkles size={10} />
-                              <span>{p.badge}</span>
-                            </span>
-                          )}
-
-                          {/* Wishlist Heart Button */}
-                          <button
-                            type="button"
-                            aria-label={`Toggle favorite for ${p.name}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              toggleFavorite(p);
-                            }}
-                            className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-90 shadow-2xs cursor-pointer ${
-                              isFav
-                                ? "bg-rose-50 text-rose-500 ring-1 ring-rose-200"
-                                : "bg-white/90 text-gray-400 hover:text-rose-500 hover:bg-rose-50/60 backdrop-blur-xs"
-                            }`}
-                          >
-                            <Heart
-                              size={16}
-                              className={`transition-colors ${isFav ? "fill-rose-500 text-rose-500" : ""}`}
-                            />
-                          </button>
-
-                          {/* Quick Add / Quantity Controls */}
-                          <div className="absolute bottom-2.5 right-2.5">
-                            {cartQty > 0 ? (
-                              <div className="flex h-9 items-center gap-1.5 rounded-xl border-2 border-[#00875a] bg-white px-2 shadow-md">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    changeQuantity(p.id, -1);
-                                  }}
-                                  className="w-5 h-5 flex items-center justify-center font-bold text-[#00875a] hover:bg-emerald-50 rounded-md transition-colors active:scale-90 cursor-pointer"
-                                  aria-label="Decrease quantity"
-                                >
-                                  <Minus size={13} strokeWidth={2.8} />
-                                </button>
-                                <span className="min-w-[1.2rem] text-center text-xs font-black text-slate-900">
-                                  {cartQty}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    changeQuantity(p.id, 1);
-                                  }}
-                                  className="w-5 h-5 flex items-center justify-center font-bold text-[#00875a] hover:bg-emerald-50 rounded-md transition-colors active:scale-90 cursor-pointer"
-                                  aria-label="Increase quantity"
-                                >
-                                  <Plus size={13} strokeWidth={2.8} />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                aria-label={`Add ${p.name} to cart`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(p);
-                                }}
-                                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#00875a] text-white shadow-md shadow-emerald-700/25 transition-all duration-200 hover:bg-[#00734d] hover:scale-110 active:scale-95 cursor-pointer"
-                              >
-                                <Plus size={18} strokeWidth={2.8} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Product Info Section */}
-                        <div className="pt-2.5 pb-1">
-                          {/* Category Pill & Unit */}
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md truncate max-w-[120px]">
-                              {p.category}
-                            </span>
-                            <span className="text-[10px] font-semibold text-gray-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
-                              {p.unit}
-                            </span>
-                          </div>
-
-                          {/* Product Title */}
-                          <Link
-                            href={`/products/${p.id}`}
-                            className="block mt-1 line-clamp-2 text-xs sm:text-sm font-bold text-slate-900 hover:text-[#00875a] transition-colors leading-snug min-h-[2.5rem]"
-                          >
-                            {p.name}
-                          </Link>
-                        </div>
-                      </div>
-
-                      {/* Price & Delivery Row */}
-                      <div className="pt-2 border-t border-gray-100/90 flex items-end justify-between">
-                        <div>
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                              ₹{p.price}
-                            </span>
-                            {discount > 0 && (
-                              <span className="text-[11px] font-semibold text-gray-400 line-through">
-                                ₹{p.originalPrice}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-gray-400 font-medium">
-                            ₹{p.price} / {p.unit}
-                          </p>
-                        </div>
-
-                        {discount > 0 ? (
-                          <span className="text-[10px] font-extrabold text-[#00875a] bg-emerald-50 px-1.5 py-0.5 rounded-md">
-                            {discount}% OFF
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-gray-400">
-                            ⚡ 10 MINS
-                          </span>
-                        )}
-                      </div>
-                    </article>
+                      product={p}
+                      isWishlisted={isFav}
+                      onToggleWishlist={toggleFavorite}
+                      onAddToCart={handleAddToCart}
+                    />
                   );
                 })}
               </div>
@@ -1024,31 +1101,26 @@ export default function Home() {
             <span className="text-[10px] font-semibold">Home</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowFavorites(true);
-              setSearch("");
-              document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className={`relative flex flex-1 flex-col items-center justify-center gap-1 cursor-pointer ${
-              showFavorites ? "text-green-800 font-bold" : "text-gray-400 hover:text-green-700"
-            }`}
+          <Link
+            href="/wishlist"
+            data-nav-wishlist-mobile
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 hover:text-green-700"
+            aria-label="Wishlist"
           >
             <span className="relative">
               <Heart
                 size={21}
-                strokeWidth={showFavorites ? 2.4 : 1.8}
-                className={showFavorites ? "fill-green-600 text-green-600" : ""}
+                strokeWidth={1.8}
+                className={wishlistCount > 0 ? "fill-rose-500 text-rose-500" : ""}
               />
-              {favorites.length > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-green-600 px-1 text-[8px] font-bold text-white">
-                  {favorites.length}
+              {wishlistCount > 0 && (
+                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-bold text-white shadow-xs">
+                  {wishlistCount}
                 </span>
               )}
             </span>
             <span className="text-[10px] font-semibold">Wishlist</span>
-          </button>
+          </Link>
 
           <button
             type="button"
@@ -1065,6 +1137,7 @@ export default function Home() {
 
           <Link
             href="/cart"
+            data-nav-cart-mobile
             className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
           >
             <span className="relative">

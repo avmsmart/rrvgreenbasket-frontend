@@ -33,16 +33,21 @@ export const StockOutModal: React.FC<StockOutModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const eligibleItems = allItems.filter((i) => i.inventory.initialized);
+
   useEffect(() => {
     if (isOpen) {
       setErrorMessage(null);
       setSuccessMessage(null);
-      if (selectedItem) {
+      if (selectedItem && selectedItem.inventory.initialized) {
         setProductPublicId(selectedItem.inventory.productPublicId);
         setUnitOfMeasure(selectedItem.inventory.unitOfMeasure || "KG");
-      } else if (allItems.length > 0) {
-        setProductPublicId(allItems[0].inventory.productPublicId);
-        setUnitOfMeasure(allItems[0].inventory.unitOfMeasure || "KG");
+      } else if (eligibleItems.length > 0) {
+        setProductPublicId(eligibleItems[0].inventory.productPublicId);
+        setUnitOfMeasure(eligibleItems[0].inventory.unitOfMeasure || "KG");
+      } else {
+        setProductPublicId("");
+        setUnitOfMeasure("KG");
       }
       setQuantity("");
       setReason("SPOILAGE");
@@ -171,20 +176,25 @@ export const StockOutModal: React.FC<StockOutModalProps> = ({
                   Available: {currentAvailable} {unitOfMeasure} (Physical: {currentPhysical})
                 </span>
               </div>
+            ) : eligibleItems.length === 0 ? (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                No initialized products available. Please initialize stock for products before recording stock-out movements.
+              </div>
             ) : (
               <select
                 aria-label="Select Target Product Item"
                 value={productPublicId}
                 onChange={(e) => {
                   setProductPublicId(e.target.value);
-                  const found = allItems.find((i) => i.inventory.productPublicId === e.target.value);
+                  const found = eligibleItems.find((i) => i.inventory.productPublicId === e.target.value);
                   if (found) {
                     setUnitOfMeasure(found.inventory.unitOfMeasure || "KG");
                   }
                 }}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 cursor-pointer"
               >
-                {allItems.map((i) => (
+                <option value="">Select Initialized Product</option>
+                {eligibleItems.map((i) => (
                   <option key={i.inventory.productPublicId} value={i.inventory.productPublicId}>
                     {i.product?.name || `Product (${i.inventory.productPublicId.slice(0, 8)}...)`} (Avail: {i.inventory.availableQuantity} {i.inventory.unitOfMeasure})
                   </option>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { customerTokenStorage } from "@/services/customer-auth.service";
 import CustomerLogoutDialog from "./CustomerLogoutDialog";
 
 export const CustomerNavAuth: React.FC = () => {
@@ -89,20 +90,22 @@ useEffect(() => {
   };
 
   // Customer details
-  const displayName = customer?.fullName?.trim() || "Customer";
+  const displayName = customer?.fullName?.trim() || customer?.mobileNumber?.trim() || "Customer";
 
   // Loading skeleton
- if (!mounted || isLoading) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="h-[21px] w-[21px] animate-pulse rounded-full bg-gray-200" />
-      <div className="h-2.5 w-12 animate-pulse rounded bg-gray-200" />
-    </div>
-  );
-}
+  if (!mounted || isLoading) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="h-[21px] w-[21px] animate-pulse rounded-full bg-gray-200" />
+        <div className="h-2.5 w-12 animate-pulse rounded bg-gray-200" />
+      </div>
+    );
+  }
+
+  const hasAuth = isAuthenticated || !!customerTokenStorage.getAccessToken();
 
   // Not logged in: Login / Register
-  if (!isAuthenticated || !customer) {
+  if (!hasAuth) {
     return (
       <Link
         href="/login"
@@ -166,7 +169,7 @@ useEffect(() => {
             </p>
 
             <p className="truncate font-mono text-[11px] text-gray-500">
-              {customer.mobileNumber || customer.email}
+              {customer?.mobileNumber || customer?.email || ""}
             </p>
           </div>
 

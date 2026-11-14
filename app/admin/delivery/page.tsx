@@ -33,10 +33,14 @@ import {
   DeliveryDetailsDrawer,
   DeliveryIssuesModal,
   AllPartnersModal,
+  DeliveryZonesManager,
 } from "@/components/delivery";
 import { getSystemDateFormatted } from "@/utils";
 
 export default function DeliveryPage() {
+  // Main View Section: Zones vs Live Fleet
+  const [mainView, setMainView] = useState<"ZONES" | "FLEET">("ZONES");
+
   // --- States ---
  const [selectedDate, setSelectedDate] = useState<string>("");
 useEffect(() => {
@@ -77,7 +81,9 @@ useEffect(() => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [allOrders, setAllOrders] = useState<DeliveryOrder[]>([]);
   const [summary, setSummary] = useState<DeliverySummary>({
+    totalDeliveries: 32,
     totalOrders: 32,
+    pending: 6,
     pendingAssignment: 6,
     outForDelivery: 14,
     delivered: 10,
@@ -138,7 +144,7 @@ if (!selectedDate) return;
 
       // Keep drawer in sync if open
       if (selectedDrawerOrder) {
-        const refreshed = ordersData.find((o) => o.id === selectedDrawerOrder.id);
+        const refreshed = ordersData.find((o: DeliveryOrder) => o.id === selectedDrawerOrder.id);
         if (refreshed) setSelectedDrawerOrder(refreshed);
       }
     } catch (err) {
@@ -198,16 +204,17 @@ if (!selectedDate) return;
 
     // 3. Check directly in service
     if (!found) {
-      found = await deliveryService.getOrderById(orderId, selectedDate);
+      found = await deliveryService.getOrderById(orderId);
     }
 
     // 4. Guaranteed fallback matching issue metadata
     if (!found) {
-      const issue = issues.find((i) => i.orderId.toLowerCase() === orderId.toLowerCase());
+      const issue = issues.find((i) => (i.orderId || "").toLowerCase() === orderId.toLowerCase());
       found = {
         id: orderId,
         customerName: issue?.customerName || "Customer",
         customerPhone: "+91 98765 43210",
+        deliveryAddress: "Main Road, Kurnool",
         customerAddress: "Main Road, Kurnool",
         area: "Kurnool Town",
         itemsCount: 4,
@@ -217,6 +224,7 @@ if (!selectedDate) return;
         status: "Failed",
         orderTime: issue?.time || "09:00 AM",
         orderDate: selectedDate,
+        estimatedDelivery: "10:00 AM",
         assignedPartnerName: issue?.partnerName || "Delivery Team",
         failureReason: issue?.reason || "Delivery Exception",
       };
@@ -348,16 +356,50 @@ if (!selectedDate) return;
           <span className="text-slate-700">Delivery Management</span>
         </nav>
 
-        {/* 2. Header (Matching Page 15 of PDF) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Delivery Management
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Assign orders, track delivery partners, and monitor real-time delivery status.
-            </p>
+        {/* Section Switcher Tabs: Delivery Zones vs Live Fleet */}
+        <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-fit mb-6 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMainView("ZONES")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              mainView === "ZONES"
+                ? "bg-emerald-700 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <MapIcon className="w-3.5 h-3.5" />
+            <span>Delivery Zones & Geo-Fencing</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainView("FLEET")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              mainView === "FLEET"
+                ? "bg-emerald-700 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>Live Fleet & In-Transit Orders</span>
+          </button>
+        </div>
+
+        {mainView === "ZONES" ? (
+          <div className="mb-12">
+            <DeliveryZonesManager />
           </div>
+        ) : (
+          <>
+            {/* 2. Header (Matching Page 15 of PDF) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  Delivery Management
+                </h1>
+                <p className="text-sm text-slate-500 mt-1">
+                  Assign orders, track delivery partners, and monitor real-time delivery status.
+                </p>
+              </div>
 
           <div className="flex items-center gap-2.5">
             {/* View on Map Button */}
@@ -416,8 +458,8 @@ if (!selectedDate) return;
             isFiltered={activeFiltersCount > 0}
             activeFiltersCount={activeFiltersCount}
             tabCounts={{
-              all: summary.totalOrders,
-              pending: summary.pendingAssignment,
+              all: summary.totalOrders ?? summary.totalDeliveries ?? 0,
+              pending: summary.pendingAssignment ?? summary.pending ?? 0,
               outForDelivery: summary.outForDelivery,
               delivered: summary.delivered,
               failed: summary.failed,
@@ -518,6 +560,8 @@ if (!selectedDate) return;
             setIsIssuesModalOpen(true);
           }}
         />
+          </>
+        )}
 
       </div>
 

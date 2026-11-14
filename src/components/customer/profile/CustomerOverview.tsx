@@ -17,7 +17,8 @@ import {
 import { CustomerUser } from "@/types/customer-auth";
 import { CustomerAddress } from "@/types/customer-address";
 import customerAddressService from "@/services/customer-address.service";
-import { INITIAL_ORDERS, getStoredWishlist } from "@/data/customer-profile-mock";
+import { INITIAL_ORDERS } from "@/data/customer-profile-mock";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface CustomerOverviewProps {
   customer: CustomerUser | null;
@@ -28,9 +29,9 @@ export const CustomerOverview: React.FC<CustomerOverviewProps> = ({
   customer,
   onNavigateTab,
 }) => {
+  const { wishlistCount } = useWishlist();
   const [defaultAddress, setDefaultAddress] = useState<CustomerAddress | null>(null);
   const [addressCount, setAddressCount] = useState<number>(0);
-  const [wishlistCount, setWishlistCount] = useState<number>(0);
 
   const displayName = customer?.fullName?.trim() || "Valued Customer";
   const firstName = displayName.split(" ")[0];
@@ -44,13 +45,6 @@ export const CustomerOverview: React.FC<CustomerOverviewProps> = ({
         setDefaultAddress(def);
       } catch {
         // Handled silently for overview
-      }
-
-      try {
-        const items = getStoredWishlist();
-        setWishlistCount(items.length);
-      } catch {
-        // Handled silently
       }
     }
     loadQuickData();

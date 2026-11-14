@@ -18,6 +18,7 @@ import {
   BarChart3,
   Layers,
   FolderTree,
+  Star,
   Settings,
   X,
 } from "lucide-react";
@@ -47,6 +48,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   BarChart3,
   Layers,
   FolderTree,
+  Star,
   Settings,
 };
 

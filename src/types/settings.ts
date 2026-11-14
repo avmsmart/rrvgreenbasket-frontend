@@ -5,6 +5,70 @@ export interface DaySchedule {
   isOpen: boolean;
 }
 
+/**
+ * Public Store Settings (API 13)
+ * GET /api/store/settings/public
+ */
+export interface PublicStoreSettings {
+  storeName: string;
+  brandTagline: string;
+  supportEmail: string;
+  supportPhone: string;
+  physicalAddress: string;
+  websiteUrl: string;
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+}
+
+/**
+ * Admin Store Settings (API 14)
+ * GET /api/admin/store/settings
+ */
+export interface AdminStoreSettings {
+  publicId?: string;
+  storeName: string;
+  brandTagline: string;
+  supportEmail: string;
+  supportPhone: string;
+  physicalAddress: string;
+  websiteUrl: string;
+  logoFileName?: string | null;
+  logoS3Key?: string | null;
+  logoUrl?: string | null;
+  faviconFileName?: string | null;
+  faviconS3Key?: string | null;
+  faviconUrl?: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  updatedBy?: string | null;
+}
+
+/**
+ * Update Store Settings Request (API 15)
+ * PUT /api/admin/store/settings
+ */
+export interface UpdateStoreSettingsRequest {
+  storeName: string;
+  brandTagline?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  physicalAddress?: string;
+  websiteUrl?: string;
+}
+
+/**
+ * Store Asset Upload Response (APIs 16 & 17)
+ */
+export interface StoreAssetUploadResponse {
+  assetType: "LOGO" | "FAVICON";
+  fileName: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  assetUrl: string;
+  uploaded: boolean;
+}
+
 export interface StoreSettings {
   // General Information
   storeName: string;

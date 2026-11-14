@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider, CustomerAuthProvider } from "@/context";
+import {
+  AuthProvider,
+  CustomerAuthProvider,
+  WishlistProvider,
+  StoreSettingsProvider,
+  CartProvider,
+} from "@/context";
 
 export const metadata: Metadata = {
   title: "RRV Green Basket - Freshness Delivered Daily",
@@ -15,9 +21,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col font-sans antialiased">
-        <AuthProvider>
-          <CustomerAuthProvider>{children}</CustomerAuthProvider>
-        </AuthProvider>
+        <StoreSettingsProvider>
+          <AuthProvider>
+            <CustomerAuthProvider>
+              <WishlistProvider>
+                <CartProvider>{children}</CartProvider>
+              </WishlistProvider>
+            </CustomerAuthProvider>
+          </AuthProvider>
+        </StoreSettingsProvider>
       </body>
     </html>
   );

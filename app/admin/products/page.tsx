@@ -2,7 +2,6 @@
 
 import React, {
   useState,
-  useMemo,
   useEffect,
   useCallback,
 } from "react";
@@ -131,20 +130,21 @@ export default function ProductsManagementPage() {
     try {
       const pageIndex = Math.max(0, currentPage - 1);
 
-      // Determine category filter parameter
+      // Determine category filter parameter to pass to backend
       let categoryIdParam: string | undefined;
       let categoryNameParam: string | undefined;
 
+      const matchedCategory = categories.find(
+        (c) =>
+          c.publicId === selectedCategory ||
+          c.name.toLowerCase() === selectedCategory.toLowerCase() ||
+          c.slug === selectedCategory
+      );
+
       if (selectedCategory && selectedCategory !== "All") {
-        // Check if selectedCategory is a publicId UUID
-        const matched = categories.find(
-          (c) =>
-            c.publicId === selectedCategory ||
-            c.name.toLowerCase() === selectedCategory.toLowerCase() ||
-            c.slug === selectedCategory
-        );
-        if (matched) {
-          categoryIdParam = matched.publicId;
+        if (matchedCategory) {
+          categoryIdParam = matchedCategory.publicId;
+          categoryNameParam = matchedCategory.name;
         } else {
           categoryNameParam = selectedCategory;
         }
@@ -163,7 +163,32 @@ export default function ProductsManagementPage() {
         pageData.content || []
       ).map(mapAdminProductToUIProduct);
 
-      // Sort items based upon chosen sort criteria (category sorting first)
+      // GUARANTEE STRICT CATEGORY FILTERING ON FRONTEND
+      // When a specific category (e.g., "Fruits") is selected, verify every item belongs to that category
+      if (selectedCategory && selectedCategory !== "All") {
+        const targetName = (matchedCategory?.name || selectedCategory).trim().toLowerCase();
+        const targetId = matchedCategory?.publicId || selectedCategory;
+        const targetSlug = (matchedCategory?.slug || "").trim().toLowerCase();
+
+        mappedList = mappedList.filter((product) => {
+          const pCatName = String(product.category || "").trim().toLowerCase();
+          const pCatId = product.categoryId || (product as any).categoryObj?.publicId;
+          const pCatSlug = ((product as any).categoryObj?.slug || "").trim().toLowerCase();
+
+          // Exact or partial category matching
+          const matchesName = pCatName === targetName;
+          const matchesId = Boolean(
+            targetId && pCatId && String(pCatId).toLowerCase() === String(targetId).toLowerCase()
+          );
+          const matchesSlug = Boolean(
+            targetSlug && (pCatSlug === targetSlug || pCatName === targetSlug)
+          );
+
+          return matchesName || matchesId || matchesSlug;
+        });
+      }
+
+      // Sort items based upon chosen sort criteria
       mappedList.sort((a, b) => {
         if (sortBy === "category-asc") {
           const catA = String(a.category || "").toLowerCase();
@@ -183,22 +208,26 @@ export default function ProductsManagementPage() {
           return a.name.localeCompare(b.name);
         }
         if (sortBy === "price-asc") {
-          return (a.pricePerKg ?? a.price ?? 0) - (b.pricePerKg ?? b.price ?? 0);
+          const priceA = a.totalPrice ?? a.pricePerKg ?? a.price ?? 0;
+          const priceB = b.totalPrice ?? b.pricePerKg ?? b.price ?? 0;
+          return priceA - priceB;
         }
         if (sortBy === "price-desc") {
-          return (b.pricePerKg ?? b.price ?? 0) - (a.pricePerKg ?? a.price ?? 0);
+          const priceA = a.totalPrice ?? a.pricePerKg ?? a.price ?? 0;
+          const priceB = b.totalPrice ?? b.pricePerKg ?? b.price ?? 0;
+          return priceB - priceA;
         }
         return 0;
       });
 
+      const computedTotal =
+        selectedCategory !== "All"
+          ? mappedList.length
+          : pageData.totalElements ?? mappedList.length;
+
       setProductsList(mappedList);
-
-      setTotalElements(pageData.totalElements ?? mappedList.length);
-
-      setTotalPages(
-        pageData.totalPages ??
-          (Math.ceil((pageData.totalElements ?? mappedList.length) / pageSize) || 1)
-      );
+      setTotalElements(computedTotal);
+      setTotalPages(Math.ceil(computedTotal / pageSize) || 1);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -347,12 +376,7 @@ export default function ProductsManagementPage() {
         accessor: (product: Product) => product.quantityUnit || product.unit,
       },
       {
-        header: "Price / Kg",
-        accessor: (product: Product) =>
-          (product.pricePerKg ?? product.price ?? 0).toFixed(2),
-      },
-      {
-        header: "Total Price",
+        header: "Total Price (₹)",
         accessor: (product: Product) =>
           (product.totalPrice ?? product.price ?? 0).toFixed(2),
       },
@@ -386,11 +410,6 @@ export default function ProductsManagementPage() {
         accessor: (product: Product) => product.quantityUnit || product.unit,
       },
       {
-        header: "Price/Kg",
-        accessor: (product: Product) =>
-          `₹${(product.pricePerKg ?? product.price ?? 0).toFixed(2)}`,
-      },
-      {
         header: "Pack Price",
         accessor: (product: Product) =>
           `₹${(product.totalPrice ?? product.price ?? 0).toFixed(2)}`,
@@ -415,7 +434,7 @@ export default function ProductsManagementPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Breadcrumbs */}
       <Breadcrumbs
         items={[
@@ -429,10 +448,10 @@ export default function ProductsManagementPage() {
         ]}
       />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Header (Responsive on mobile) */}
+      <div className="flex items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
             Product Management
           </h1>
 
@@ -445,7 +464,7 @@ export default function ProductsManagementPage() {
           onClick={fetchProducts}
           disabled={isLoading}
           title="Refresh products from database"
-          className="self-start sm:self-auto px-3.5 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-2 transition-colors cursor-pointer"
+          className="shrink-0 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <RefreshCw
             className={`w-3.5 h-3.5 text-[#00875a] ${

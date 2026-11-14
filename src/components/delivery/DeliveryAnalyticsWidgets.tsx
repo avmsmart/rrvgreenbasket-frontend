@@ -286,7 +286,7 @@ export const DeliveryAnalyticsWidgets: React.FC<DeliveryAnalyticsWidgetsProps> =
             {timeline.slice(0, 5).map((item) => (
               <div
                 key={item.id}
-                onClick={() => onOrderClick?.(item.orderId)}
+                onClick={() => item.orderId && onOrderClick?.(item.orderId)}
                 className="flex items-start gap-2.5 text-xs hover:bg-slate-50 p-1.5 rounded-lg cursor-pointer transition-colors"
               >
                 <span className="text-[10px] font-mono font-bold text-slate-400 mt-0.5 shrink-0 w-14">
@@ -340,7 +340,7 @@ export const DeliveryAnalyticsWidgets: React.FC<DeliveryAnalyticsWidgetsProps> =
             {issues.slice(0, 4).map((issue) => (
               <div
                 key={issue.id}
-                onClick={() => onOrderClick?.(issue.orderId)}
+                onClick={() => issue.orderId && onOrderClick?.(issue.orderId)}
                 className="p-2 rounded-xl bg-red-50/50 border border-red-100 hover:bg-red-50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center justify-between text-[11px]">
