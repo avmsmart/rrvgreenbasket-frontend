@@ -67,7 +67,7 @@ export class CustomerAddressService {
     }
 
     // 4. Default address service fallback
-    return "http://192.168.0.148:8082";
+    return "http://192.168.0.142:8082";
   }
 
   /**
@@ -131,7 +131,6 @@ export class CustomerAddressService {
           headers,
         });
       } catch (refreshErr) {
-        customerTokenStorage.clearSession();
         throw new CustomerAddressError(
           "Your session has expired. Please sign in again with your mobile OTP.",
           401,

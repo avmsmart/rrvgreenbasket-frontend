@@ -12,8 +12,8 @@ export interface UseCategoriesResult {
 }
 
 /**
- * Shared hook to load and manage produce categories across Add and Update product forms.
- * Connects directly to GET /api/admin/products/categories with in-memory caching.
+ * Shared hook to load and manage produce categories across Add and Update product forms and storefront.
+ * Connects directly to public GET /api/products/categories with in-memory caching.
  */
 export function useCategories(enabled = true): UseCategoriesResult {
   const [categories, setCategories] = useState<BackendCategory[]>([]);

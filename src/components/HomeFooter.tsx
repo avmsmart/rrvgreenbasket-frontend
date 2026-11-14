@@ -1,6 +1,6 @@
-
 "use client";
 
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   FaFacebookF,
@@ -14,12 +14,18 @@ import {
   Mail,
   Clock,
   Leaf,
-  Truck,
-  ShieldCheck,
-  Heart,
+  Globe,
 } from "lucide-react";
+import { useStoreSettings } from "@/context/StoreSettingsContext";
 
 export default function HomeFooter() {
+  const { settings } = useStoreSettings();
+  const [currentYear, setCurrentYear] = useState<number>(2026);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
   return (
     <footer className="mt-16 bg-[#f7faf7] text-gray-700">
       {/* Newsletter Section */}
@@ -35,9 +41,10 @@ export default function HomeFooter() {
           </div>
 
           <form
-            action="mailto:your-email@example.com"
-            method="post"
-            encType="text/plain"
+            onSubmit={(e) => {
+              e.preventDefault();
+              alert("Thank you for subscribing to our fresh grocery updates!");
+            }}
             className="flex w-full max-w-md items-center rounded-full border border-gray-200 bg-white p-1.5 shadow-sm focus-within:border-green-500"
           >
             <input
@@ -64,16 +71,24 @@ export default function HomeFooter() {
         {/* Brand */}
         <div>
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-600 text-white">
-              <Leaf size={25} />
-            </div>
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt={settings.storeName}
+                className="h-11 w-11 object-contain rounded-xl bg-white border border-green-100 p-1"
+              />
+            ) : (
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-600 text-white">
+                <Leaf size={25} />
+              </div>
+            )}
 
             <div>
               <h2 className="text-xl font-extrabold tracking-tight text-gray-900">
-                RRV <span className="text-green-600">Green Basket</span>
+                {settings.storeName || "RRV Green Basket"}
               </h2>
               <p className="text-xs font-medium text-gray-500">
-                Freshness in every basket
+                {settings.brandTagline || "Freshness Delivered Daily"}
               </p>
             </div>
           </Link>
@@ -150,6 +165,19 @@ export default function HomeFooter() {
                 My Account
               </Link>
             </li>
+            {settings.websiteUrl && (
+              <li>
+                <a
+                  href={settings.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 transition hover:text-green-600"
+                >
+                  <Globe size={14} />
+                  <span>Official Website</span>
+                </a>
+              </li>
+            )}
           </ul>
         </div>
 
@@ -208,31 +236,27 @@ export default function HomeFooter() {
                 className="mt-0.5 shrink-0 text-green-600"
               />
               <span>
-                Serving your local community
-                <br />
-                <span className="text-gray-500">
-                  Fresh delivery within 5 km
-                </span>
+                {settings.physicalAddress || "Serving your local community"}
               </span>
             </li>
 
             <li className="flex items-center gap-3">
               <Phone size={18} className="shrink-0 text-green-600" />
               <a
-                href="tel:+910000000000"
+                href={`tel:${settings.supportPhone || "+918978040537"}`}
                 className="transition hover:text-green-600"
               >
-                +91 XXXXX XXXXX
+                {settings.supportPhone || "+91 8978040537"}
               </a>
             </li>
 
             <li className="flex items-center gap-3">
               <Mail size={18} className="shrink-0 text-green-600" />
               <a
-                href="mailto:your-email@example.com"
+                href={`mailto:${settings.supportEmail || "rrvgreenbasket@gmail.com"}`}
                 className="break-all transition hover:text-green-600"
               >
-                your-email@example.com
+                {settings.supportEmail || "rrvgreenbasket@gmail.com"}
               </a>
             </li>
 
@@ -244,45 +268,10 @@ export default function HomeFooter() {
         </div>
       </div>
 
-      {/* Benefits Strip
-      <div className="border-y border-green-100 bg-white">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-5 px-5 py-6 sm:px-8 sm:grid-cols-3">
-          <div className="flex items-center justify-center gap-3">
-            <Truck className="text-green-600" size={23} />
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                Local Delivery
-              </p>
-              <p className="text-xs text-gray-500">Within 5 km radius</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-3">
-            <ShieldCheck className="text-green-600" size={23} />
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                Quality Assured
-              </p>
-              <p className="text-xs text-gray-500">Freshness you can trust</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-3">
-            <Heart className="text-green-600" size={23} />
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                Support Local
-              </p>
-              <p className="text-xs text-gray-500">Supporting local farmers</p>
-            </div>
-          </div>
-        </div>
-      </div> */}
-
       {/* Copyright */}
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-5 py-5 text-center sm:px-8 md:flex-row md:text-left">
         <p className="text-xs text-gray-500">
-          © 2026 RRV Green Basket. All rights reserved.
+          © {currentYear} {settings.storeName || "RRV Green Basket"}. All rights reserved.
         </p>
 
         <p className="text-xs text-gray-500">

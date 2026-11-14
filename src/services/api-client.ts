@@ -47,15 +47,18 @@ export const getAuthToken = (): string | null => {
 export const setAuthToken = (token: string, refreshToken?: string): void => {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    const cleanToken = token ? token.replace(/^Bearer\s+/i, "").trim() : "";
+    localStorage.setItem(AUTH_TOKEN_KEY, cleanToken);
+
     if (refreshToken) {
       localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     }
     // Synchronize to cookie for middleware and Next.js SSR
     document.cookie = `${AUTH_TOKEN_KEY}=${encodeURIComponent(
-      token
+      cleanToken
     )}; path=/; max-age=2592000; SameSite=Lax`;
-    window.dispatchEvent(new CustomEvent("rrv:auth:changed", { detail: { token } }));
+
+    window.dispatchEvent(new CustomEvent("rrv:auth:changed", { detail: { token: cleanToken } }));
   } catch (e) {
     console.error("Failed to store auth token:", e);
   }
@@ -84,7 +87,7 @@ class ApiClient {
     this.baseUrl = (
       process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://10.4.65.179:8080"
+      "http://192.168.0.142:8080"
     ).replace(/\/$/, "");
     this.defaultTimeout = Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 15000;
     this.enableMockFallback = process.env.NEXT_PUBLIC_ENABLE_MOCK_FALLBACK !== "false";
@@ -145,7 +148,14 @@ class ApiClient {
       ...((customHeaders as Record<string, string>) || {}),
     };
 
-    if (!skipAuth) {
+    // Public endpoints (e.g. /api/products/categories) should never send Authorization or session cookies
+    const isPublicCategories =
+      normalizedEndpoint === "/products/categories" ||
+      normalizedEndpoint === "/api/products/categories" ||
+      normalizedEndpoint.endsWith("/products/categories");
+    const isPublicEndpoint = skipAuth || isPublicCategories;
+
+    if (!isPublicEndpoint) {
       const rawToken = getAuthToken();
       if (rawToken) {
         const cleanToken = rawToken.replace(/^Bearer\s+/i, "").trim();
@@ -159,12 +169,18 @@ class ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    const fetchConfig: RequestInit = {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    };
+
+    if (isPublicEndpoint) {
+      fetchConfig.credentials = "omit";
+    }
+
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers,
-        signal: controller.signal,
-      });
+      const response = await fetch(url, fetchConfig);
 
       clearTimeout(timer);
 
@@ -177,8 +193,8 @@ class ApiClient {
           errorData = await response.text();
         }
 
-        // Auto-clear admin token and dispatch event on 401 Unauthorized for non-login endpoints
-        if (response.status === 401 && !endpoint.includes("/login")) {
+        // Auto-clear admin token and dispatch event on 401 Unauthorized for non-login, non-public endpoints
+        if (response.status === 401 && !endpoint.includes("/login") && !isPublicEndpoint) {
           removeAuthToken();
         }
 

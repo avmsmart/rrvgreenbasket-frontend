@@ -56,7 +56,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const startItem = totalElements === 0 ? 0 : currentPage * pageSize + 1;
   const endItem = Math.min((currentPage + 1) * pageSize, totalElements);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, initialized?: boolean) => {
+    if (initialized === false) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+          <HelpCircle className="w-3 h-3 text-slate-400" />
+          <span>Not Initialized</span>
+        </span>
+      );
+    }
     const upper = (status || "").toUpperCase();
     if (upper === "IN_STOCK" || upper === "IN STOCK") {
       return (
@@ -71,6 +79,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
           <AlertTriangle className="w-3 h-3" />
           <span>Low Stock</span>
+        </span>
+      );
+    }
+    if (upper === "NOT_INITIALIZED" || upper === "UNINITIALIZED") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+          <HelpCircle className="w-3 h-3 text-slate-400" />
+          <span>Not Initialized</span>
         </span>
       );
     }
@@ -197,7 +213,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
                   {/* Physical Quantity */}
                   <td className="py-3 px-4 text-center font-semibold text-slate-700">
-                    {inv.physicalQuantity} {inv.unitOfMeasure}
+                    {isInitialized ? `${inv.physicalQuantity} ${inv.unitOfMeasure}` : "—"}
                   </td>
 
                   {/* Reserved Quantity */}
@@ -207,40 +223,52 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                         inv.reservedQuantity > 0 ? "text-amber-600 font-bold" : "text-slate-400"
                       }`}
                     >
-                      {inv.reservedQuantity} {inv.unitOfMeasure}
+                      {isInitialized ? `${inv.reservedQuantity} ${inv.unitOfMeasure}` : "—"}
                     </span>
                   </td>
 
                   {/* Available Quantity */}
                   <td className="py-3 px-4 text-center">
-                    <span
-                      className={`text-xs font-black px-2.5 py-1 rounded-xl inline-block ${
-                        isOut
-                          ? "bg-rose-50 text-rose-600 border border-rose-200"
-                          : isLowStock
-                          ? "bg-amber-50 text-amber-700 border border-amber-200"
-                          : "bg-emerald-50 text-[#00875a] border border-[#bbf7d0]"
-                      }`}
-                    >
-                      {inv.availableQuantity} {inv.unitOfMeasure}
-                    </span>
+                    {isInitialized ? (
+                      <span
+                        className={`text-xs font-black px-2.5 py-1 rounded-xl inline-block ${
+                          isOut
+                            ? "bg-rose-50 text-rose-600 border border-rose-200"
+                            : isLowStock
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-emerald-50 text-[#00875a] border border-[#bbf7d0]"
+                        }`}
+                      >
+                        {inv.availableQuantity} {inv.unitOfMeasure}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-400 px-2 py-0.5 rounded-lg bg-slate-100">
+                        Uninitialized
+                      </span>
+                    )}
                   </td>
 
                   {/* Low Stock Threshold */}
                   <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => onUpdateThreshold(entry)}
-                      title="Click to update threshold"
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-slate-100 text-slate-600 font-semibold group/btn"
-                    >
-                      <span>{inv.lowStockThreshold} {inv.unitOfMeasure}</span>
-                      <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/btn:opacity-100 transition-opacity text-slate-400" />
-                    </button>
+                    {isInitialized ? (
+                      <button
+                        onClick={() => onUpdateThreshold(entry)}
+                        title="Click to update threshold"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-slate-100 text-slate-600 font-semibold group/btn"
+                      >
+                        <span>{inv.lowStockThreshold} {inv.unitOfMeasure}</span>
+                        <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/btn:opacity-100 transition-opacity text-slate-400" />
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 font-medium text-[11px]">
+                        {inv.lowStockThreshold} {inv.unitOfMeasure}
+                      </span>
+                    )}
                   </td>
 
                   {/* Status Badge */}
                   <td className="py-3 px-4 text-center">
-                    {getStatusBadge(inv.stockStatus)}
+                    {getStatusBadge(inv.stockStatus, isInitialized)}
                   </td>
 
                   {/* Initialized Badge */}

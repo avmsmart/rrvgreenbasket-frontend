@@ -9,7 +9,6 @@ import {
   PackingOrder,
   PaymentTransaction,
   Coupon,
-  Sector,
   StoreSettings,
   DashboardSummary,
   AdminUser,
@@ -854,13 +853,6 @@ export const MOCK_COUPONS_DATA: Coupon[] = [
   { id: "CPN-02", code: "FREEDEL", offerName: "Free Delivery on Mornings", discount: "Free Delivery", minOrder: 199, usage: "450 / 500", validTill: "15 Jun 2026", status: "Active" },
   { id: "CPN-03", code: "VEG100", offerName: "Bulk Basket Savings", discount: "₹100 OFF", minOrder: 800, usage: "64 / 150", validTill: "31 Jul 2026", status: "Active" },
   { id: "CPN-04", code: "SUMMER50", offerName: "Early Summer Refresh", discount: "₹50 OFF", minOrder: 400, usage: "200 / 200", validTill: "20 Apr 2026", status: "Expired" },
-];
-
-export const MOCK_SECTORS_DATA: Sector[] = [
-  { id: "SEC-01", name: "Sector 1 - Kurnool Town", code: "SEC-01", pincodes: ["518001", "518002"], activeDeliveryPartners: 4, totalOrdersToday: 48, minOrderForFreeDelivery: 299, standardDeliveryFee: 20, deliverySlotTimes: ["06:30 - 08:30 AM", "08:30 - 10:30 AM"], status: "Active" },
-  { id: "SEC-02", name: "Sector 2 - C-Camp & Ashok Nagar", code: "SEC-02", pincodes: ["518002", "518003"], activeDeliveryPartners: 3, totalOrdersToday: 36, minOrderForFreeDelivery: 299, standardDeliveryFee: 20, deliverySlotTimes: ["06:30 - 08:30 AM", "08:30 - 10:30 AM"], status: "Active" },
-  { id: "SEC-03", name: "Sector 3 - Nandyal Road & B-Camp", code: "SEC-03", pincodes: ["518004"], activeDeliveryPartners: 2, totalOrdersToday: 24, minOrderForFreeDelivery: 349, standardDeliveryFee: 25, deliverySlotTimes: ["07:00 - 09:00 AM"], status: "Active" },
-  { id: "SEC-04", name: "Sector 4 - Bellary Road & Joharapuram", code: "SEC-04", pincodes: ["518005"], activeDeliveryPartners: 2, totalOrdersToday: 18, minOrderForFreeDelivery: 349, standardDeliveryFee: 25, deliverySlotTimes: ["07:00 - 09:00 AM"], status: "Active" },
 ];
 
 export const MOCK_STORE_SETTINGS_DATA: StoreSettings = {

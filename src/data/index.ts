@@ -10,7 +10,6 @@ export * from "./packing-data";
 export * from "./delivery-data";
 export * from "./master-products";
 export * from "./customer-data";
-export * from "./delivery-partners-data";
 export * from "./payment-data";
 export * from "./shared-store";
 

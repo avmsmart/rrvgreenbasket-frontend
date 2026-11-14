@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   HelpCircle,
   MessageSquare,
@@ -10,15 +11,23 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { FAQ_LIST } from "@/data/customer-profile-mock";
+import { useStoreSettings } from "@/context/StoreSettingsContext";
 
 export const CustomerHelpSupport: React.FC = () => {
+  const { settings } = useStoreSettings();
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [querySubject, setQuerySubject] = useState("");
   const [queryMessage, setQueryMessage] = useState("");
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
+
+  const phoneFormatted = settings.supportPhone || "+91 8978040537";
+  const phoneClean = phoneFormatted.replace(/\D/g, "");
+  const whatsappNumber = phoneClean.length === 10 ? `91${phoneClean}` : phoneClean || "918978040537";
+  const emailAddress = settings.supportEmail || "rrvgreenbasket@gmail.com";
 
   const categories = [
     "ALL",
@@ -72,7 +81,7 @@ export const CustomerHelpSupport: React.FC = () => {
               Instant response from our farm care team
             </p>
             <a
-              href="https://wa.me/919876500001"
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hello RRV Green Basket, I need assistance with my order.")}`}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-3.5 inline-block rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-800 transition"
@@ -87,11 +96,14 @@ export const CustomerHelpSupport: React.FC = () => {
             </div>
             <h3 className="mt-3 text-xs font-bold text-gray-900">Customer Helpline</h3>
             <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
-              Toll-Free • 6:00 AM – 10:00 PM IST
+              Helpline • 6:00 AM – 10:00 PM IST
             </p>
-            <p className="mt-3.5 text-xs font-mono font-bold text-emerald-800">
-              1800-419-4733
-            </p>
+            <a
+              href={`tel:${phoneClean}`}
+              className="mt-3.5 inline-block text-xs font-mono font-bold text-emerald-800 hover:underline"
+            >
+              {phoneFormatted}
+            </a>
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-sm">
@@ -102,10 +114,27 @@ export const CustomerHelpSupport: React.FC = () => {
             <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
               For billing, partnerships, and bulk orders
             </p>
-            <p className="mt-3.5 text-xs font-bold text-emerald-800 truncate">
-              support@rrvgreenbasket.com
-            </p>
+            <a
+              href={`mailto:${emailAddress}`}
+              className="mt-3.5 inline-block text-xs font-bold text-emerald-800 truncate hover:underline"
+            >
+              {emailAddress}
+            </a>
           </div>
+        </div>
+
+        {/* Link to Dedicated Contact Page */}
+        <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+          <p className="text-xs text-slate-500 font-medium">
+            Looking for location, delivery coverage, or our comprehensive contact form?
+          </p>
+          <Link
+            href="/contact"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00875a] hover:underline"
+          >
+            <span>Visit Contact Us Page</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
 

@@ -79,7 +79,7 @@ export const AllPartnersModal: React.FC<AllPartnersModalProps> = ({
 
           <div className="flex items-center gap-2">
             <Link
-              href="/admin/delivery-partners"
+              href="/admin/delivery"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#00875a] bg-white hover:bg-emerald-50 border border-emerald-200 transition-colors shadow-3xs"
             >
               <span>Full Management</span>

@@ -7,6 +7,7 @@
  */
 
 import { getAuthToken, removeAuthToken, ApiError } from "./api-client";
+import { categoryService } from "./category.service";
 import {
   AdminProduct,
   AdminProductPageData,
@@ -55,7 +56,7 @@ export class AdminProductService {
    * Builds Authorization & content headers.
    * Never prints token to console.
    */
-  private getHeaders(isMultipart = false): Record<string, string> {
+  private getHeaders(isMultipart = false, skipAuth = false): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: "application/json",
     };
@@ -64,11 +65,13 @@ export class AdminProductService {
       headers["Content-Type"] = "application/json";
     }
 
-    const token = getAuthToken();
-    if (token) {
-      const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
-      if (cleanToken) {
-        headers["Authorization"] = `Bearer ${cleanToken}`;
+    if (!skipAuth) {
+      const token = getAuthToken();
+      if (token) {
+        const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
+        if (cleanToken) {
+          headers["Authorization"] = `Bearer ${cleanToken}`;
+        }
       }
     }
 
@@ -81,7 +84,8 @@ export class AdminProductService {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    isMultipart = false
+    isMultipart = false,
+    skipAuth = false
   ): Promise<T> {
     const baseUrl = this.getBaseUrl();
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -92,16 +96,23 @@ export class AdminProductService {
     const url = `${cleanBaseUrl}${normalizedEndpoint}`;
 
     const headers = {
-      ...this.getHeaders(isMultipart),
+      ...this.getHeaders(isMultipart, skipAuth),
       ...((options.headers as Record<string, string>) || {}),
     };
 
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+    };
+
+    // For public endpoints (skipAuth = true), strictly omit session cookies and credentials
+    if (skipAuth) {
+      fetchOptions.credentials = "omit";
+    }
+
     let response: Response;
     try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      response = await fetch(url, fetchOptions);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Network error contacting product service";
@@ -121,8 +132,8 @@ export class AdminProductService {
         errorData = await response.text();
       }
 
-      // Handle 401 Unauthorized
-      if (response.status === 401) {
+      // Handle 401 Unauthorized for authenticated endpoints
+      if (response.status === 401 && !skipAuth) {
         removeAuthToken();
         throw new ApiError(
           "Admin session expired or unauthorized. Please sign in again.",
@@ -172,114 +183,15 @@ export class AdminProductService {
   }
 
   /**
-   * GET /api/admin/products/categories
-   * Single reusable method that retrieves active categories from the Spring Boot backend.
+   * GET /api/products/categories
+   * Public API endpoint that retrieves active categories from the Spring Boot backend.
+   * Delegates to CategoryService.getPublicCategories without admin credentials.
    *
-   * Confirmed backend structure:
-   * {
-   *   "success": true,
-   *   "message": "Categories retrieved successfully",
-   *   "data": [
-   *     {
-   *       "publicId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c01",
-   *       "name": "Fruits",
-   *       "slug": "fruits",
-   *       "description": "Fresh and seasonal farm-fresh fruits.",
-   *       "imageUrl": null,
-   *       "sortOrder": 1,
-   *       "isActive": true
-   *     }, ...
-   *   ],
-   *   "timestamp": "..."
-   * }
-   *
-   * @param forceRefresh - When true, bypasses the in-memory cache and re-queries the backend
+   * @param forceRefresh - When true, bypasses in-memory cache and re-queries backend
    */
   async getCategories(forceRefresh = false): Promise<BackendCategory[]> {
-    if (!forceRefresh && this.categoriesCache && this.categoriesCache.length > 0) {
-      return this.categoriesCache;
-    }
-
-    if (!forceRefresh && this.categoriesPromise) {
-      return this.categoriesPromise;
-    }
-
-    this.categoriesPromise = (async () => {
-      try {
-        const endpoint = "/api/admin/products/categories";
-
-        // Execute GET request with proper Authorization header via this.request
-        const rawResponse = await this.request<
-          CategoryApiResponse | BackendCategory[] | { data: BackendCategory[] }
-        >(endpoint, { method: "GET" });
-
-        // Extract categories array from response.data (handling unwrapped or envelope responses)
-        let rawList: unknown = rawResponse;
-        if (rawResponse && typeof rawResponse === "object") {
-          if ("data" in rawResponse && (rawResponse as { data: unknown }).data !== undefined) {
-            rawList = (rawResponse as { data: unknown }).data;
-          }
-        }
-
-        // Validate that categories is an array
-        if (!Array.isArray(rawList)) {
-          console.error("[AdminProductService] Expected category array, got:", rawResponse);
-          throw new ApiError(
-            "Category API returned invalid data format: expected an array in response.data",
-            500,
-            rawResponse
-          );
-        }
-
-        // Validate items and ensure publicId (UUID) is present
-        const validated: BackendCategory[] = [];
-        for (const item of rawList) {
-          if (item && typeof item === "object") {
-            const cat = item as Record<string, unknown>;
-            const publicId = typeof cat.publicId === "string" ? cat.publicId.trim() : "";
-            const name = typeof cat.name === "string" ? cat.name.trim() : "";
-            const slug = typeof cat.slug === "string" ? cat.slug.trim() : "";
-
-            if (!publicId) {
-              console.warn("[AdminProductService] Skipping category without publicId UUID:", item);
-              continue;
-            }
-
-            validated.push({
-              publicId,
-              name: name || "Unnamed Category",
-              slug: slug || publicId,
-              description: typeof cat.description === "string" ? cat.description : undefined,
-              imageUrl: typeof cat.imageUrl === "string" ? cat.imageUrl : null,
-              sortOrder: typeof cat.sortOrder === "number" ? cat.sortOrder : 0,
-              isActive: cat.isActive !== false,
-            });
-          }
-        }
-
-        // Filter active categories and sort by sortOrder (ascending)
-        const sorted = validated
-          .filter((c) => c.isActive !== false)
-          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
-        this.categoriesCache = sorted;
-        return sorted;
-      } catch (err: unknown) {
-        this.categoriesCache = null;
-        this.categoriesPromise = null;
-
-        // Re-throw descriptive error - never silently return an empty array on failures
-        if (err instanceof ApiError) {
-          throw err;
-        }
-        const message = err instanceof Error ? err.message : "Failed to load product categories";
-        throw new ApiError(message, 500, err);
-      } finally {
-        this.categoriesPromise = null;
-      }
-    })();
-
-    return this.categoriesPromise;
+    const cats = await categoryService.getPublicCategories(forceRefresh);
+    return cats as unknown as BackendCategory[];
   }
 
   /**
@@ -334,16 +246,26 @@ export class AdminProductService {
       : `/api/admin/products${queryString ? `?${queryString}` : ""}`;
 
     try {
-      return await this.request<AdminProductPageData>(primaryEndpoint, {
-        method: "GET",
-      });
+      return await this.request<AdminProductPageData>(
+        primaryEndpoint,
+        {
+          method: "GET",
+        },
+        false,
+        isStorefront
+      );
     } catch (err: unknown) {
       if (isStorefront && err instanceof ApiError && err.status === 404) {
         // Fallback to /api/admin/products if public storefront endpoint is unmapped
         const fallbackEndpoint = `/api/admin/products${queryString ? `?${queryString}` : ""}`;
-        return await this.request<AdminProductPageData>(fallbackEndpoint, {
-          method: "GET",
-        });
+        return await this.request<AdminProductPageData>(
+          fallbackEndpoint,
+          {
+            method: "GET",
+          },
+          false,
+          true
+        );
       }
       throw err;
     }
@@ -357,8 +279,141 @@ export class AdminProductService {
   }
 
   /**
+   * Fetches all products across all pages from Product Service admin API.
+   * Reused by Inventory Service for full catalogue synchronization.
+   */
+  async getAllProducts(params?: AdminProductQueryParams): Promise<AdminProduct[]> {
+    try {
+      const firstPage = await this.getProducts({ ...params, page: 0, size: 100 });
+      let allProducts: AdminProduct[] = [];
+
+      if (Array.isArray(firstPage)) {
+        allProducts = firstPage;
+      } else if (firstPage && Array.isArray(firstPage.content)) {
+        allProducts = [...firstPage.content];
+        const totalPages = firstPage.totalPages || 1;
+        for (let p = 1; p < totalPages; p++) {
+          const nextPage = await this.getProducts({ ...params, page: p, size: 100 });
+          if (nextPage && Array.isArray(nextPage.content)) {
+            allProducts.push(...nextPage.content);
+          } else if (Array.isArray(nextPage)) {
+            allProducts.push(...(nextPage as AdminProduct[]));
+          }
+        }
+      } else if (firstPage && typeof firstPage === "object" && Array.isArray((firstPage as any).data)) {
+        allProducts = (firstPage as any).data;
+      }
+
+      return allProducts;
+    } catch (adminErr) {
+      // Fallback: try public storefront products if admin products fails
+      try {
+        const publicPage = await this.getStorefrontProducts({ ...params, size: 100 });
+        if (Array.isArray(publicPage)) return publicPage;
+        if (publicPage && Array.isArray(publicPage.content)) return publicPage.content;
+        if (publicPage && typeof publicPage === "object" && Array.isArray((publicPage as any).data)) {
+          return (publicPage as any).data;
+        }
+      } catch {
+        // If storefront also fails, rethrow original admin error
+      }
+      throw adminErr;
+    }
+  }
+
+  /**
+   * Public storefront product lookup by publicId or ID
+   * Strictly unauthenticated - never requires admin login
+   */
+  async getStorefrontProductById(rawId: string): Promise<AdminProduct | null> {
+    if (!rawId?.trim()) return null;
+
+    const needle = decodeURIComponent(rawId).toLowerCase().trim();
+
+    // 1. Try public endpoint directly: GET /api/products/{rawId}
+    // Strictly unauthenticated - never requires admin login
+    try {
+      const res = await this.request<AdminProduct | { data: AdminProduct }>(
+        `/api/products/${encodeURIComponent(rawId)}`,
+        { method: "GET" },
+        false,
+        true // skipAuth = true
+      );
+      if (res && typeof res === "object") {
+        if ("data" in res && res.data) {
+          return res.data;
+        }
+        if ("name" in res || "publicId" in res) {
+          return res as AdminProduct;
+        }
+      }
+    } catch {
+      // Proceed to storefront catalog lookup
+    }
+
+    // 2. Fallback: Search in public storefront catalog (matches by publicId, id, slug, or name)
+    try {
+      const list = await this.getStorefrontProducts({ size: 100 });
+      const rawProducts: AdminProduct[] = Array.isArray(list)
+        ? list
+        : Array.isArray((list as unknown as { content?: AdminProduct[] })?.content)
+        ? (list as unknown as { content: AdminProduct[] }).content
+        : Array.isArray((list as unknown as { data?: AdminProduct[] })?.data)
+        ? (list as unknown as { data: AdminProduct[] }).data
+        : [];
+
+      if (rawProducts.length > 0) {
+        const found = rawProducts.find((p) => {
+          const pId = String(p.id || "").toLowerCase();
+          const pPub = (p.publicId || "").toLowerCase();
+          const pSlug = (p.slug || "").toLowerCase();
+          const pName = (p.name || "").toLowerCase();
+
+          return (
+            pPub === needle ||
+            pId === needle ||
+            pSlug === needle ||
+            pSlug.endsWith(`-${needle}`) ||
+            needle.endsWith(`-${pSlug}`) ||
+            pName === needle ||
+            pName.replace(/\s+/g, "-") === needle ||
+            needle.replace(/\s+/g, "-") === pName.replace(/\s+/g, "-") ||
+            (pSlug && needle.includes(pSlug)) ||
+            (needle && pSlug.includes(needle))
+          );
+        });
+
+        if (found) {
+          // If found has a publicId, try to get full details, else return found
+          if (found.publicId && found.publicId !== rawId) {
+            try {
+              const fullRes = await this.request<AdminProduct | { data: AdminProduct }>(
+                `/api/products/${encodeURIComponent(found.publicId)}`,
+                { method: "GET" },
+                false,
+                true
+              );
+              if (fullRes && typeof fullRes === "object") {
+                if ("data" in fullRes && fullRes.data) return fullRes.data;
+                if ("name" in fullRes) return fullRes as AdminProduct;
+              }
+            } catch {
+              // use found
+            }
+          }
+          return found;
+        }
+      }
+    } catch (catalogErr) {
+      console.warn("[getStorefrontProductById] Catalog fallback lookup failed:", catalogErr);
+    }
+
+    return null;
+  }
+
+  /**
    * GET /api/admin/products/{publicId}
-   * Fetch complete product details
+   * Fetch complete product details (ADMIN ONLY)
    */
   async getProductById(publicId: string): Promise<AdminProduct> {
     return this.request<AdminProduct>(
@@ -635,6 +690,12 @@ export function mapAdminProductToUIProduct(p: AdminProduct): Product {
     name: p.name,
     excelName: p.name,
     category: categoryName,
+    categoryId:
+      typeof p.category === "object" && p.category?.publicId
+        ? p.category.publicId
+        : (p as any).categoryId
+        ? String((p as any).categoryId)
+        : undefined,
     categoryObj: typeof p.category === "object" && p.category !== null ? p.category : undefined,
     price: p.pricePerKg ?? 0,
     pricePerKg: p.pricePerKg ?? 0,
@@ -713,6 +774,9 @@ export function mapBackendToStoreProduct(p: AdminProduct | Product): StoreProduc
   const unitVal = p.quantityUnit || p.unit || "kg";
   const idVal = p.publicId || p.id || Math.random().toString();
 
+  const isEnabled = p.adminEnabled !== false && p.available !== false;
+  const inStockStatus = p.status !== "Out of Stock" && p.status !== "INACTIVE";
+
   return {
     id: idVal,
     publicId: p.publicId || String(idVal),
@@ -724,8 +788,14 @@ export function mapBackendToStoreProduct(p: AdminProduct | Product): StoreProduc
     unit: unitVal,
     image: rawImage,
     badge: p.isFeatured ? "Featured" : (p as { badge?: string }).badge,
-    inStock: p.available !== false,
+    inStock: isEnabled && inStockStatus,
+    adminEnabled: p.adminEnabled !== false,
+    available: p.available !== false,
+    status: p.status,
     description: p.description || p.shortDescription,
+    pricePerKg: p.pricePerKg,
+    quantityUnit: p.quantityUnit,
+    defaultQuantityKg: p.defaultQuantityKg,
   };
 }
 

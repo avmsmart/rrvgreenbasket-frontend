@@ -27,6 +27,7 @@ import { AlertCircle } from "lucide-react";
 export default function InventoryManagementPage() {
   // Live Data State
   const [items, setItems] = useState<EnrichedInventoryItem[]>([]);
+  const [allCatalogueItems, setAllCatalogueItems] = useState<EnrichedInventoryItem[]>([]);
   const [stats, setStats] = useState<InventoryOverviewStats>({
     totalItems: 0,
     initializedCount: 0,
@@ -102,6 +103,7 @@ export default function InventoryManagementPage() {
 
       const res = await inventoryService.getEnrichedInventory(queryParams);
       setItems(res.items);
+      setAllCatalogueItems(res.allItems || res.items);
       setStats(res.stats);
       setTotalElements(res.pageData.totalElements || res.items.length);
     } catch (err: any) {
@@ -313,7 +315,7 @@ export default function InventoryManagementPage() {
         isOpen={isStockInOpen}
         onClose={() => setIsStockInOpen(false)}
         selectedItem={stockInItem}
-        allItems={items}
+        allItems={allCatalogueItems.length > 0 ? allCatalogueItems : items}
         onSuccess={fetchInventory}
       />
 
@@ -321,7 +323,7 @@ export default function InventoryManagementPage() {
         isOpen={isStockOutOpen}
         onClose={() => setIsStockOutOpen(false)}
         selectedItem={stockOutItem}
-        allItems={items}
+        allItems={allCatalogueItems.length > 0 ? allCatalogueItems : items}
         onSuccess={fetchInventory}
       />
 
@@ -329,7 +331,7 @@ export default function InventoryManagementPage() {
         isOpen={isAdjustmentOpen}
         onClose={() => setIsAdjustmentOpen(false)}
         selectedItem={adjustmentItem}
-        allItems={items}
+        allItems={allCatalogueItems.length > 0 ? allCatalogueItems : items}
         onSuccess={fetchInventory}
       />
 
@@ -337,8 +339,9 @@ export default function InventoryManagementPage() {
         isOpen={isInitializeOpen}
         onClose={() => setIsInitializeOpen(false)}
         selectedItem={initializeItem}
-        allItems={items}
+        allItems={allCatalogueItems.length > 0 ? allCatalogueItems : items}
         onSuccess={fetchInventory}
+        isLoadingCatalogue={isLoading}
       />
 
       <UpdateThresholdModal

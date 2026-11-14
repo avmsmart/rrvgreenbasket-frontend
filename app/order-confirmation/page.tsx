@@ -1,184 +1,408 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  CheckCircle2,
+  Clock,
+  Package,
+  Truck,
+  MapPin,
+  Phone,
+  ArrowRight,
+  ShoppingBag,
+  Copy,
+  Check,
+  Loader2,
+  AlertCircle,
+  Home,
+} from "lucide-react";
+import { orderService } from "@/services/order.service";
+import { OrderResponse, BackendOrderStatus } from "@/types/order";
 
-type Order = {
-  orderId: string;
-  customer: {
-    name: string;
-    phone: string;
-    email: string;
-    address: string;
-    city: string;
-    pincode: string;
-  };
-  items: {
-    id: number;
-    name: string;
-    price: number;
-    unit: string;
-    quantity: number;
-    image: string;
-  }[];
-  subtotal: number;
-  delivery: number;
-  total: number;
-  paymentMethod: string;
-  orderDate: string;
-  status: string;
-};
+function OrderConfirmationContent() {
+  const searchParams = useSearchParams();
+  const orderPublicId = searchParams.get("orderPublicId") || searchParams.get("orderId");
 
-const imageUrl = (id: string) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=200&q=80`;
-
-export default function OrderConfirmationPage() {
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [order, setOrder] = useState<OrderResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState<boolean>(false);
 
   useEffect(() => {
-    try {
-      const savedOrder = localStorage.getItem("rrv-order");
-      if (savedOrder) {
-        setOrder(JSON.parse(savedOrder));
-      }
-    } catch {
-      setOrder(null);
-    } finally {
-      setLoaded(true);
+    if (!orderPublicId) {
+      setIsLoading(false);
+      return;
     }
-  }, []);
 
-  if (!loaded) {
-    return <main className="p-8">Loading order details...</main>;
+    let mounted = true;
+    setIsLoading(true);
+    orderService
+      .getOrderById(orderPublicId)
+      .then((res) => {
+        if (mounted) {
+          setOrder(res);
+          setIsLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[OrderConfirmation] Failed to load order:", err);
+        if (mounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to find order details. Please check your order history."
+          );
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [orderPublicId]);
+
+  const handleCopyOrderId = () => {
+    const textToCopy = order?.orderNumber || order?.orderPublicId || orderPublicId || "";
+    if (textToCopy && typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(textToCopy);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+  const getStatusBadge = (status?: BackendOrderStatus) => {
+    switch (status) {
+      case "DELIVERED":
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+            <span>Delivered</span>
+          </span>
+        );
+      case "OUT_FOR_DELIVERY":
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 animate-pulse">
+            <Truck className="h-3.5 w-3.5 text-blue-700" />
+            <span>Out for Delivery</span>
+          </span>
+        );
+      case "PACKED":
+      case "PROCESSING":
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+            <Clock className="h-3.5 w-3.5 text-amber-700" />
+            <span>Preparing Harvest</span>
+          </span>
+        );
+      case "CONFIRMED":
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+            <span>Confirmed</span>
+          </span>
+        );
+      case "CANCELLED":
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">
+            <span>Cancelled</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Order Placed</span>
+          </span>
+        );
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-[70vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-emerald-700" />
+          <p className="text-sm font-semibold text-slate-600">
+            Retrieving order confirmation...
+          </p>
+        </div>
+      </main>
+    );
   }
 
-  if (!order) {
+  if (error || (!order && !orderPublicId)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f6f9f3] px-4">
-        <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-extrabold text-[#20392a]">
-            No Order Found
+      <main className="flex min-h-[70vh] items-center justify-center px-4">
+        <div className="max-w-md w-full rounded-3xl bg-white p-8 text-center border border-gray-100 shadow-sm space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+            <AlertCircle className="h-8 w-8" />
+          </div>
+          <h1 className="text-xl font-black text-slate-900">
+            Order Reference Not Found
           </h1>
-          <p className="mt-3 text-gray-600">
-            We couldn't find a recent order. Please place an order first.
+          <p className="text-xs text-slate-500 leading-relaxed">
+            {error || "We could not find an active order reference. If you recently placed an order, please review your order history."}
           </p>
-          <a href="/" className="mt-6 inline-block rounded-xl bg-green-700 px-6 py-3 font-bold text-white hover:bg-green-800">
-            Continue Shopping
-          </a>
+          <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+            <Link
+              href="/customer/profile?tab=orders"
+              className="rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 transition"
+            >
+              My Orders
+            </Link>
+            <Link
+              href="/"
+              className="rounded-xl bg-slate-100 px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition"
+            >
+              Go to Home
+            </Link>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f9f3] px-4 py-10 text-[#20392a] sm:px-8">
-      <div className="mx-auto max-w-3xl">
-        <section className="rounded-2xl border border-green-100 bg-white p-6 text-center shadow-sm sm:p-10">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-5xl text-green-700">
-            ✓
+    <div className="min-h-screen bg-[#f8faf7] text-slate-900 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl space-y-6">
+        {/* Success Card Header */}
+        <section className="rounded-3xl border border-emerald-100 bg-white p-8 text-center shadow-xs space-y-4">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 shadow-sm">
+            <CheckCircle2 className="h-10 w-10" />
           </div>
 
-          <p className="mt-5 font-bold tracking-widest text-green-700">
-            RRV GREEN BASKET
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
+              RRV Green Basket • Farm Fresh Order
+            </p>
+            <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">
+              Order Placed Successfully!
+            </h1>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Thank you{order?.customerName ? `, ${order.customerName}` : ""}! Your order has been placed and transmitted to our partner farms.
+            </p>
+          </div>
 
-          <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">
-            Order Placed Successfully!
-          </h1>
+          {/* Order ID Badge */}
+          <div className="mx-auto inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2 border border-emerald-100 text-xs text-emerald-900 font-bold">
+            <span>Order #: {order?.orderNumber || order?.orderPublicId || orderPublicId}</span>
+            <button
+              type="button"
+              onClick={handleCopyOrderId}
+              className="text-emerald-700 hover:text-emerald-900 transition p-1"
+              title="Copy Order ID"
+            >
+              {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </div>
 
-          <p className="mt-3 text-gray-600">
-            Thank you, {order.customer.name}. Your order has been received.
-          </p>
+          {order && (
+            <div className="pt-2 flex justify-center">
+              {getStatusBadge(order.orderStatus)}
+            </div>
+          )}
+        </section>
 
-          <div className="mt-7 rounded-xl bg-green-50 p-4">
-            <p className="text-sm text-gray-600">Your Order ID</p>
-            <p className="mt-1 text-xl font-extrabold text-green-800">
-              {order.orderId}
+        {/* Morning Harvest Delivery Schedule Banner */}
+        <section className="rounded-3xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50/50 p-6 shadow-xs flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-xs">
+            <Truck className="h-6 w-6" />
+          </div>
+          <div className="space-y-1 text-xs">
+            <h2 className="font-bold text-slate-900 text-sm">
+              Morning Harvest Delivery: 6:00 AM – 10:00 AM
+            </h2>
+            <p className="text-slate-600 leading-relaxed">
+              Our farmers harvest your items directly at sunrise. We maintain cold-chain handling to ensure maximum freshness delivered right to your doorstep in Kurnool.
             </p>
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-extrabold">Order Details</h2>
+        {/* Order Details & Summary Card */}
+        {order && (
+          <section className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Package className="h-4 w-4 text-emerald-700" />
+                <span>Order Summary</span>
+              </h2>
+              <span className="text-xs text-slate-500">
+                Placed on {new Date(order.orderPlacedAt).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
 
-          <div className="mt-4 space-y-4">
-            {order.items.map((item) => (
-              <div key={item.id} className="flex items-center gap-4 border-b border-gray-100 pb-4">
-                <img
-                  src={imageUrl(item.image)}
-                  alt={item.name}
-                  className="h-16 w-16 rounded-xl object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{item.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {item.quantity} × ₹{item.price} / {item.unit}
-                  </p>
-                </div>
-                <p className="font-bold">
-                  ₹{item.price * item.quantity}
+            {/* Delivery Address */}
+            {order.deliveryAddress && (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
+                <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-700" />
+                  <span>Delivery Address</span>
                 </p>
+                <p className="text-slate-700 leading-relaxed">
+                  {order.deliveryAddress.addressLine}
+                  {order.deliveryAddress.landmark ? `, Near ${order.deliveryAddress.landmark}` : ""}
+                </p>
+                <p className="text-slate-500">
+                  {order.deliveryAddress.city}, {order.deliveryAddress.state} - {order.deliveryAddress.pincode}
+                </p>
+                {order.customerPhone && (
+                  <p className="text-slate-600 flex items-center gap-1 pt-0.5">
+                    <Phone className="h-3 w-3 text-slate-400" />
+                    <span>{order.customerPhone}</span>
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
+            )}
 
-          <div className="mt-5 space-y-3">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>₹{order.subtotal}</span>
+            {/* Ordered Items List */}
+            {order.items && order.items.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Items ({order.items.length})
+                </h3>
+                <div className="divide-y divide-gray-100 border rounded-2xl border-gray-100 overflow-hidden">
+                  {order.items.map((it) => (
+                    <div
+                      key={it.orderItemPublicId}
+                      className="p-3.5 flex items-center justify-between gap-3 text-xs bg-white"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {it.productImageUrl ? (
+                          <img
+                            src={it.productImageUrl}
+                            alt={it.productName}
+                            className="h-10 w-10 rounded-xl object-cover bg-slate-50 border border-gray-100 shrink-0"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0">
+                            <ShoppingBag className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">
+                            {it.productName}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {it.quantityKg} kg x ₹{it.pricePerKg}/kg
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-slate-900 shrink-0">
+                        ₹{it.totalPrice}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Price Calculations */}
+            <div className="space-y-2 pt-2 border-t border-gray-100 text-xs text-slate-600">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span className="font-bold text-slate-900">₹{order.subtotalAmount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Delivery Charge</span>
+                <span className="font-bold text-slate-900">
+                  {order.deliveryCharge === 0 ? "FREE" : `₹${order.deliveryCharge}`}
+                </span>
+              </div>
+              {order.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700">
+                  <span>Discount</span>
+                  <span className="font-bold">-₹{order.discountAmount}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-black text-slate-900 pt-3 border-t border-gray-100">
+                <span>Total Amount</span>
+                <span className="text-emerald-800 text-base">₹{order.totalAmount}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-500 pt-1">
+                <span>Payment Method</span>
+                <span className="font-bold text-slate-700 uppercase">
+                  {order.paymentMethod === "COD"
+                    ? "Cash on Delivery"
+                    : order.paymentMethod === "ONLINE_FULL"
+                    ? "Online Full Payment"
+                    : "Partial Payment"}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Delivery</span>
-              <span>{order.delivery === 0 ? "Free" : `₹${order.delivery}`}</span>
-            </div>
-            <div className="flex justify-between border-t border-gray-200 pt-4 text-lg font-extrabold">
-              <span>Total Paid / Payable</span>
-              <span>₹{order.total}</span>
-            </div>
-          </div>
-        </section>
 
-        <section className="mt-6 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
-            <h2 className="font-extrabold">Delivery Address</h2>
-            <p className="mt-3 font-semibold">{order.customer.name}</p>
-            <p className="mt-1 text-sm text-gray-600">{order.customer.phone}</p>
-            <p className="mt-2 text-sm text-gray-600">{order.customer.address}</p>
-            <p className="text-sm text-gray-600">
-              {order.customer.city} – {order.customer.pincode}
-            </p>
-          </div>
+            {/* Audit Status History Timeline */}
+            {order.statusHistory && order.statusHistory.length > 0 && (
+              <div className="pt-4 border-t border-gray-100 space-y-3">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Live Status Tracking
+                </h3>
+                <div className="space-y-3 pl-2 border-l-2 border-emerald-500/30">
+                  {order.statusHistory.map((step, idx) => (
+                    <div key={idx} className="relative pl-4 space-y-0.5">
+                      <div className="absolute -left-[17px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-600 ring-4 ring-white" />
+                      <p className="text-xs font-bold text-slate-900">
+                        {step.status.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {new Date(step.changedAt).toLocaleTimeString("en-IN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          day: "numeric",
+                          month: "short",
+                        })}
+                        {step.reason ? ` • ${step.reason}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
-          <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
-            <h2 className="font-extrabold">Payment & Status</h2>
-            <p className="mt-3 text-sm text-gray-600">Payment Method</p>
-            <p className="font-semibold">{order.paymentMethod}</p>
-            <p className="mt-4 text-sm text-gray-600">Order Status</p>
-            <p className="mt-1 font-bold text-green-700">{order.status}</p>
-            <p className="mt-4 text-sm text-gray-600">Order Date</p>
-            <p className="mt-1 text-sm font-semibold">
-              {new Date(order.orderDate).toLocaleString("en-IN")}
-            </p>
-          </div>
-        </section>
-
-        <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <a href="/" className="rounded-xl bg-green-700 px-7 py-3 font-bold text-white hover:bg-green-800">
-            Continue Shopping
-          </a>
-          <button
-            onClick={() => window.print()}
-            className="rounded-xl border border-green-700 px-7 py-3 font-bold text-green-800 hover:bg-green-50"
+        {/* Navigation Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <Link
+            href="/customer/profile?tab=orders"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-6 py-3.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 transition"
           >
-            Print Order
-          </button>
+            <span>Track in My Orders</span>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white border border-gray-200 px-6 py-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <Home className="h-4 w-4 text-slate-400" />
+            <span>Continue Shopping</span>
+          </Link>
         </div>
-
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Thank you for shopping with RRV Green Basket!
-        </p>
       </div>
-    </main>
+    </div>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#f8faf7]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-emerald-700" />
+            <p className="text-sm font-semibold text-slate-600">Loading order details...</p>
+          </div>
+        </main>
+      }
+    >
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }

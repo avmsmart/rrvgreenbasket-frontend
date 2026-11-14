@@ -2,7 +2,6 @@
 
 import React, {
   useState,
-  useMemo,
   useEffect,
   useCallback,
 } from "react";
@@ -10,7 +9,6 @@ import React, {
 import { Breadcrumbs } from "@/components/layout";
 
 import {
-  ProductsStatsCards,
   ProductsFiltersBar,
   ProductsTable,
   EditProductModal,
@@ -23,6 +21,7 @@ import {
   Product,
   AdminProduct,
   AdminProductPageData,
+  BackendCategory,
   toApiProductStatus,
   toUiProductStatus,
 } from "@/types";
@@ -42,6 +41,7 @@ import {
 
 export default function ProductsManagementPage() {
   const [productsList, setProductsList] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -53,21 +53,13 @@ export default function ProductsManagementPage() {
     message: string;
   } | null>(null);
 
-  // Filters
-  const [activeTab, setActiveTab] = useState("All");
+  // Category & Search Filters
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [sortBy, setSortBy] = useState<string>("category-asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const [selectedUom, setSelectedUom] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-
-  // Availability filter
-  const [selectedAvailability, setSelectedAvailability] =
-    useState("All");
-
-  const [viewMode, setViewMode] = useState<"table" | "grid">(
-    "table"
-  );
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,23 +67,34 @@ export default function ProductsManagementPage() {
 
   // Modals and drawers
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  const [editingProduct, setEditingProduct] =
-    useState<Product | null>(null);
-
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedPublicId, setSelectedPublicId] = useState<string | null>(null);
+  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
 
-  const [selectedPublicId, setSelectedPublicId] =
-    useState<string | null>(null);
-
-  const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] =
-    useState(false);
+  // Load backend categories from API (GET /api/products/categories)
+  useEffect(() => {
+    let isMounted = true;
+    adminProductService
+      .getCategories()
+      .then((data) => {
+        if (isMounted) {
+          setCategories(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load categories for product filter:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Search debounce
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
-    }, 350);
+    }, 300);
 
     return () => clearTimeout(handler);
   }, [searchQuery]);
@@ -100,13 +103,10 @@ export default function ProductsManagementPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const search = new URLSearchParams(
-      window.location.search
-    ).get("search");
-
+    const search = new URLSearchParams(window.location.search).get("search");
     if (search) {
       setSearchQuery(search);
-      setActiveTab("All");
+      setSelectedCategory("All");
     }
   }, []);
 
@@ -130,65 +130,104 @@ export default function ProductsManagementPage() {
     try {
       const pageIndex = Math.max(0, currentPage - 1);
 
-      // Category filter
-      const categoryFilter =
-        activeTab !== "All"
-          ? activeTab.toLowerCase().replace(/[^a-z0-9]+/g, "-")
-          : undefined;
+      // Determine category filter parameter to pass to backend
+      let categoryIdParam: string | undefined;
+      let categoryNameParam: string | undefined;
 
-      // Availability filter
-      let availableFilter: boolean | undefined;
+      const matchedCategory = categories.find(
+        (c) =>
+          c.publicId === selectedCategory ||
+          c.name.toLowerCase() === selectedCategory.toLowerCase() ||
+          c.slug === selectedCategory
+      );
 
-      if (selectedAvailability === "true") {
-        availableFilter = true;
+      if (selectedCategory && selectedCategory !== "All") {
+        if (matchedCategory) {
+          categoryIdParam = matchedCategory.publicId;
+          categoryNameParam = matchedCategory.name;
+        } else {
+          categoryNameParam = selectedCategory;
+        }
       }
-
-      if (selectedAvailability === "false") {
-        availableFilter = false;
-      }
-
-      // Status filter
-      const statusFilter =
-        selectedStatus !== "All"
-          ? selectedStatus
-          : undefined;
 
       const pageData: AdminProductPageData =
         await adminProductService.getProducts({
           page: pageIndex,
           size: pageSize,
-          category: categoryFilter,
+          categoryId: categoryIdParam,
+          category: categoryNameParam,
           search: debouncedSearch || undefined,
-          available: availableFilter,
-          status: statusFilter,
         });
 
-      const mappedList: Product[] = (
+      let mappedList: Product[] = (
         pageData.content || []
       ).map(mapAdminProductToUIProduct);
 
-      // UOM filter
-      const filtered =
-        selectedUom !== "All"
-          ? mappedList.filter(
-              (product) =>
-                product.unit.toLowerCase() ===
-                selectedUom.toLowerCase()
-            )
-          : mappedList;
+      // GUARANTEE STRICT CATEGORY FILTERING ON FRONTEND
+      // When a specific category (e.g., "Fruits") is selected, verify every item belongs to that category
+      if (selectedCategory && selectedCategory !== "All") {
+        const targetName = (matchedCategory?.name || selectedCategory).trim().toLowerCase();
+        const targetId = matchedCategory?.publicId || selectedCategory;
+        const targetSlug = (matchedCategory?.slug || "").trim().toLowerCase();
 
-      setProductsList(filtered);
+        mappedList = mappedList.filter((product) => {
+          const pCatName = String(product.category || "").trim().toLowerCase();
+          const pCatId = product.categoryId || (product as any).categoryObj?.publicId;
+          const pCatSlug = ((product as any).categoryObj?.slug || "").trim().toLowerCase();
 
-      setTotalElements(
-        pageData.totalElements ?? filtered.length
-      );
+          // Exact or partial category matching
+          const matchesName = pCatName === targetName;
+          const matchesId = Boolean(
+            targetId && pCatId && String(pCatId).toLowerCase() === String(targetId).toLowerCase()
+          );
+          const matchesSlug = Boolean(
+            targetSlug && (pCatSlug === targetSlug || pCatName === targetSlug)
+          );
 
-      setTotalPages(
-  pageData.totalPages ??
-    (Math.ceil(
-      (pageData.totalElements ?? filtered.length) / pageSize
-    ) || 1)
-);
+          return matchesName || matchesId || matchesSlug;
+        });
+      }
+
+      // Sort items based upon chosen sort criteria
+      mappedList.sort((a, b) => {
+        if (sortBy === "category-asc") {
+          const catA = String(a.category || "").toLowerCase();
+          const catB = String(b.category || "").toLowerCase();
+          const comp = catA.localeCompare(catB);
+          if (comp !== 0) return comp;
+          return a.name.localeCompare(b.name);
+        }
+        if (sortBy === "category-desc") {
+          const catA = String(a.category || "").toLowerCase();
+          const catB = String(b.category || "").toLowerCase();
+          const comp = catB.localeCompare(catA);
+          if (comp !== 0) return comp;
+          return a.name.localeCompare(b.name);
+        }
+        if (sortBy === "name-asc") {
+          return a.name.localeCompare(b.name);
+        }
+        if (sortBy === "price-asc") {
+          const priceA = a.totalPrice ?? a.pricePerKg ?? a.price ?? 0;
+          const priceB = b.totalPrice ?? b.pricePerKg ?? b.price ?? 0;
+          return priceA - priceB;
+        }
+        if (sortBy === "price-desc") {
+          const priceA = a.totalPrice ?? a.pricePerKg ?? a.price ?? 0;
+          const priceB = b.totalPrice ?? b.pricePerKg ?? b.price ?? 0;
+          return priceB - priceA;
+        }
+        return 0;
+      });
+
+      const computedTotal =
+        selectedCategory !== "All"
+          ? mappedList.length
+          : pageData.totalElements ?? mappedList.length;
+
+      setProductsList(mappedList);
+      setTotalElements(computedTotal);
+      setTotalPages(Math.ceil(computedTotal / pageSize) || 1);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -201,13 +240,12 @@ export default function ProductsManagementPage() {
       setIsLoading(false);
     }
   }, [
-    activeTab,
+    selectedCategory,
+    categories,
     currentPage,
     debouncedSearch,
     pageSize,
-    selectedAvailability,
-    selectedStatus,
-    selectedUom,
+    sortBy,
   ]);
 
   // Fetch when filters or pagination change
@@ -216,8 +254,8 @@ export default function ProductsManagementPage() {
   }, [fetchProducts]);
 
   // Filter handlers
-  const handleTabChange = (tab: any) => {
-    setActiveTab(tab);
+  const handleCategoryChange = (catId: string) => {
+    setSelectedCategory(catId);
     setCurrentPage(1);
   };
 
@@ -226,19 +264,8 @@ export default function ProductsManagementPage() {
     setCurrentPage(1);
   };
 
-  const handleUomChange = (uom: string) => {
-    setSelectedUom(uom);
-    setCurrentPage(1);
-  };
-
-  const handleStatusChange = (status: string) => {
-    setSelectedStatus(status);
-    setCurrentPage(1);
-  };
-
-  const handleAvailabilityChange = (availability: string) => {
-    setSelectedAvailability(availability);
-    setCurrentPage(1);
+  const handleSortByChange = (sort: string) => {
+    setSortBy(sort);
   };
 
   // Add product
@@ -248,9 +275,7 @@ export default function ProductsManagementPage() {
   };
 
   // Edit product
-  const handleOpenEdit = (
-    product: Product | AdminProduct
-  ) => {
+  const handleOpenEdit = (product: Product | AdminProduct) => {
     setEditingProduct(product as Product);
     setIsEditModalOpen(true);
   };
@@ -262,10 +287,7 @@ export default function ProductsManagementPage() {
 
   // View product details
   const handleOpenDetails = (product: Product) => {
-    setSelectedPublicId(
-      product.publicId || product.id
-    );
-
+    setSelectedPublicId(product.publicId || product.id);
     setIsDetailsDrawerOpen(true);
   };
 
@@ -292,35 +314,16 @@ export default function ProductsManagementPage() {
 
     try {
       // 2. Persist to backend database using PATCH /api/admin/products/{publicId}/availability
-      const updated = await adminProductService.updateProductAvailability(
+      await adminProductService.updateProductAvailability(
         publicId,
         nextEnabled
       );
 
-      // 3. Confirm with updated backend values
-      setProductsList((prevList) =>
-        prevList.map((item) =>
-          (item.publicId || item.id) === publicId
-            ? {
-                ...item,
-                adminEnabled:
-                  updated.adminEnabled !== undefined
-                    ? updated.adminEnabled
-                    : nextEnabled,
-                available:
-                  updated.available !== undefined
-                    ? updated.available
-                    : nextEnabled,
-              }
-            : item
-        )
-      );
-
       showNotification(
-        `"${product.name}" is now ${nextEnabled ? "Available" : "Not Available"}.`
+        `Product marked as ${nextEnabled ? "Available" : "Not Available"}.`
       );
-    } catch (err: unknown) {
-      // 4. Revert optimistic update on failure
+    } catch (err) {
+      // Rollback on failure
       setProductsList((prevList) =>
         prevList.map((item) =>
           (item.publicId || item.id) === publicId
@@ -333,37 +336,19 @@ export default function ProductsManagementPage() {
         )
       );
 
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : "Failed to update product availability.";
-      showNotification(errorMsg, "error");
+      showNotification("Failed to update availability.", "error");
     }
   };
 
-  // Delete product using the existing archive endpoint.
+  // Delete product
   const handleDelete = async (productId: string) => {
-    const target = productsList.find(
-      (product) =>
-        (product.publicId || product.id) === productId
-    );
-
-    const productName = target?.name || productId;
-
-    const confirmed = window.confirm(
-      `WARNING: Permanently delete "${productName}"?\n\n` +
-        "This action cannot be undone."
-    );
-
-    if (!confirmed) return;
+    if (!confirm("Are you sure you want to delete this product?")) {
+      return;
+    }
 
     try {
-      await adminProductService.archiveProduct(productId);
-
-      showNotification(
-        `"${productName}" deleted from the active catalog.`
-      );
-
+      await adminProductService.deleteProduct(productId);
+      showNotification("Product deleted successfully.");
       fetchProducts();
     } catch (err: unknown) {
       showNotification(
@@ -375,39 +360,6 @@ export default function ProductsManagementPage() {
     }
   };
 
-  // KPI counts
-  const counts = useMemo(() => {
-    const all = totalElements;
-
-    const english = productsList.filter(
-      (product) =>
-        String(product.category) === "English Vegetables"
-    ).length;
-
-    const indian = productsList.filter(
-      (product) =>
-        String(product.category) === "Indian Vegetables"
-    ).length;
-
-    const inStock = productsList.filter(
-      (product) => product.adminEnabled !== false
-    ).length;
-
-    const lowStock = productsList.filter(
-      (product) =>
-        product.stockStatus === "LOW_STOCK" ||
-        product.status === "Low Stock"
-    ).length;
-
-    return {
-      all,
-      english,
-      indian,
-      inStock,
-      lowStock,
-    };
-  }, [productsList, totalElements]);
-
   // CSV export
   const handleExportCsv = () => {
     const columns = [
@@ -417,43 +369,29 @@ export default function ProductsManagementPage() {
       },
       {
         header: "Category",
-        accessor: (product: Product) =>
-          String(product.category || ""),
+        accessor: (product: Product) => String(product.category || ""),
       },
       {
         header: "UOM",
-        accessor: (product: Product) =>
-          product.quantityUnit || product.unit,
+        accessor: (product: Product) => product.quantityUnit || product.unit,
       },
       {
-        header: "Price / Kg",
+        header: "Total Price (₹)",
         accessor: (product: Product) =>
-          (product.pricePerKg ?? product.price).toFixed(2),
-      },
-      {
-        header: "Total Price",
-        accessor: (product: Product) =>
-          (product.totalPrice ?? product.price).toFixed(2),
+          (product.totalPrice ?? product.price ?? 0).toFixed(2),
       },
       {
         header: "Stock Status",
         accessor: (product: Product) =>
-          product.adminEnabled !== false
-            ? "Available"
-            : "Not Available",
+          product.adminEnabled !== false ? "Available" : "Not Available",
       },
       {
         header: "Status",
-        accessor: (product: Product) =>
-          toUiProductStatus(product.status),
+        accessor: (product: Product) => toUiProductStatus(product.status),
       },
     ];
 
-    exportToCsv(
-      "RRV_Green_Basket_Products_Catalog.csv",
-      columns,
-      productsList
-    );
+    exportToCsv("RRV_Green_Basket_Products_Catalog.csv", columns, productsList);
   };
 
   // PDF export
@@ -465,52 +403,38 @@ export default function ProductsManagementPage() {
       },
       {
         header: "Category",
-        accessor: (product: Product) =>
-          String(product.category || ""),
+        accessor: (product: Product) => String(product.category || ""),
       },
       {
         header: "UOM",
-        accessor: (product: Product) =>
-          product.quantityUnit || product.unit,
-      },
-      {
-        header: "Price/Kg",
-        accessor: (product: Product) =>
-          `₹${(
-            product.pricePerKg ?? product.price
-          ).toFixed(2)}`,
+        accessor: (product: Product) => product.quantityUnit || product.unit,
       },
       {
         header: "Pack Price",
         accessor: (product: Product) =>
-          `₹${(
-            product.totalPrice ?? product.price
-          ).toFixed(2)}`,
+          `₹${(product.totalPrice ?? product.price ?? 0).toFixed(2)}`,
       },
       {
         header: "Stock Status",
         accessor: (product: Product) =>
-          product.adminEnabled !== false
-            ? "Available"
-            : "Not Available",
+          product.adminEnabled !== false ? "Available" : "Not Available",
       },
       {
         header: "Status",
-        accessor: (product: Product) =>
-          toUiProductStatus(product.status),
+        accessor: (product: Product) => toUiProductStatus(product.status),
       },
     ];
 
     exportToPdf(
       "RRV_Green_Basket_Products_Catalog.pdf",
-      "RRV Green Basket - Master Product Catalog",
+      "RRV Green Basket - Product Management Catalog",
       columns,
       productsList
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Breadcrumbs */}
       <Breadcrumbs
         items={[
@@ -519,20 +443,20 @@ export default function ProductsManagementPage() {
             href: "/admin/dashboard",
           },
           {
-            label: "Products Catalog",
+            label: "Product Management",
           },
         ]}
       />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Header (Responsive on mobile) */}
+      <div className="flex items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Products &amp; Master Price List
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            Product Management
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-            Manage products, pricing, stock status and availability.
+            Manage products, pricing, categories, stock status and availability.
           </p>
         </div>
 
@@ -540,7 +464,7 @@ export default function ProductsManagementPage() {
           onClick={fetchProducts}
           disabled={isLoading}
           title="Refresh products from database"
-          className="self-start sm:self-auto px-3.5 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-2 transition-colors cursor-pointer"
+          className="shrink-0 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <RefreshCw
             className={`w-3.5 h-3.5 text-[#00875a] ${
@@ -582,9 +506,7 @@ export default function ProductsManagementPage() {
                 Failed to connect to backend product service
               </p>
 
-              <p className="text-rose-600 mt-0.5">
-                {errorMessage}
-              </p>
+              <p className="text-rose-600 mt-0.5">{errorMessage}</p>
             </div>
           </div>
 
@@ -597,28 +519,16 @@ export default function ProductsManagementPage() {
         </div>
       )}
 
-      {/* Statistics */}
-      <ProductsStatsCards
-        totalCount={counts.all}
-        englishVegCount={counts.english}
-        indianVegCount={counts.indian}
-        inStockCount={counts.inStock}
-        lowStockCount={counts.lowStock}
-      />
-
-      {/* Filters */}
+      {/* Category Tabs, Search & Sorter */}
       <ProductsFiltersBar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        counts={counts}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onCategoryChange={handleCategoryChange}
+        totalProductsCount={totalElements}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
-        selectedUom={selectedUom}
-        onUomChange={handleUomChange}
-        selectedStatus={selectedStatus}
-        onStatusChange={handleStatusChange}
-        selectedAvailability={selectedAvailability}
-        onAvailabilityChange={handleAvailabilityChange}
+        sortBy={sortBy}
+        onSortByChange={handleSortByChange}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onExportCsv={handleExportCsv}
@@ -672,9 +582,7 @@ export default function ProductsManagementPage() {
         onEdit={(product) => {
           setIsDetailsDrawerOpen(false);
 
-          setEditingProduct(
-            mapAdminProductToUIProduct(product)
-          );
+          setEditingProduct(mapAdminProductToUIProduct(product));
 
           setIsEditModalOpen(true);
         }}
