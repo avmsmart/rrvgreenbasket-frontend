@@ -1,30 +1,58 @@
 "use client";
 
 import React, { useState } from "react";
-import { FolderTree } from "lucide-react";
 
 interface CategoryImageProps {
   name: string;
   imageUrl?: string | null;
+  /**
+   * Fixed size in px. Omit (or pass 0) for fill-parent mode.
+   */
   size?: number;
   className?: string;
+}
+
+/*
+  Per-category palette — deterministic from first char of name.
+  Uses the design system tints aligned to BigBasket-style tiles.
+*/
+const PALETTES = [
+  { bg: "#E7F6EE", emoji: "🥦" },   // emerald tint — Vegetables
+  { bg: "#FFF1E6", emoji: "🥕" },   // orange tint  — Fruits/Root
+  { bg: "#FBF3E4", emoji: "🌽" },   // amber tint   — Grains
+  { bg: "#FDECEC", emoji: "🍅" },   // red tint     — Seasonings
+  { bg: "#F3EEE8", emoji: "🍄" },   // brown tint   — Mushrooms
+  { bg: "#EEF2FF", emoji: "🫐" },   // indigo tint  — Berries
+  { bg: "#FDF2F8", emoji: "🍓" },   // pink tint    — Soft fruits
+  { bg: "#F0FDF4", emoji: "🥝" },   // lime tint    — Exotic
+  { bg: "#FFFBEB", emoji: "🍋" },   // yellow tint  — Citrus
+  { bg: "#F0FDFA", emoji: "🥬" },   // teal tint    — Leafy
+] as const;
+
+function getPalette(name: string) {
+  const idx = (name || "C").charCodeAt(0) % PALETTES.length;
+  return PALETTES[idx];
 }
 
 export const CategoryImage: React.FC<CategoryImageProps> = ({
   name,
   imageUrl,
-  size = 40,
+  size,
   className = "",
 }) => {
   const [error, setError] = useState(false);
   const cleanUrl = (imageUrl || "").trim();
 
-  // If valid image URL provided and no load error, render image
+  const isFill = !size || size === 0;
+  const sizeStyle = isFill ? {} : { width: size, height: size };
+  const sizeClass = isFill ? "w-full h-full" : "";
+  const emojiSize = !size ? "text-4xl" : size < 36 ? "text-sm" : size < 48 ? "text-xl" : "text-2xl";
+
   if (cleanUrl && !error) {
     return (
       <div
-        style={{ width: size, height: size }}
-        className={`relative flex-shrink-0 rounded-2xl overflow-hidden bg-slate-100 shadow-3xs border border-slate-200/80 ${className}`}
+        style={sizeStyle}
+        className={`${sizeClass} relative flex-shrink-0 rounded-2xl overflow-hidden bg-[#F6F8F7] ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -38,18 +66,17 @@ export const CategoryImage: React.FC<CategoryImageProps> = ({
     );
   }
 
-  // Fallback: icon container with category initial and folder indicator
-  const initial = (name || "C").charAt(0).toUpperCase();
+  const palette = getPalette(name);
 
   return (
     <div
-      style={{ width: size, height: size }}
-      className={`flex-shrink-0 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-800 font-black shadow-3xs group-hover:border-emerald-300 transition-colors ${className}`}
+      style={{ ...sizeStyle, backgroundColor: palette.bg }}
+      className={`${sizeClass} flex-shrink-0 rounded-2xl flex items-center justify-center ${className}`}
       title={name}
     >
-      <div className="flex flex-col items-center justify-center">
-        <FolderTree className="w-4 h-4 text-[#00875a]" />
-      </div>
+      <span className={emojiSize} role="img" aria-label={name}>
+        {palette.emoji}
+      </span>
     </div>
   );
 };
