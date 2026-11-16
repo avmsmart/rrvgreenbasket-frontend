@@ -6,7 +6,9 @@ import {
   WishlistProvider,
   StoreSettingsProvider,
   CartProvider,
+  LocationProvider,
 } from "@/context";
+import { LocationSelectionModal } from "@/components/location";
 
 export const metadata: Metadata = {
   title: "RRV Green Basket - Freshness Delivered Daily",
@@ -25,7 +27,12 @@ export default function RootLayout({
           <AuthProvider>
             <CustomerAuthProvider>
               <WishlistProvider>
-                <CartProvider>{children}</CartProvider>
+                <CartProvider>
+                  <LocationProvider>
+                    {children}
+                    <LocationSelectionModal />
+                  </LocationProvider>
+                </CartProvider>
               </WishlistProvider>
             </CustomerAuthProvider>
           </AuthProvider>

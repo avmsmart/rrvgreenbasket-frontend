@@ -41,22 +41,28 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Sync state from storage
   const syncFromStorage = useCallback(() => {
     const token = customerTokenStorage.getAccessToken();
-    let user = customerTokenStorage.getUser();
-    if (token && !user) {
-      user = {
-        publicId: "customer",
-        mobileNumber: "",
-        fullName: "Customer",
-        email: "",
-        role: "CUSTOMER",
-        status: "ACTIVE",
-      };
-      try {
-        localStorage.setItem("rrv_customer_user", JSON.stringify(user));
-      } catch {}
+    const user = customerTokenStorage.getUser();
+
+    // Authenticated ONLY if both valid customer token AND real customer user exist
+    if (token && user && user.mobileNumber && user.mobileNumber.trim().length > 0) {
+      setAccessToken(token);
+      setCustomer(user);
+    } else {
+      // Clear any invalid/dummy session
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("rrv_customer_user");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (!parsed?.mobileNumber || parsed.publicId === "customer") {
+              localStorage.removeItem("rrv_customer_user");
+            }
+          }
+        } catch {}
+      }
+      setAccessToken(null);
+      setCustomer(null);
     }
-    setAccessToken(token);
-    setCustomer(user);
     setIsLoading(false);
   }, []);
 
@@ -135,7 +141,7 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         customer,
         accessToken,
-        isAuthenticated: !!accessToken || (typeof window !== "undefined" && !!localStorage.getItem("rrv_customer_access_token")),
+        isAuthenticated: !!accessToken && !!customer && !!customer.mobileNumber,
         isLoading,
         loginSendOtp,
         loginVerifyOtp,

@@ -17,3 +17,4 @@ export * from "./wishlist";
 export * from "./review";
 export * from "./contact";
 export * from "./cart";
+export * from "./location";

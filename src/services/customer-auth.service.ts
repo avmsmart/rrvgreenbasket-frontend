@@ -63,33 +63,27 @@ export function normalizeMobileNumber(input: string): string {
  */
 export const customerTokenStorage = {
   getAccessToken(): string | null {
-    if (typeof window === "undefined") return null;
+    if (typeof window !== "undefined") {
+      // Check customer token key strictly. DO NOT read admin or generic keys.
+      const candidate =
+        localStorage.getItem(CUSTOMER_ACCESS_TOKEN_KEY) ||
+        localStorage.getItem("rrv_customer_access_token");
 
-    try {
-      const candidates = [
-        localStorage.getItem(CUSTOMER_ACCESS_TOKEN_KEY),
-        localStorage.getItem("rrv_customer_access_token"),
-        localStorage.getItem("rrv_green_basket_auth_token"),
-        localStorage.getItem("token"),
-        localStorage.getItem("accessToken"),
-        localStorage.getItem("customer_token"),
-      ];
-
-      for (const t of candidates) {
-        if (
-          t &&
-          typeof t === "string" &&
-          t.trim().length > 0 &&
-          t !== "undefined" &&
-          t !== "null"
-        ) {
-          return t.replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
-        }
+      if (
+        candidate &&
+        typeof candidate === "string" &&
+        candidate.trim().length > 0 &&
+        candidate !== "undefined" &&
+        candidate !== "null"
+      ) {
+        return candidate.replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
       }
 
-      // Check cookie fallback if localStorage was somehow empty
+      // Check cookie fallback for customer access token
       if (typeof document !== "undefined" && document.cookie) {
-        const match = document.cookie.match(new RegExp(`(^|;\\s*)${CUSTOMER_ACCESS_TOKEN_KEY}=([^;]+)`));
+        const match = document.cookie.match(
+          new RegExp(`(^|;\\s*)(?:${CUSTOMER_ACCESS_TOKEN_KEY}|rrv_customer_access_token)=([^;]+)`)
+        );
         if (match && match[2]) {
           const cookieVal = decodeURIComponent(match[2])
             .replace(/^Bearer\s+/i, "")
@@ -106,9 +100,8 @@ export const customerTokenStorage = {
       }
 
       return null;
-    } catch {
-      return null;
     }
+    return null;
   },
 
   getRefreshToken(): string | null {
@@ -131,7 +124,11 @@ export const customerTokenStorage = {
     try {
       const raw = localStorage.getItem(CUSTOMER_USER_KEY);
       if (raw) {
-        return JSON.parse(raw);
+        const user = JSON.parse(raw);
+        // Only return if it's a real customer with a mobile number or valid account
+        if (user && user.mobileNumber && user.mobileNumber.trim().length > 0) {
+          return user;
+        }
       }
       return null;
     } catch {
@@ -200,9 +197,6 @@ export const customerTokenStorage = {
       if (cleanAccess) {
         localStorage.setItem(CUSTOMER_ACCESS_TOKEN_KEY, cleanAccess);
         localStorage.setItem("rrv_customer_access_token", cleanAccess);
-        localStorage.setItem("rrv_green_basket_auth_token", cleanAccess);
-        localStorage.setItem("token", cleanAccess);
-        localStorage.setItem("accessToken", cleanAccess);
 
         document.cookie = `${CUSTOMER_ACCESS_TOKEN_KEY}=${encodeURIComponent(
           cleanAccess

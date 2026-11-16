@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
+import { useLocation } from "@/context/LocationContext";
 import { customerAddressService } from "@/services/customer-address.service";
 import { deliveryService } from "@/services/delivery.service";
 import { orderService } from "@/services/order.service";
@@ -56,6 +57,11 @@ export default function CheckoutPage() {
     clearCart,
   } = useCart();
   const { customer, isAuthenticated, isLoading: isAuthLoading } = useCustomerAuth();
+  const {
+    selectedAddress: globalLocation,
+    availability: globalAvailability,
+    openLocationModal,
+  } = useLocation();
 
   // Operating window & store settings
   const [operatingWindow, setOperatingWindow] = useState<OrderBusinessSettingsResponse | null>(null);
@@ -173,6 +179,7 @@ export default function CheckoutPage() {
 
       try {
         const result = await deliveryService.checkAvailability({
+          placeId: globalLocation?.placeId,
           latitude: lat,
           longitude: lng,
           address: addrStr,
@@ -187,8 +194,25 @@ export default function CheckoutPage() {
         setIsCheckingDelivery(false);
       }
     },
-    []
+    [globalLocation]
   );
+
+  // Sync global verified location into custom coordinates and address form
+  useEffect(() => {
+    if (globalLocation) {
+      setCustomCoordinates({
+        lat: globalLocation.latitude,
+        lng: globalLocation.longitude,
+      });
+      setNewAddress((prev) => ({
+        ...prev,
+        addressLine1: prev.addressLine1 || globalLocation.addressLine || globalLocation.displayName,
+        city: globalLocation.city || prev.city,
+        state: globalLocation.state || prev.state,
+        pincode: globalLocation.pincode || prev.pincode,
+      }));
+    }
+  }, [globalLocation]);
 
   useEffect(() => {
     if (selectedAddress) {
@@ -454,6 +478,31 @@ export default function CheckoutPage() {
                     <span>Add New</span>
                   </button>
                 )}
+              </div>
+
+              {/* Google Verified Location & Coverage Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800/80 block">
+                      Google Maps Verified Location
+                    </span>
+                    <span className="font-bold text-slate-900 truncate block">
+                      {globalLocation?.displayName || "Kurnool Central"}
+                      {globalLocation?.formattedAddress ? ` (${globalLocation.formattedAddress})` : ""}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openLocationModal}
+                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-200 transition text-[11px] shrink-0 cursor-pointer shadow-3xs"
+                >
+                  Change on Map
+                </button>
               </div>
 
               {/* Saved Addresses List */}
