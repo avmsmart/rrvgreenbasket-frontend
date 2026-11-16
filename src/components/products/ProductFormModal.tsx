@@ -29,7 +29,6 @@ import {
   BACKEND_QUANTITY_UNITS,
   CATEGORY_DEFAULT_UNITS,
   toApiProductStatus,
-  toUiProductStatus,
 } from "@/types";
 import { adminProductService, mapAdminProductToUIProduct } from "@/services/product.service";
 import { ApiError } from "@/services/api-client";
@@ -136,6 +135,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       fetchBackendCategories(false);
     }
   }, [isOpen, fetchBackendCategories]);
+
+  // Lock body scroll when modal is open (matches ProductDetailsDrawer behavior)
+  useEffect(() => {
+    if (isOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = original;
+      };
+    }
+  }, [isOpen]);
 
   // Find currently selected category object by UUID
   const selectedCategory = useMemo(() => {
@@ -654,11 +664,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const totalImagesCount = (replaceImages ? 0 : existingImages.length) + newSelectedImages.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200/90 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-xl w-full max-h-[95dvh] sm:max-h-[92vh] border border-slate-200/90 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 sm:slide-in-from-bottom-0 sm:zoom-in-95 flex flex-col">
+
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1.5 rounded-full bg-slate-300 mx-auto mt-3 flex-shrink-0" aria-hidden="true" />
         
         {/* Modal Header */}
-        <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#00875a] text-white flex items-center justify-center shadow-md shadow-emerald-200 flex-shrink-0">
               {isEditMode ? <Edit3 className="w-5 h-5" /> : <Package className="w-5 h-5" />}
@@ -667,7 +680,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight">
                 {isEditMode ? "Edit Product Details" : "Add New Product"}
               </h3>
-              <p className="text-xs text-slate-500 font-medium truncate max-w-sm">
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate max-w-[170px] sm:max-w-sm">
                 {isEditMode
                   ? `${currentProduct?.name || "Product"} • UUID: ${currentProduct?.publicId || currentProduct?.id || ""}`
                   : "Create and publish produce item to catalog with rates & images"}
@@ -677,16 +690,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-slate-700 flex items-center justify-center border border-slate-200 shadow-3xs transition-colors flex-shrink-0 cursor-pointer"
+            className="w-9 h-9 rounded-full bg-white text-slate-400 hover:text-slate-700 flex items-center justify-center border border-slate-200 shadow-3xs transition-colors flex-shrink-0 cursor-pointer"
             aria-label="Close dialog"
           >
-            <X className="w-4 h-4" />
+            <X className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
           </button>
         </div>
 
         {/* Success Alert */}
         {successMsg && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-[#eaf8f0] border border-[#bbf7d0] text-[#00875a] flex items-center gap-2 text-xs font-bold animate-in fade-in">
+          <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-2xl bg-[#eaf8f0] border border-[#bbf7d0] text-[#00875a] flex items-center gap-2 text-xs font-bold animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>{successMsg}</span>
           </div>
@@ -694,7 +707,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-bold animate-in fade-in">
+          <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-bold animate-in fade-in">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -702,7 +715,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
         {/* Categories Loading/Error Notice */}
         {categoriesError && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between text-xs font-medium">
+          <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between text-xs font-medium">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
               <span>{categoriesError}</span>
@@ -719,12 +732,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-6 space-y-3 sm:space-y-4">
             
             {/* =========================================================================
                 1. BASIC INFORMATION & CATEGORY UUID MAPPING
                ========================================================================= */}
-            <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3.5">
+            <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3 sm:space-y-3.5">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#00875a]" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
@@ -733,7 +746,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
 
               {/* Product Name & Category Dropdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Product Name *
@@ -744,7 +757,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     placeholder="e.g. Button Mushroom, Spinach, Mango"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -764,7 +777,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     required
                     disabled={isCategoriesLoading}
                     onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="">
                       {isCategoriesLoading ? "Loading categories from server..." : "Select Category"}
@@ -799,7 +812,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   value={slug || generatedSlug}
                   onChange={(e) => setSlug(e.target.value)}
                   placeholder="e.g. leafy-vegetables-spinach"
-                  className="w-full px-3.5 py-2 text-xs font-mono font-bold text-slate-700 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-xs font-mono font-bold text-slate-700 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
 
@@ -814,7 +827,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     placeholder="e.g. Farm Fresh Produce • Sorted & Packaged Daily"
                     value={shortDescription}
                     onChange={(e) => setShortDescription(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -827,7 +840,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     placeholder="e.g. Handpicked organic vegetables sourced directly from certified farms..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
+                    className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-xs font-medium bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
                   />
                 </div>
               </div>
@@ -836,7 +849,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             {/* =========================================================================
                 2. SELLING UNIT & PRICING SECTION (Dynamic Labels & Total Calculation)
                ========================================================================= */}
-            <div className="p-4 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-slate-50/60 rounded-2xl border border-emerald-100/90 space-y-3.5">
+            <div className="p-3 sm:p-4 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-slate-50/60 rounded-2xl border border-emerald-100/90 space-y-3 sm:space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#00875a]" />
@@ -857,7 +870,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <select
                   value={sellingUnit}
                   onChange={(e) => handleUnitChange(e.target.value as BackendQuantityUnit)}
-                  className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all"
+                  className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all"
                 >
                   {BACKEND_QUANTITY_UNITS.map((u) => (
                     <option key={u.value} value={u.value}>
@@ -868,7 +881,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
 
               {/* Dynamic Price & Quantity Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {selectedUnitDef.priceLabel} *
@@ -887,7 +900,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       onChange={(e) =>
                         setUnitPrice(e.target.value === "" ? "" : Number(e.target.value))
                       }
-                      className="w-full pl-7 pr-12 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      className="w-full pl-7 pr-12 py-2.5 sm:py-2 text-base sm:text-xs font-bold text-slate-900 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
                       / {selectedUnitDef.unitShort}
@@ -910,7 +923,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       onChange={(e) =>
                         setDefaultQuantity(e.target.value === "" ? "" : Number(e.target.value))
                       }
-                      className="w-full px-3.5 pr-14 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      className="w-full px-3.5 pr-14 py-2.5 sm:py-2 text-base sm:text-xs font-bold text-slate-900 bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
                       {selectedUnitDef.unitShort}
@@ -920,7 +933,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
 
               {/* Dynamic Total Price Display Card */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/80 flex items-center justify-between">
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/80 flex items-center justify-between gap-2">
                 <div>
                   <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                     Calculated Total Price
@@ -936,7 +949,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg sm:text-xl font-black text-emerald-900 tracking-tight">
+                  <div className="text-base sm:text-xl font-black text-emerald-900 tracking-tight">
                     ₹{formattedTotal}
                   </div>
                   <span className="text-[10px] font-semibold text-emerald-700">
@@ -949,7 +962,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             {/* =========================================================================
                 3. MULTIPLE PRODUCT IMAGES SECTION (AWS S3, Max 5, Replacement/Deletion)
                ========================================================================= */}
-            <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3.5">
+            <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3 sm:space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-[#00875a]" />
@@ -1008,7 +1021,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             : "border-slate-200"
                         }`}
                       >
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                        <div className="relative w-full h-24 sm:h-20 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={img.imageUrl}
@@ -1028,13 +1041,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             type="button"
                             disabled={deletingImageId === img.publicId}
                             onClick={() => handleDeleteExistingImage(img.publicId)}
-                            className="absolute top-1 right-1 w-5 h-5 rounded-md bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                            className="absolute top-1 right-1 w-7 h-7 sm:w-6 sm:h-6 rounded-md bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                             aria-label="Delete image"
                           >
                             {deletingImageId === img.publicId ? (
                               <RefreshCw className="w-3 h-3 animate-spin" />
                             ) : (
-                              <X className="w-3 h-3" />
+                              <X className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                             )}
                           </button>
                         </div>
@@ -1044,7 +1057,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             type="button"
                             disabled={settingPrimaryId === img.publicId}
                             onClick={() => handleSetExistingImagePrimary(img.publicId)}
-                            className="mt-1 text-[10px] font-bold text-[#00875a] hover:underline text-left cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                            className="mt-1 py-1.5 text-[10px] font-bold text-[#00875a] hover:underline text-left cursor-pointer flex items-center gap-1 disabled:opacity-50"
                           >
                             {settingPrimaryId === img.publicId ? (
                               <RefreshCw className="w-2.5 h-2.5 animate-spin" />
@@ -1074,7 +1087,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   />
                   <label
                     htmlFor="product-form-file-upload"
-                    className="w-full py-3 px-4 border-2 border-dashed border-emerald-300 bg-white hover:bg-emerald-50/50 rounded-2xl text-xs font-bold text-[#00875a] flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all shadow-3xs"
+                    className="w-full py-3.5 sm:py-3 px-3 sm:px-4 border-2 border-dashed border-emerald-300 bg-white hover:bg-emerald-50/50 rounded-2xl text-[11px] sm:text-xs font-bold text-[#00875a] flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all shadow-3xs"
                   >
                     <Upload className="w-5 h-5 text-[#00875a]" />
                     <span>Click or Drag to Upload Product Photos</span>
@@ -1101,7 +1114,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             isFirstNew ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-200"
                           }`}
                         >
-                          <div className="relative w-full h-20 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                          <div className="relative w-full h-24 sm:h-20 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={img.previewUrl}
@@ -1118,10 +1131,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveNewImage(img.id)}
-                              className="absolute top-1 right-1 w-5 h-5 rounded-md bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer"
+                              className="absolute top-1 right-1 w-7 h-7 sm:w-6 sm:h-6 rounded-md bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer"
                               aria-label="Remove photo"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                             </button>
                           </div>
 
@@ -1136,7 +1149,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleMakeNewImagePrimary(idx)}
-                              className="mt-1 text-[10px] font-bold text-[#00875a] hover:underline text-left cursor-pointer"
+                              className="mt-1 py-1.5 text-[10px] font-bold text-[#00875a] hover:underline text-left cursor-pointer"
                             >
                               Make Primary
                             </button>
@@ -1152,7 +1165,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             {/* =========================================================================
                 4. STATUS & VISIBILITY SETTINGS
                ========================================================================= */}
-            <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Status &amp; Storefront Visibility
               </h4>
@@ -1166,7 +1179,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <select
                     value={status}
                     onChange={(e) => setStatus(toApiProductStatus(e.target.value))}
-                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all"
+                    className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs font-bold bg-white border border-slate-200/90 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all"
                   >
                     <option value="ACTIVE">In Stock</option>
                     <option value="INACTIVE">Out of Stock</option>
@@ -1176,26 +1189,26 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
 
                 {/* Admin Enabled Checkbox */}
-                <div className="flex items-center gap-2 pt-2 sm:pt-6">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pt-6">
                   <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={adminEnabled}
                       onChange={(e) => setAdminEnabled(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#00875a] focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                      className="w-5 h-5 sm:w-4 sm:h-4 rounded text-[#00875a] focus:ring-emerald-500 border-slate-300 cursor-pointer"
                     />
                     <span>Storefront Visible</span>
                   </label>
                 </div>
 
                 {/* Featured Product Checkbox */}
-                <div className="flex items-center gap-2 pt-2 sm:pt-6">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pt-6">
                   <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={isFeatured}
                       onChange={(e) => setIsFeatured(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#00875a] focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                      className="w-5 h-5 sm:w-4 sm:h-4 rounded text-[#00875a] focus:ring-emerald-500 border-slate-300 cursor-pointer"
                     />
                     <span>Featured Item</span>
                   </label>
@@ -1206,19 +1219,19 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           </div>
 
           {/* Modal Footer Actions */}
-          <div className="p-4 sm:px-6 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0">
+          <div className="px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl border border-slate-200 text-[11px] sm:text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-[#00875a] hover:bg-[#00734d] active:scale-98 text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              className="flex-[2] sm:flex-none justify-center px-4 sm:px-5 py-2.5 sm:py-2.5 rounded-xl bg-[#00875a] hover:bg-[#00734d] active:scale-98 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

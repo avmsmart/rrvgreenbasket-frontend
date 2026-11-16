@@ -49,7 +49,7 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
           {
             label: "Initialized Items",
             value: displayInitialized,
-            subtext: `${(stats?.uninitializedCount || 0)} uninitialized`,
+            subtext: `${stats?.uninitializedCount || 0} uninitialized`,
             icon: Layers,
             color: "bg-blue-50 text-blue-700 border-blue-200",
           },
@@ -103,7 +103,7 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
   ];
 
   return (
-    <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-${cards.length > 5 ? 6 : 5} gap-3.5 sm:gap-4`}>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
       {cards.map((c, idx) => {
         const IconComponent = c.icon;
         return (
@@ -118,10 +118,10 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
                 <IconComponent className="w-5 h-5" />
               </div>
               {c.isWarning && (
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
               )}
               {c.isCritical && (
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               )}
             </div>
 
@@ -143,3 +143,5 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
     </div>
   );
 };
+
+export default InventoryStatsCards;

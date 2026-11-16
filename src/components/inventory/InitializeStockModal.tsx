@@ -224,100 +224,120 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Modal Dialog / Mobile Bottom Sheet */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Initialize Product Stock"
+        className="relative z-10 w-full max-h-[95dvh] sm:max-h-[92vh] sm:max-w-xl bg-white shadow-2xl flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden border border-slate-200/90 animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95"
+      >
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1.5 rounded-full bg-slate-300 mx-auto mt-3 flex-shrink-0" aria-hidden="true" />
+
         {/* Header */}
-        <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-100 text-[#00875a] flex items-center justify-center shadow-xs">
+        <div className="px-4 sm:px-6 py-3 sm:py-4.5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50 flex-shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-[#00875a] flex items-center justify-center shadow-xs flex-shrink-0">
               <Layers className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Initialize Product Stock</h3>
-              <p className="text-xs text-slate-500 font-medium">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                Initialize Product Stock
+              </h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">
                 Activate warehouse inventory tracking &amp; set baseline stock parameters
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-white text-slate-400 hover:text-slate-600 transition-colors"
+            className="w-9 h-9 rounded-full bg-white text-slate-400 hover:text-slate-600 flex items-center justify-center border border-slate-200 shadow-3xs transition-colors flex-shrink-0 ml-2"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Mode Switch Tabs */}
-        <div className="px-6 pt-4 shrink-0">
+        <div className="px-4 sm:px-6 pt-3 sm:pt-4 flex-shrink-0">
           <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl gap-1">
             <button
               type="button"
               onClick={() => setInitMode("single")}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2 px-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 initMode === "single"
                   ? "bg-white text-slate-900 shadow-3xs"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Single Product Mode</span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span className="truncate">Single Mode</span>
             </button>
             <button
               type="button"
               onClick={() => setInitMode("bulk")}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2 px-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 initMode === "bulk"
                   ? "bg-white text-slate-900 shadow-3xs"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              <ListPlus className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Bulk Mode ({uninitializedItems.length} uninitialized)</span>
+              <ListPlus className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span className="truncate">Bulk Mode ({uninitializedItems.length})</span>
             </button>
           </div>
         </div>
 
-        {/* Form Body with scroll */}
-        <div className="p-6 overflow-y-auto">
-          {/* Alerts */}
-          {errorMessage && (
-            <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+        {/* Content Body */}
+        {isLoadingCatalogue ? (
+          <div className="py-16 text-center space-y-3 flex-1">
+            <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs font-semibold text-slate-600">
+              Fetching product catalogue from Product Service...
+            </p>
+          </div>
+        ) : initMode === "single" ? (
+          /* Single Mode Form */
+          <form onSubmit={handleSubmitSingle} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-3.5 sm:space-y-4">
+              {/* Alerts */}
+              {errorMessage && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="leading-snug">{errorMessage}</span>
+                </div>
+              )}
 
-          {successMessage && (
-            <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-medium">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{successMessage}</span>
-            </div>
-          )}
+              {successMessage && (
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-medium">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="leading-snug">{successMessage}</span>
+                </div>
+              )}
 
-          {isLoadingCatalogue ? (
-            <div className="py-12 text-center space-y-3">
-              <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs font-semibold text-slate-600">
-                Fetching product catalogue from Product Service...
-              </p>
-            </div>
-          ) : initMode === "single" ? (
-            <form onSubmit={handleSubmitSingle} className="space-y-4">
               {/* Product Select Dropdown */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Target Product Item <span className="text-rose-500">*</span>
                 </label>
                 {selectedItem ? (
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <ProduceImage name={productName} src={productImage} size={32} />
-                      <div>
-                        <span>{productName}</span>
+                      <div className="min-w-0">
+                        <span className="truncate block">{productName}</span>
                         <span className="block text-[10px] text-slate-500 font-semibold">{productCategory}</span>
                       </div>
                     </div>
-                    <span className="text-[11px] font-mono text-slate-500 px-2 py-0.5 bg-slate-100 rounded-lg">
+                    <span className="text-[11px] font-mono text-slate-500 px-2 py-0.5 bg-slate-100 rounded-lg flex-shrink-0">
                       UUID: {selectedItem.inventory.productPublicId.slice(0, 8)}...
                     </span>
                   </div>
@@ -375,15 +395,15 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
 
               {/* Selected Product Information Preview */}
               {selectedProductItem && productPublicId && (
-                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center gap-3.5">
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center gap-3">
                   <ProduceImage
                     name={productName}
                     src={productImage}
-                    size={44}
-                    className="rounded-xl border border-emerald-200 bg-white"
+                    size={42}
+                    className="rounded-xl border border-emerald-200 bg-white flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-extrabold text-slate-900 text-xs truncate">
                         {productName}
                       </span>
@@ -391,10 +411,10 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                         {productCategory}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600 font-medium">
+                    <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[11px] text-slate-600 font-medium flex-wrap">
                       <span>Unit: <strong className="text-slate-800">{unitOfMeasure}</strong></span>
                       {productPrice !== undefined && (
-                        <span>Selling Price: <strong className="text-slate-800">₹{productPrice}</strong></span>
+                        <span>Rate: <strong className="text-slate-800">₹{productPrice}</strong></span>
                       )}
                       <span className="text-slate-400 font-mono text-[10px]">
                         UUID: {selectedProductItem.inventory.productPublicId.slice(0, 8)}...
@@ -405,10 +425,10 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
               )}
 
               {/* Initial Qty & Low Stock Threshold */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Opening Initial Quantity <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
+                    Opening Quantity <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -425,7 +445,7 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   <span className="text-[10px] text-slate-400 mt-1 block">In {unitOfMeasure}</span>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
                     Low Stock Threshold <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -445,9 +465,9 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
               </div>
 
               {/* Unit of Measure & Reason */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
                     Unit of Measure <span className="text-rose-500">*</span>
                   </label>
                   <select
@@ -467,7 +487,7 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
                     Initialization Reason
                   </label>
                   <input
@@ -493,33 +513,50 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium resize-none focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
+            </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={isLoading}
-                  className="px-4 py-2 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading || (!selectedItem && uninitializedItems.length === 0)}
-                  className="px-5 py-2 rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {isLoading ? <span>Initializing...</span> : <span>Initialize Stock</span>}
-                </button>
-              </div>
-            </form>
-          ) : (
-            /* Bulk Mode */
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+            {/* Sticky Actions Footer */}
+            <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 pt-3 border-t border-slate-100 bg-slate-50/70 sm:bg-white flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-2 rounded-xl sm:rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading || (!selectedItem && uninitializedItems.length === 0)}
+                className="flex-1 sm:flex-none justify-center px-5 py-2 sm:py-2 rounded-xl sm:rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isLoading ? <span>Initializing...</span> : <span>Initialize Stock</span>}
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* Bulk Mode Container */
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-3.5 sm:space-y-4">
+              {/* Alerts */}
+              {errorMessage && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="leading-snug">{errorMessage}</span>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-medium">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="leading-snug">{successMessage}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 p-3 sm:p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Default Initial Quantity
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1 truncate">
+                    Default Quantity
                   </label>
                   <input
                     type="number"
@@ -530,8 +567,8 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Default Low Stock Threshold
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1 truncate">
+                    Default Threshold
                   </label>
                   <input
                     type="number"
@@ -547,7 +584,7 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-700">
-                    Select Products to Initialize ({selectedBulkIds.length} of {uninitializedItems.length} selected)
+                    Select Products ({selectedBulkIds.length}/{uninitializedItems.length})
                   </span>
                   <button
                     type="button"
@@ -564,7 +601,7 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   </button>
                 </div>
 
-                <div className="max-h-56 overflow-y-auto space-y-1.5 border border-slate-200 rounded-2xl p-2 bg-slate-50/50">
+                <div className="max-h-52 sm:max-h-56 overflow-y-auto overscroll-contain space-y-1.5 border border-slate-200 rounded-2xl p-2 bg-slate-50/50">
                   {uninitializedItems.length === 0 ? (
                     <div className="text-center py-6 space-y-2">
                       <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
@@ -597,7 +634,7 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                           key={item.inventory.productPublicId}
                           className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 cursor-pointer text-xs transition-colors"
                         >
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -610,20 +647,20 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                                   );
                                 }
                               }}
-                              className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                              className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 flex-shrink-0"
                             />
-                            <div>
-                              <span className="font-bold text-slate-900 block">
+                            <div className="min-w-0 flex-1">
+                              <span className="font-bold text-slate-900 block truncate">
                                 {pName}
                               </span>
                               {pCat && (
-                                <span className="text-[10px] text-slate-500 font-medium">
+                                <span className="text-[10px] text-slate-500 font-medium block truncate">
                                   {pCat}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 font-bold text-slate-700 text-[11px]">
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 font-bold text-slate-700 text-[11px] flex-shrink-0">
                             {pUnit}
                           </span>
                         </label>
@@ -632,36 +669,36 @@ export const InitializeStockModal: React.FC<InitializeStockModalProps> = ({
                   )}
                 </div>
               </div>
-
-              {/* Bulk Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={isLoading}
-                  className="px-4 py-2 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitBulk}
-                  disabled={isLoading || selectedBulkIds.length === 0}
-                  className="px-5 py-2 rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span>Initializing {selectedBulkIds.length} items...</span>
-                  ) : (
-                    <>
-                      <span>Initialize {selectedBulkIds.length} Items</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
-          )}
-        </div>
+
+            {/* Bulk Sticky Actions Footer */}
+            <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 pt-3 border-t border-slate-100 bg-slate-50/70 sm:bg-white flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-2 rounded-xl sm:rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitBulk}
+                disabled={isLoading || selectedBulkIds.length === 0}
+                className="flex-1 sm:flex-none justify-center px-5 py-2 sm:py-2 rounded-xl sm:rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <span>Initializing {selectedBulkIds.length} items...</span>
+                ) : (
+                  <>
+                    <span>Initialize {selectedBulkIds.length} Items</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
