@@ -51,3 +51,127 @@ nextjs-portal,
 #nextjs-dev-tools-root {
   display: none !important;
 }
+
+/* ===== Home page marquee ===== */
+@keyframes rrv-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: rrv-marquee 30s linear infinite;
+  will-change: transform;
+  padding: 10px 0;
+}
+
+.marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 60px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+@media (min-width: 640px) {
+  .marquee-track { padding: 22px 0; }
+  .marquee-item {
+    font-size: 16px;
+    padding: 0 80px;
+    gap: 20px;
+  }
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+/* ===== Sidebar: hide scrollbar entirely (still scrollable) ===== */
+#categories {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge */
+}
+#categories::-webkit-scrollbar {
+  display: none;                  /* Chrome/Safari */
+}
+/* ===== Slider: smaller height on mobile /categories page ===== */
+.rrv-mobile-slider {
+  max-height: 90px;
+  overflow: hidden;
+}
+
+.rrv-mobile-slider > div {
+  margin-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.rrv-mobile-slider > div > div {
+  border-radius: 0;
+}
+
+/* Mobile-only: shrink slide height */
+@media (max-width: 767px) {
+  .rrv-mobile-slider [class*="h-44"],
+  .rrv-mobile-slider [class*="h-56"],
+  .rrv-mobile-slider [class*="h-72"] {
+    height: 90px !important;
+  }
+
+  /* Shrink the eyebrow text ("Fresh from farm") */
+  .rrv-mobile-slider p {
+    font-size: 7px !important;
+    letter-spacing: 0.2em !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Shrink the heading text (category name) */
+  .rrv-mobile-slider h2 {
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+    margin: 2px 0 !important;
+  }
+
+  /* Hide the subtitle on mobile (too cramped at 90px) */
+  .rrv-mobile-slider p:nth-of-type(2),
+  .rrv-mobile-slider h2 + p {
+    display: none !important;
+  }
+
+    /* Shrink the "Shop Now" button — narrow pill */
+  .rrv-mobile-slider button {
+    margin-top: 2px !important;
+    padding: 1px 1px !important;
+    font-size: 8px !important;
+    border-radius: 9999px !important;
+    line-height: 1.2 !important;
+    width: auto !important;
+    max-width: 40px !important;
+    gap: 2px !important;
+  }
+
+  /* Hide the arrow icon on mobile — too cramped */
+  .rrv-mobile-slider button svg {
+    display: none !important;
+  }
+
+  /* Tighten the slide container padding */
+  .rrv-mobile-slider .absolute.inset-0 {
+    padding: 8px 12px !important;
+    gap: 2px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .rrv-mobile-slider {
+    max-height: none;
+  }
+}

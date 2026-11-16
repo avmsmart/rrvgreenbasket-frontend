@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Heart, Plus, Minus, ShoppingCart, Check, Star } from "lucide-react";
+import { Heart, Check, Star, ChevronDown } from "lucide-react";
 import { StoreProduct, ProductWeightVariant } from "@/types";
 import { resolveImageUrl } from "@/utils/image-utils";
 import { triggerFlyAnimation } from "@/utils/animation-utils";
@@ -20,6 +20,7 @@ export interface ProductCardProps {
 
 /**
  * Generates sensible grocery weight/unit variants based on product unit
+ * (UNCHANGED from your original file)
  */
 export function getProductVariants(product: StoreProduct): ProductWeightVariant[] {
   if (product.variants && product.variants.length > 0) {
@@ -113,7 +114,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const [isSubmittingCart, setIsSubmittingCart] = useState<boolean>(false);
 
   const variants = useMemo(() => getProductVariants(product), [product]);
-  
+
   // Default to the 1.0 multiplier variant or the first one
   const defaultVariantKey = useMemo(() => {
     const unitOne = variants.find((v) => v.multiplier === 1.0);
@@ -121,13 +122,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   }, [variants]);
 
   const [selectedVariantKey, setSelectedVariantKey] = useState<string>(defaultVariantKey);
-  const [quantity, setQuantity] = useState<number>(1);
+  const [isVariantMenuOpen, setIsVariantMenuOpen] = useState<boolean>(false);
   const [isAddedFeedback, setIsAddedFeedback] = useState<boolean>(false);
   const [isWishlistLoading, setIsWishlistLoading] = useState<boolean>(false);
   const cardRef = useRef<HTMLElement>(null);
 
   // Rotate through additional product photos when the product API provides a gallery.
-  // Products with only one image keep a static image and do not animate.
   const productImages = useMemo(() => {
     type ProductWithGallery = StoreProduct & {
       images?: Array<string | { url?: string; imageUrl?: string }>;
@@ -176,7 +176,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     };
   }, [variants, selectedVariantKey]);
 
-  // Dynamic price calculation
+  // Dynamic price calculation (UNCHANGED from your original file)
   const currentSellingPrice = Math.round((product.price || 0) * activeVariant.multiplier);
   const baseOriginal = product.originalPrice && product.originalPrice > product.price
     ? product.originalPrice
@@ -228,20 +228,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
-  // Quantity controls (Minimum 1)
-  const handleDecrement = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setQuantity((prev) => Math.max(1, prev - 1));
-  };
-
-  const handleIncrement = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setQuantity((prev) => prev + 1);
-  };
-
-  // Add to cart handler connecting to Spring Boot Cart Service
+  // Add to cart handler — adds 1 unit of the selected variant
+  // (quantity stepper removed to match the target card layout)
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -249,7 +237,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     if (!isAvailable || isSubmittingCart) return;
 
     if (onAddToCart) {
-      onAddToCart(product, activeVariant, quantity);
+      onAddToCart(product, activeVariant, 1);
       return;
     }
 
@@ -258,7 +246,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       Number.isFinite(Number(activeVariant.multiplier)) && activeVariant.multiplier > 0
         ? activeVariant.multiplier
         : 1;
-    const quantityKg = Number((quantity * multiplier).toFixed(3));
+    const quantityKg = Number((1 * multiplier).toFixed(3));
 
     setIsSubmittingCart(true);
     try {
@@ -272,7 +260,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         setIsAddedFeedback(true);
         setTimeout(() => {
           setIsAddedFeedback(false);
-          setQuantity(1); // Reset quantity selector back to 1 after addition
         }, 1200);
       }
     } finally {
@@ -285,182 +272,172 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <article
       ref={cardRef}
-      className="group relative flex flex-col h-fit min-h-0 self-start bg-white rounded-xl border border-emerald-100/90 hover:border-emerald-300 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(16,185,129,0.1)] transition-all duration-200 overflow-hidden p-2 sm:p-2.5 select-none"
+      className="group relative flex flex-col bg-white rounded-xl border border-gray-200/70 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.09)] transition-all duration-200 overflow-hidden select-none"
     >
-      <div>
-        {/* =========================================================================
-            1. PRODUCT IMAGE + CORNER BADGES (White background, strictly object-contain)
-           ========================================================================= */}
-        <div className="relative w-full h-24 sm:h-28 lg:h-32 bg-white flex items-center justify-center overflow-hidden mb-1 rounded-lg">
-          {/* Discount Badge in Top-Left Corner */}
-          {discountPercent > 0 && (
-            <span className="absolute top-1.5 left-1.5 z-10 rounded-md bg-[#00875a] text-white text-[10px] font-medium px-1.5 py-0.5 shadow-2xs">
-              {discountPercent}% OFF
+      {/* 1. PRODUCT IMAGE — full-bleed, fills the top of the card */}
+      <div className="relative w-full aspect-square bg-[#f6f7f6] overflow-hidden">
+        {/* Blue stacked discount badge — top-left corner */}
+        {discountPercent > 0 && (
+          <span className="absolute top-1 left-1 z-20 flex flex-col items-start rounded-lg bg-[#3B82F6] text-white px-1.5 py-1 leading-none shadow-sm">
+            <span className="text-[11px] font-bold">{discountPercent}%</span>
+            <span className="text-[9px] font-semibold mt-0.5">OFF</span>
+          </span>
+        )}
+
+        {/* Wishlist heart — top-right (kept for functionality) */}
+        <button
+          type="button"
+          aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+          onClick={handleToggleWishlist}
+          disabled={isWishlistLoading}
+          className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-sm cursor-pointer disabled:opacity-60 ${
+            isWishlisted
+              ? "bg-rose-50 text-rose-500 border border-rose-200"
+              : "bg-white/95 text-gray-400 border border-gray-100 hover:text-rose-500 hover:bg-rose-50/70"
+          }`}
+        >
+          <Heart
+            size={15}
+            className={`transition-colors ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
+          />
+        </button>
+
+        {/* Out of Stock Subtle Overlay */}
+        {!isAvailable && (
+          <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="bg-gray-800/85 text-white text-[10px] font-medium px-2 py-0.5 rounded-md shadow-xs">
+              Out of Stock
             </span>
-          )}
+          </div>
+        )}
 
-          {/* Wishlist Heart Icon in Top-Right Corner */}
-          <button
-            type="button"
-            aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
-            onClick={handleToggleWishlist}
-            disabled={isWishlistLoading}
-            className={`absolute top-1.5 right-1.5 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-2xs cursor-pointer disabled:opacity-60 ${
-              isWishlisted
-                ? "bg-rose-50 text-rose-500 border border-rose-200"
-                : "bg-white/95 text-gray-400 border border-gray-100 hover:text-rose-500 hover:bg-rose-50/70"
-            }`}
-          >
-            <Heart
-              size={15}
-              className={`transition-colors ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
-            />
-          </button>
-
-          {/* Out of Stock Subtle Overlay */}
-          {!isAvailable && (
-            <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
-              <span className="bg-gray-800/85 text-white text-[10px] font-medium px-2 py-0.5 rounded-md shadow-xs">
-                Out of Stock
-              </span>
-            </div>
-          )}
-
-          {/* Product Image Clickable to Product Details */}
-          <Link
-            href={detailsHref}
-            className="w-full h-full flex items-center justify-center overflow-hidden p-0.5 cursor-pointer"
-            aria-label={`View details for ${product.name}`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={`${product.id}-${activeImageIndex}`}
-              src={resolveImageUrl(productImages[activeImageIndex] || product.image, 400)}
-              alt={`${product.name}${productImages.length > 1 ? ` - image ${activeImageIndex + 1}` : ""}`}
-              loading="lazy"
-              className="w-full h-full object-contain transition-opacity duration-500 ease-in-out"
-            />
-            {productImages.length > 1 && (
-              <span className="pointer-events-none absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/85 px-1.5 py-1 shadow-sm">
-                {productImages.map((_, index) => (
-                  <span
-                    key={`${product.id}-image-dot-${index}`}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      index === activeImageIndex ? "w-3 bg-emerald-600" : "w-1.5 bg-gray-300"
-                    }`}
-                  />
-                ))}
-              </span>
-            )}
-          </Link>
-        </div>
-
-        {/* =========================================================================
-            2. ALL DETAILS BELOW THE IMAGE
-           ========================================================================= */}
-        
-        {/* Category Label & Optional Star Rating */}
-        <div className="flex items-center justify-between gap-1 mb-0.5">
-          <p className="text-[10px] sm:text-[11px] font-normal text-emerald-700 tracking-wide truncate leading-tight">
-            {product.category || "Produce"}
-          </p>
-          {rating !== undefined && rating > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1 rounded">
-              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-              <span>{rating.toFixed(1)}</span>
-            </span>
-          )}
-        </div>
-
-        {/* Product Name (13-14px, regular weight, clickable to details) */}
+        {/* Product Image Clickable to Product Details */}
         <Link
           href={detailsHref}
-          className="text-[13px] sm:text-[14px] font-normal text-gray-800 hover:text-[#00875a] transition-colors line-clamp-2 leading-tight min-h-0 block mb-1 cursor-pointer"
+          className="block w-full h-full cursor-pointer overflow-hidden"
+          aria-label={`View details for ${product.name}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={`${product.id}-${activeImageIndex}`}
+            src={resolveImageUrl(productImages[activeImageIndex] || product.image, 400)}
+            alt={`${product.name}${productImages.length > 1 ? ` - image ${activeImageIndex + 1}` : ""}`}
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          />
+        </Link>
+      </div>
+
+      {/* 2. NAME + WEIGHT (no delivery time, no category label) */}
+      <div className="px-3 pt-2 pb-1.5">
+        {/* Product Name */}
+        <Link
+          href={detailsHref}
+          className="block text-[13px] sm:text-[13.5px] font-semibold text-[#1f2937] hover:text-[#00875a] transition-colors line-clamp-2 leading-snug min-h-[34px] cursor-pointer"
           title={product.name}
         >
           {product.name}
         </Link>
 
-        {/* Weight / Variant choices: all options visible for direct selection */}
-        <div className="flex flex-wrap items-center gap-1 mb-1.5" role="group" aria-label={`Choose quantity for ${product.name}`}>
-          {variants.map((variant) => {
-            const isSelected = selectedVariantKey === variant.key;
-            return (
+        {/* Weight + optional rating */}
+        <div className="flex items-center justify-between gap-1 mt-0.5">
+          {variants.length > 1 ? (
+            // Multiple pack sizes: compact dropdown chip (opens upward)
+            <div className="relative">
               <button
-                key={variant.key}
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setSelectedVariantKey(variant.key);
+                  setIsVariantMenuOpen((v) => !v);
                 }}
                 disabled={!isAvailable}
-                aria-pressed={isSelected}
-                className={`min-h-7 rounded-md border px-2 py-1 text-[10px] sm:text-[11px] font-normal leading-none transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isSelected
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300 hover:bg-emerald-50/50"
-                }`}
+                aria-expanded={isVariantMenuOpen}
+                aria-label={`Choose quantity for ${product.name}`}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:border-gray-400 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {variant.label}
+                {activeVariant.label}
+                <ChevronDown
+                  size={11}
+                  className={`transition-transform ${isVariantMenuOpen ? "rotate-180" : ""}`}
+                />
               </button>
-            );
-          })}
-        </div>
 
-        {/* Selling Price and Original Price (16-17px, medium weight) */}
-        <div className="flex items-baseline gap-1.5 mb-1">
-          <span className="text-[16px] sm:text-[17px] font-medium text-gray-900 tracking-tight">
-            ₹{currentSellingPrice}
-          </span>
-          {currentOriginalPrice > currentSellingPrice && (
-            <span className="text-[12px] font-normal text-gray-400 line-through">
-              ₹{currentOriginalPrice}
+              {isVariantMenuOpen && (
+                <>
+                  {/* Click-away layer */}
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsVariantMenuOpen(false);
+                    }}
+                  />
+                  <div className="absolute left-0 bottom-full mb-1 z-40 w-max min-w-[8rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    {variants.map((variant) => (
+                      <button
+                        key={variant.key}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedVariantKey(variant.key);
+                          setIsVariantMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-emerald-50 cursor-pointer ${
+                          variant.key === selectedVariantKey
+                            ? "text-[#00875a] font-semibold"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {variant.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            // Single pack size: plain text, exactly like the target design
+            <span className="text-[12px] text-gray-500">{activeVariant.label}</span>
+          )}
+
+          {rating !== undefined && rating > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1 rounded shrink-0">
+              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+              <span>{rating.toFixed(1)}</span>
             </span>
           )}
         </div>
       </div>
 
-      {/* =========================================================================
-          3. QUANTITY SELECTOR AND ADD TO CART BUTTON
-         ========================================================================= */}
-      <div className="flex items-center gap-1.5 mt-1">
-        {/* Quantity Stepper: min 1 */}
-        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50/80 overflow-hidden shrink-0">
-          <button
-            type="button"
-            onClick={handleDecrement}
-            disabled={!isAvailable || quantity <= 1}
-            className="w-7 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-200/60 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-            aria-label="Decrease quantity"
-          >
-            <Minus className="w-3 h-3 stroke-[2.5]" />
-          </button>
-          <span className="w-6 text-center text-[12px] font-medium text-gray-800 select-none">
-            {quantity}
+      {/* 3. PRICE ROW — divider on top, price + MRP left, outlined ADD right */}
+      <div className="mt-auto border-t border-gray-100 px-3 py-2 flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[15px] sm:text-[16px] font-bold text-gray-900 tracking-tight">
+            ₹{currentSellingPrice}
           </span>
-          <button
-            type="button"
-            onClick={handleIncrement}
-            disabled={!isAvailable}
-            className="w-7 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-200/60 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-            aria-label="Increase quantity"
-          >
-            <Plus className="w-3 h-3 stroke-[2.5]" />
-          </button>
+          {currentOriginalPrice > currentSellingPrice && (
+            <span className="text-[11px] font-normal text-gray-400 line-through">
+              ₹{currentOriginalPrice}
+            </span>
+          )}
         </div>
 
-        {/* Green Add to Cart Button (12px, medium weight) */}
+        {/* Outlined green ADD button */}
         <button
           type="button"
           onClick={handleAddToCart}
           disabled={!isAvailable || isSubmittingCart}
-          className={`flex-1 h-8 rounded-lg text-[12px] font-medium transition-all flex items-center justify-center gap-1 px-2 shadow-2xs cursor-pointer ${
-            !isAvailable || isSubmittingCart
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+          className={`h-8 min-w-[72px] rounded-lg border text-[12px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1 px-3 shrink-0 ${
+            !isAvailable
+              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
               : isAddedFeedback
-              ? "bg-emerald-700 text-white"
-              : "bg-[#00875a] hover:bg-[#00734d] active:scale-95 text-white"
+              ? "bg-[#00875a] border-[#00875a] text-white"
+              : isSubmittingCart
+              ? "border-[#00875a]/40 bg-white text-[#00875a]/50 cursor-wait"
+              : "border-[#00875a] bg-white text-[#00875a] hover:bg-[#eaf8f0] active:scale-95 cursor-pointer"
           }`}
           aria-label={!isAvailable ? "Unavailable" : `Add ${product.name} to cart`}
         >
@@ -470,12 +447,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span>Added</span>
             </>
           ) : !isAvailable ? (
-            <span>Unavailable</span>
+            <span>N/A</span>
           ) : (
-            <>
-              <ShoppingCart className="w-3.5 h-3.5 stroke-[2]" />
-              <span>Add</span>
-            </>
+            <span>Add</span>
           )}
         </button>
       </div>

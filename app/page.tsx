@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
 import HomeFooter from "@/components/HomeFooter";
+import { ImageSlider, MarqueeBar, CategoryGrid } from "@/components/home";
+
 import {
   Search,
   MapPin,
@@ -86,7 +88,7 @@ export default function Home() {
   // Category state (driven dynamically from backend API)
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [activeCategoryName, setActiveCategoryName] = useState<string>("All Products");
+  const [activeCategoryName, setActiveCategoryName] = useState<string>("Best Sellers");
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -416,6 +418,18 @@ export default function Home() {
     const source = products.length > 0 ? products : allProducts;
     let list = [...source];
 
+    // 0. Best-Sellers filter
+    if (!activeCategoryId && !search && !showFavorites) {
+      const best = list.filter(
+        (p) =>
+          p.badge === "Featured" ||
+          (typeof p.originalPrice === "number" &&
+            typeof p.price === "number" &&
+            p.originalPrice > p.price)
+      );
+      if (best.length > 0) list = best;
+    }
+
     // 1. Favorites Filter
     if (showFavorites) {
       list = list.filter((p) => isWishlisted(p.publicId || String(p.id)));
@@ -454,7 +468,7 @@ export default function Home() {
   function selectCategory(cat: BackendCategory | null) {
     if (cat === null) {
       setActiveCategoryId(null);
-      setActiveCategoryName("All Products");
+      setActiveCategoryName("Best Sellers");
     } else {
       const catId = getCategoryId(cat);
       setActiveCategoryId(catId);
@@ -820,6 +834,12 @@ export default function Home() {
           </section>
         </div>
       )}
+      {/* =========================================================================
+          1.5 HOME HERO: IMAGE SLIDER + MARQUEE + CATEGORY GRID
+         ========================================================================= */}
+      <ImageSlider categories={categories} onSelect={selectCategory} />
+      <MarqueeBar />
+      <CategoryGrid categories={categories} onSelect={selectCategory} />
 
       {/* =========================================================================
           2. MOBILE HORIZONTALLY SCROLLABLE CATEGORY CHIPS
@@ -879,60 +899,8 @@ export default function Home() {
       {/* =========================================================================
           3. MAIN CONTENT: DESKTOP SIDEBAR + STOREFRONT PRODUCTS GRID
          ========================================================================= */}
-      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[245px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
-        
-        {/* Desktop Sidebar: Shop Categories */}
-        <aside
-          id="categories"
-          className="hidden h-fit scroll-mt-24 rounded-3xl border border-green-100 bg-white p-3.5 lg:sticky lg:top-[88px] lg:block lg:max-h-[calc(100vh-108px)] lg:overflow-y-auto lg:self-start shadow-xs"
-        >
-          <div className="flex items-center justify-between mb-3 px-2">
-            <h2 className="font-extrabold text-sm text-slate-900 tracking-tight">
-              Shop Categories
-            </h2>
-            {isCategoriesLoading && (
-              <RefreshCw size={12} className="animate-spin text-emerald-600" />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-1.5">
-            {/* All Products option */}
-            <button
-              onClick={() => selectCategory(null)}
-              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
-                activeCategoryId === null && !showFavorites
-                  ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
-                  : "text-gray-700 hover:bg-green-50"
-              }`}
-            >
-              <span className="text-sm">▦</span>
-              <span>All Products</span>
-            </button>
-
-            {/* Dynamic Backend Categories */}
-            {categories.map((c) => {
-              const catId = getCategoryId(c);
-              const { icon } = getCategoryVisuals(c);
-              const isActive = activeCategoryId === catId && !showFavorites;
-
-              return (
-                <button
-                  key={catId}
-                  onClick={() => selectCategory(c)}
-                  className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
-                      : "text-gray-700 hover:bg-green-50"
-                  }`}
-                >
-                  <span className="text-sm">{icon}</span>
-                  <span className="truncate">{c.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
+      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-5 lg:px-6 lg:py-5">
+      
         {/* Product Listing Main Section */}
         <section className="min-w-0">
 
@@ -947,7 +915,7 @@ export default function Home() {
                       ? "Your saved wishlist items"
                       : search
                       ? "Search results"
-                      : "Fresh picks for you"}
+                      : "Top picks for you"}
                   </span>
                 </p>
 
@@ -1047,7 +1015,7 @@ export default function Home() {
                   }}
                   className="mt-5 rounded-2xl bg-[#00875a] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-700/20 hover:bg-[#00734d] transition-all cursor-pointer"
                 >
-                  Show All Products
+                  Show Best Sellers
                 </button>
               </div>
             ) : (
