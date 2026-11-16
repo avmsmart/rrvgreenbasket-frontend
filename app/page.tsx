@@ -5,6 +5,8 @@ import Link from "next/link";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
 import { LocationNavbar } from "@/components/location";
 import HomeFooter from "@/components/HomeFooter";
+import { ImageSlider, MarqueeBar, CategoryGrid } from "@/components/home";
+
 import {
   Search,
   MapPin,
@@ -88,7 +90,7 @@ export default function Home() {
   // Category state (driven dynamically from backend API)
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [activeCategoryName, setActiveCategoryName] = useState<string>("All Products");
+  const [activeCategoryName, setActiveCategoryName] = useState<string>("Best Sellers");
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -235,6 +237,18 @@ export default function Home() {
     const source = products.length > 0 ? products : allProducts;
     let list = [...source];
 
+    // 0. Best-Sellers filter
+    if (!activeCategoryId && !search && !showFavorites) {
+      const best = list.filter(
+        (p) =>
+          p.badge === "Featured" ||
+          (typeof p.originalPrice === "number" &&
+            typeof p.price === "number" &&
+            p.originalPrice > p.price)
+      );
+      if (best.length > 0) list = best;
+    }
+
     // 1. Favorites Filter
     if (showFavorites) {
       list = list.filter((p) => isWishlisted(p.publicId || String(p.id)));
@@ -273,7 +287,7 @@ export default function Home() {
   function selectCategory(cat: BackendCategory | null) {
     if (cat === null) {
       setActiveCategoryId(null);
-      setActiveCategoryName("All Products");
+      setActiveCategoryName("Best Sellers");
     } else {
       const catId = getCategoryId(cat);
       setActiveCategoryId(catId);
@@ -520,6 +534,89 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Shared location panel anchored below the navigation. It is not a separate page. */}
+      {locationOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/25" onClick={() => setLocationOpen(false)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose delivery location"
+            onClick={(event) => event.stopPropagation()}
+            className="absolute left-3 right-3 top-[76px] mx-auto max-w-md rounded-2xl border border-green-100 bg-white p-4 shadow-2xl sm:left-auto sm:right-8 sm:top-[78px]"
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900">Where should we deliver?</h2>
+                <p className="mt-1 text-xs text-gray-500">Choose your location before shopping.</p>
+              </div>
+              <button type="button" onClick={() => setLocationOpen(false)} className="rounded-full bg-gray-100 p-1.5 text-gray-600" aria-label="Close location selector">
+                <X size={16} />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={detectCustomerLocation}
+              disabled={locationLoading}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-bold text-green-800 disabled:opacity-60"
+            >
+              {locationLoading ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}
+              Use my current location
+            </button>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={locationQuery}
+                onChange={(event) => {
+                  setLocationQuery(event.target.value);
+                  setLocationCandidate(null);
+                  setLocationError("");
+                }}
+                placeholder="Search locality, street or landmark"
+                className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-9 text-xs outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+              />
+              {locationLoading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-green-700" />}
+            </div>
+            {locationSuggestions.length > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
+                {locationSuggestions.map((item, index) => (
+                  <button
+                    key={`${item.lat}-${item.lon}-${index}`}
+                    type="button"
+                    onClick={() => chooseLocationSuggestion(item)}
+                    className="flex w-full items-start gap-2 border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-green-50"
+                  >
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-green-700" />
+                    <span className="text-[11px] leading-4 text-gray-700">{item.display_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {locationCandidate && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-green-800"><CheckCircle2 size={14} /> Confirm this location</p>
+                <p className="mt-1 text-[11px] leading-4 text-gray-700">{locationCandidate.address}</p>
+              </div>
+            )}
+            {locationError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] text-red-700">{locationError}</p>}
+            <button
+              type="button"
+              onClick={confirmDeliveryLocation}
+              disabled={!locationCandidate || locationLoading || deliveryCheckLoading}
+              className="mt-3 w-full rounded-xl bg-green-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {deliveryCheckLoading ? <><Loader2 size={14} className="animate-spin" /> Checking availability...</> : "Confirm location"}
+            </button>
+            <p className="mt-2 text-center text-[10px] text-gray-400">Delivery serviceability must be verified by the server at checkout.</p>
+          </section>
+        </div>
+      )}
+      {/* =========================================================================
+          1.5 HOME HERO: IMAGE SLIDER + MARQUEE + CATEGORY GRID
+         ========================================================================= */}
+      <ImageSlider categories={categories} onSelect={selectCategory} />
+      <MarqueeBar />
+      <CategoryGrid categories={categories} onSelect={selectCategory} />
+
       {/* =========================================================================
           2. MOBILE HORIZONTALLY SCROLLABLE CATEGORY CHIPS
          ========================================================================= */}
@@ -578,60 +675,8 @@ export default function Home() {
       {/* =========================================================================
           3. MAIN CONTENT: DESKTOP SIDEBAR + STOREFRONT PRODUCTS GRID
          ========================================================================= */}
-      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[245px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
-        
-        {/* Desktop Sidebar: Shop Categories */}
-        <aside
-          id="categories"
-          className="hidden h-fit scroll-mt-24 rounded-3xl border border-green-100 bg-white p-3.5 lg:sticky lg:top-[88px] lg:block lg:max-h-[calc(100vh-108px)] lg:overflow-y-auto lg:self-start shadow-xs"
-        >
-          <div className="flex items-center justify-between mb-3 px-2">
-            <h2 className="font-extrabold text-sm text-slate-900 tracking-tight">
-              Shop Categories
-            </h2>
-            {isCategoriesLoading && (
-              <RefreshCw size={12} className="animate-spin text-emerald-600" />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-1.5">
-            {/* All Products option */}
-            <button
-              onClick={() => selectCategory(null)}
-              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
-                activeCategoryId === null && !showFavorites
-                  ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
-                  : "text-gray-700 hover:bg-green-50"
-              }`}
-            >
-              <span className="text-sm">▦</span>
-              <span>All Products</span>
-            </button>
-
-            {/* Dynamic Backend Categories */}
-            {categories.map((c) => {
-              const catId = getCategoryId(c);
-              const { icon } = getCategoryVisuals(c);
-              const isActive = activeCategoryId === catId && !showFavorites;
-
-              return (
-                <button
-                  key={catId}
-                  onClick={() => selectCategory(c)}
-                  className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-green-700 text-white shadow-md shadow-emerald-700/20 font-extrabold"
-                      : "text-gray-700 hover:bg-green-50"
-                  }`}
-                >
-                  <span className="text-sm">{icon}</span>
-                  <span className="truncate">{c.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
+      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-5 lg:px-6 lg:py-5">
+      
         {/* Product Listing Main Section */}
         <section className="min-w-0">
 
@@ -646,7 +691,7 @@ export default function Home() {
                       ? "Your saved wishlist items"
                       : search
                       ? "Search results"
-                      : "Fresh picks for you"}
+                      : "Top picks for you"}
                   </span>
                 </p>
 
@@ -746,7 +791,7 @@ export default function Home() {
                   }}
                   className="mt-5 rounded-2xl bg-[#00875a] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-700/20 hover:bg-[#00734d] transition-all cursor-pointer"
                 >
-                  Show All Products
+                  Show Best Sellers
                 </button>
               </div>
             ) : (
