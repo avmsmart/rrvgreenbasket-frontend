@@ -104,34 +104,49 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
-      <div className="bg-white w-full max-w-4xl h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-end sm:justify-end justify-center p-0">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Drawer Panel: Mobile lo Bottom Sheet (rounded-t-3xl) | Desktop lo Right Drawer */}
+      <div className="relative z-10 w-full max-h-[92dvh] sm:max-h-full sm:h-full sm:max-w-4xl bg-white shadow-2xl flex flex-col rounded-t-3xl sm:rounded-none overflow-hidden border-t sm:border-t-0 sm:border-l border-slate-200 animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:slide-in-from-right duration-200">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1.5 rounded-full bg-slate-300 mx-auto mt-3 flex-shrink-0" aria-hidden="true" />
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 flex-shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
               <History className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
                 Stock Movements Audit Log
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">
                 {productName ? `Audit ledger for ${productName}` : "Master warehouse inventory transaction trail"}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-2">
             <button
               onClick={loadMovements}
               disabled={isLoading}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+              className="w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 shadow-3xs flex items-center justify-center transition-colors"
+              title="Refresh ledger"
+              aria-label="Refresh ledger"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-indigo-600" : ""}`} />
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              className="w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 shadow-3xs flex items-center justify-center transition-colors"
+              aria-label="Close"
             >
               <X className="w-4 h-4" />
             </button>
@@ -139,7 +154,7 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
         </div>
 
         {/* Filter Bar */}
-        <div className="p-4 border-b border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-2.5 sm:py-3 border-b border-slate-100 bg-white flex flex-wrap items-center justify-between gap-2.5 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500">Filter Type:</span>
             <select
@@ -149,7 +164,7 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
                 setSelectedType(e.target.value);
                 setCurrentPage(0);
               }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 cursor-pointer focus:outline-hidden"
             >
               <option value="All">All Movement Types</option>
               <option value="STOCK_IN">STOCK_IN (Inward)</option>
@@ -164,20 +179,20 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
           </div>
 
           <span className="text-xs text-slate-400 font-medium">
-            Total Logged Events: <strong>{totalElements}</strong>
+            Total Logged Events: <strong className="text-slate-700">{totalElements}</strong>
           </span>
         </div>
 
-        {/* Table Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Table Content (Scrollable) */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-4">
           {isLoading ? (
-            <div className="p-8 space-y-3 animate-pulse">
+            <div className="p-4 sm:p-8 space-y-3 animate-pulse">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="h-12 bg-slate-100 rounded-xl w-full" />
               ))}
             </div>
           ) : movements.length === 0 ? (
-            <div className="p-12 text-center space-y-2">
+            <div className="py-12 text-center space-y-2">
               <Layers className="w-10 h-10 text-slate-300 mx-auto" />
               <p className="text-sm font-bold text-slate-700">No Movements Recorded</p>
               <p className="text-xs text-slate-400">
@@ -185,8 +200,8 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto border border-slate-200/90 rounded-2xl">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-3xs">
+              <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-2.5 px-3">Timestamp</th>
@@ -233,7 +248,7 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
                         <td className="py-2.5 px-3 max-w-xs">
                           <div className="font-semibold text-slate-800 truncate">{m.reason}</div>
                           {m.referenceId && (
-                            <div className="text-[10px] text-slate-400 font-mono">
+                            <div className="text-[10px] text-slate-400 font-mono truncate">
                               Ref: {m.referenceId}
                             </div>
                           )}
@@ -250,23 +265,23 @@ export const StockMovementsDrawer: React.FC<StockMovementsDrawerProps> = ({
           )}
         </div>
 
-        {/* Footer Pagination */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
-          <span className="text-slate-500">
-            Page {currentPage + 1} of {totalPages}
+        {/* Footer Pagination (Mobile Safe-Area Protected) */}
+        <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3.5">
+          <span className="text-slate-500 text-[11px] sm:text-xs font-medium">
+            Page <strong className="text-slate-800">{currentPage + 1}</strong> of {totalPages}
           </span>
           <div className="flex items-center gap-2">
             <button
               disabled={currentPage === 0}
               onClick={() => setCurrentPage((p) => p - 1)}
-              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold disabled:opacity-40 hover:bg-slate-100"
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-[11px] sm:text-xs disabled:opacity-40 hover:bg-slate-100 transition-colors shadow-3xs"
             >
               Previous
             </button>
             <button
               disabled={currentPage + 1 >= totalPages}
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold disabled:opacity-40 hover:bg-slate-100"
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-[11px] sm:text-xs disabled:opacity-40 hover:bg-slate-100 transition-colors shadow-3xs"
             >
               Next
             </button>

@@ -116,210 +116,234 @@ export const StockInModal: React.FC<StockInModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Modal Dialog / Mobile Bottom Sheet */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Record Stock Inward"
+        className="relative z-10 w-full max-h-[95dvh] sm:max-h-[92vh] sm:max-w-lg bg-white shadow-2xl flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden border border-slate-200/90 animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95"
+      >
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1.5 rounded-full bg-slate-300 mx-auto mt-3 flex-shrink-0" aria-hidden="true" />
+
         {/* Header */}
-        <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-100 text-[#00875a] flex items-center justify-center">
+        <div className="px-4 sm:px-6 py-3 sm:py-4.5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50 flex-shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-[#00875a] flex items-center justify-center flex-shrink-0">
               <Plus className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Record Stock Inward</h3>
-              <p className="text-xs text-slate-500 font-medium">Add received batch into physical warehouse stock</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                Record Stock Inward
+              </h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">
+                Add received batch into physical warehouse stock
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-white text-slate-400 hover:text-slate-600 transition-colors"
+            className="w-9 h-9 rounded-full bg-white text-slate-400 hover:text-slate-600 flex items-center justify-center border border-slate-200 shadow-3xs transition-colors flex-shrink-0 ml-2"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMessage && (
-            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-medium">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* Product Selection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Target Product Item <span className="text-rose-500">*</span>
-            </label>
-            {selectedItem ? (
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
-                <span>{productName}</span>
-                <span className="text-[11px] font-mono text-slate-500">
-                  Current: {selectedItem.inventory.physicalQuantity} {selectedItem.inventory.unitOfMeasure}
-                </span>
+        {/* Form Body + Footer */}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Scrollable Form Fields */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-3.5 sm:space-y-4">
+            {errorMessage && (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span className="leading-snug">{errorMessage}</span>
               </div>
-            ) : eligibleItems.length === 0 ? (
-              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
-                No initialized products available. Please initialize stock for products before recording inward stock.
-              </div>
-            ) : (
-              <select
-                aria-label="Select Target Product Item"
-                value={productPublicId}
-                onChange={(e) => {
-                  setProductPublicId(e.target.value);
-                  const found = eligibleItems.find((i) => i.inventory.productPublicId === e.target.value);
-                  if (found) {
-                    setUnitOfMeasure(found.inventory.unitOfMeasure || "KG");
-                  }
-                }}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-              >
-                <option value="">Select Initialized Product</option>
-                {eligibleItems.map((i) => (
-                  <option key={i.inventory.productPublicId} value={i.inventory.productPublicId}>
-                    {i.product?.name || `Product (${i.inventory.productPublicId.slice(0, 8)}...)`} ({i.inventory.unitOfMeasure})
-                  </option>
-                ))}
-              </select>
             )}
-          </div>
 
-          {/* Quantity & UOM */}
-          <div className="grid grid-cols-2 gap-3">
+            {successMessage && (
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span className="leading-snug">{successMessage}</span>
+              </div>
+            )}
+
+            {/* Product Selection */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Quantity Inward <span className="text-rose-500">*</span>
+                Target Product Item <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="number"
-                step="any"
-                min="0.01"
-                placeholder="e.g. 50"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-                required
-              />
+              {selectedItem ? (
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <span className="truncate">{productName}</span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    Current: {selectedItem.inventory.physicalQuantity} {selectedItem.inventory.unitOfMeasure}
+                  </span>
+                </div>
+              ) : eligibleItems.length === 0 ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                  No initialized products available. Please initialize stock for products before recording inward stock.
+                </div>
+              ) : (
+                <select
+                  aria-label="Select Target Product Item"
+                  value={productPublicId}
+                  onChange={(e) => {
+                    setProductPublicId(e.target.value);
+                    const found = eligibleItems.find((i) => i.inventory.productPublicId === e.target.value);
+                    if (found) {
+                      setUnitOfMeasure(found.inventory.unitOfMeasure || "KG");
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                >
+                  <option value="">Select Initialized Product</option>
+                  {eligibleItems.map((i) => (
+                    <option key={i.inventory.productPublicId} value={i.inventory.productPublicId}>
+                      {i.product?.name || `Product (${i.inventory.productPublicId.slice(0, 8)}...)`} ({i.inventory.unitOfMeasure})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
+
+            {/* Quantity & UOM */}
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
+                  Quantity Inward <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  placeholder="e.g. 50"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
+                  Unit of Measure
+                </label>
+                <select
+                  aria-label="Select Unit of Measure"
+                  value={unitOfMeasure}
+                  onChange={(e) => setUnitOfMeasure(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                >
+                  <option value="KG">KG</option>
+                  <option value="GRAM">GRAM</option>
+                  <option value="PIECE">PIECE</option>
+                  <option value="BUNCH">BUNCH</option>
+                  <option value="PACK">PACK</option>
+                  <option value="DOZEN">DOZEN</option>
+                  <option value="LITRE">LITRE</option>
+                  <option value="ML">ML</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Reason */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Unit of Measure
+                Reason / Source <span className="text-rose-500">*</span>
               </label>
               <select
-                aria-label="Select Unit of Measure"
-                value={unitOfMeasure}
-                onChange={(e) => setUnitOfMeasure(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                aria-label="Select Reason or Source"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
               >
-                <option value="KG">KG</option>
-                <option value="GRAM">GRAM</option>
-                <option value="PIECE">PIECE</option>
-                <option value="BUNCH">BUNCH</option>
-                <option value="PACK">PACK</option>
-                <option value="DOZEN">DOZEN</option>
-                <option value="LITRE">LITRE</option>
-                <option value="ML">ML</option>
+                <option value="PURCHASE">Wholesale Purchase / Mandi Sourcing</option>
+                <option value="HARVEST">Direct Farm Cluster Harvest</option>
+                <option value="RETURN">Customer Return / Pack Cancellation</option>
+                <option value="AUDIT">Physical Audit Stock Addition</option>
+                <option value="TRANSFER">Inter-Hub Transfer In</option>
+                <option value="CUSTOM">Other (Custom Reason)</option>
               </select>
             </div>
-          </div>
 
-          {/* Reason */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Reason / Source <span className="text-rose-500">*</span>
-            </label>
-            <select
-              aria-label="Select Reason or Source"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-            >
-              <option value="PURCHASE">Wholesale Purchase / Mandi Sourcing</option>
-              <option value="HARVEST">Direct Farm Cluster Harvest</option>
-              <option value="RETURN">Customer Return / Pack Cancellation</option>
-              <option value="AUDIT">Physical Audit Stock Addition</option>
-              <option value="TRANSFER">Inter-Hub Transfer In</option>
-              <option value="CUSTOM">Other (Custom Reason)</option>
-            </select>
-          </div>
+            {reason === "CUSTOM" && (
+              <div>
+                <input
+                  type="text"
+                  placeholder="Enter specific inward reason..."
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
+                  required
+                />
+              </div>
+            )}
 
-          {reason === "CUSTOM" && (
-            <div>
-              <input
-                type="text"
-                placeholder="Enter specific inward reason..."
-                value={customReason}
-                onChange={(e) => setCustomReason(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
-                required
-              />
+            {/* Reference Type & ID */}
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
+                  Ref Type (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. PURCHASE_ORDER"
+                  value={referenceType}
+                  onChange={(e) => setReferenceType(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 truncate">
+                  Ref ID / Invoice # (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. INV-2026-0042"
+                  value={referenceId}
+                  onChange={(e) => setReferenceId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
+                />
+              </div>
             </div>
-          )}
 
-          {/* Reference Type & ID */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ref Type (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. PURCHASE_ORDER"
-                value={referenceType}
-                onChange={(e) => setReferenceType(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
-              />
-            </div>
+            {/* Notes */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ref ID / Invoice # (Optional)
+                Audit Notes
               </label>
-              <input
-                type="text"
-                placeholder="e.g. INV-2026-0042"
-                value={referenceId}
-                onChange={(e) => setReferenceId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium"
+              <textarea
+                rows={2}
+                placeholder="e.g. Morning fresh batch from Kurnool Mandi"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium resize-none"
               />
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Audit Notes
-            </label>
-            <textarea
-              rows={2}
-              placeholder="e.g. Morning fresh batch from Kurnool Mandi"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium resize-none"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          {/* Sticky Actions Footer (Mobile Safe-Area + Flexible Buttons) */}
+          <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 pt-3 border-t border-slate-100 bg-slate-50/70 sm:bg-white flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-2 rounded-xl sm:rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className="flex-1 sm:flex-none justify-center px-5 py-2 sm:py-2 rounded-xl sm:rounded-2xl bg-[#00875a] hover:bg-[#00734d] text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
               {isLoading ? (
                 <span>Recording Inward...</span>
