@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { MapPin } from "lucide-react";
+import { useLocation } from "@/context/LocationContext";
 import {
   CustomerAddress,
   getStoredAddresses,
@@ -8,6 +10,7 @@ import {
 } from "@/data/customer-profile-mock";
 
 export const CustomerAddresses: React.FC = () => {
+  const { selectedAddress: globalLocation } = useLocation();
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
@@ -18,8 +21,8 @@ export const CustomerAddresses: React.FC = () => {
   const [flatHouse, setFlatHouse] = useState("");
   const [streetArea, setStreetArea] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [city, setCity] = useState("Bengaluru");
-  const [state, setState] = useState("Karnataka");
+  const [city, setCity] = useState("Kurnool");
+  const [state, setState] = useState("Andhra Pradesh");
   const [pin, setPin] = useState("");
   const [type, setType] = useState<"HOME" | "WORK" | "OTHER">("HOME");
   const [isDefault, setIsDefault] = useState(false);
@@ -36,8 +39,8 @@ export const CustomerAddresses: React.FC = () => {
     setFlatHouse("");
     setStreetArea("");
     setLandmark("");
-    setCity("Bengaluru");
-    setState("Karnataka");
+    setCity("Kurnool");
+    setState("Andhra Pradesh");
     setPin("");
     setType("HOME");
     setIsDefault(addresses.length === 0);
@@ -266,6 +269,26 @@ export const CustomerAddresses: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveAddress} className="mt-5 space-y-4">
+              {globalLocation && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold truncate">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">Map Location: {globalLocation.displayName}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStreetArea(globalLocation.formattedAddress);
+                      setCity(globalLocation.city || "Kurnool");
+                      setState(globalLocation.state || "Andhra Pradesh");
+                      setPin(globalLocation.pincode || "518002");
+                    }}
+                    className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shrink-0 cursor-pointer"
+                  >
+                    Auto Fill
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-gray-700">

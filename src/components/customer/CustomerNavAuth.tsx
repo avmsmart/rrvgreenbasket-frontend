@@ -102,7 +102,7 @@ useEffect(() => {
     );
   }
 
-  const hasAuth = isAuthenticated || !!customerTokenStorage.getAccessToken();
+  const hasAuth = isAuthenticated && Boolean(customer?.mobileNumber);
 
   // Not logged in: Login / Register
   if (!hasAuth) {

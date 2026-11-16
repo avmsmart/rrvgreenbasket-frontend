@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
+import { LocationNavbar } from "@/components/location";
 import HomeFooter from "@/components/HomeFooter";
 import { ImageSlider, MarqueeBar, CategoryGrid } from "@/components/home";
 
@@ -38,6 +39,7 @@ import { resolveImageUrl } from "@/utils/image-utils";
 import { useWishlist } from "@/context/WishlistContext";
 import { useStoreSettings } from "@/context/StoreSettingsContext";
 import { useCart } from "@/context/CartContext";
+import { useCustomerAuth } from "@/context/CustomerAuthContext";
 
 // Category image fallbacks for storefront visual badges
 const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
@@ -103,6 +105,10 @@ export default function Home() {
   // Cart state from centralized CartContext (connected to Spring Boot Cart Service)
   const { itemCount: cartCount, totalAmount: cartTotal, addToCart } = useCart();
 
+  // Customer authentication state
+  const { isAuthenticated, customer } = useCustomerAuth();
+  const isCustomerLoggedIn = isAuthenticated && Boolean(customer?.mobileNumber);
+
   // Search state
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
@@ -113,193 +119,6 @@ export default function Home() {
   // UI state
   const [notice, setNotice] = useState<string>("");
   const [scrolling, setScrolling] = useState<boolean>(false);
-
-  // Delivery location selector (embedded directly in the navigation)
-  type DeliveryLocation = {
-    latitude: number;
-    longitude: number;
-    address: string;
-    displayName: string;
-  };
-  type LocationSuggestion = { lat: string; lon: string; display_name: string };
-  const [locationOpen, setLocationOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<DeliveryLocation | null>(null);
-  const [locationCandidate, setLocationCandidate] = useState<DeliveryLocation | null>(null);
-  const [locationQuery, setLocationQuery] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
-  const [deliveryCheckLoading, setDeliveryCheckLoading] = useState(false);
-  type DeliveryAvailability = {
-    available: boolean;
-    zonePublicId?: string;
-    zoneName?: string;
-    deliveryCharge?: number;
-    minimumOrderAmount?: number;
-    freeDeliveryThreshold?: number;
-    estimatedDeliveryTime?: string;
-    message?: string;
-  };
-  const [deliveryAvailability, setDeliveryAvailability] = useState<DeliveryAvailability | null>(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("rrv-delivery-location");
-      if (saved) {
-        const parsed = JSON.parse(saved) as DeliveryLocation & { deliveryAvailability?: DeliveryAvailability };
-        if (parsed?.address && Number.isFinite(parsed.latitude) && Number.isFinite(parsed.longitude)) {
-          setSelectedLocation(parsed);
-          if (parsed.deliveryAvailability) setDeliveryAvailability(parsed.deliveryAvailability);
-        }
-      }
-    } catch {
-      localStorage.removeItem("rrv-delivery-location");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!locationOpen || !locationQuery.trim() || locationCandidate?.address === locationQuery) {
-      setLocationSuggestions([]);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      try {
-        setLocationLoading(true);
-        const params = new URLSearchParams({
-          q: `${locationQuery}, Kurnool, Andhra Pradesh, India`,
-          format: "jsonv2",
-          addressdetails: "1",
-          limit: "5",
-        });
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-          signal: controller.signal,
-          headers: { "Accept-Language": "en" },
-        });
-        if (!response.ok) throw new Error("Address search is unavailable. Please try again.");
-        setLocationSuggestions(await response.json());
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setLocationError(error instanceof Error ? error.message : "Unable to search this address.");
-        }
-      } finally {
-        setLocationLoading(false);
-      }
-    }, 550);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [locationQuery, locationOpen, locationCandidate]);
-
-  async function getReadableLocation(latitude: number, longitude: number): Promise<DeliveryLocation> {
-    const params = new URLSearchParams({
-      lat: String(latitude), lon: String(longitude), format: "jsonv2", addressdetails: "1",
-    });
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
-      headers: { "Accept-Language": "en" },
-    });
-    if (!response.ok) throw new Error("Could not find the address for this location.");
-    const data = await response.json();
-    return {
-      latitude,
-      longitude,
-      address: data.display_name || "Selected map location",
-      displayName: data.address?.suburb || data.address?.neighbourhood || data.address?.village ||
-        data.address?.town || data.address?.city || "Selected location",
-    };
-  }
-
-  function detectCustomerLocation() {
-    setLocationError("");
-    if (!navigator.geolocation) {
-      setLocationError("Your browser does not support location detection.");
-      return;
-    }
-    setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
-      try {
-        const result = await getReadableLocation(coords.latitude, coords.longitude);
-        setLocationCandidate(result);
-        setLocationQuery(result.address);
-        setLocationSuggestions([]);
-      } catch (error) {
-        setLocationError(error instanceof Error ? error.message : "Unable to detect your address.");
-      } finally { setLocationLoading(false); }
-    }, (error) => {
-      setLocationLoading(false);
-      setLocationError(error.code === error.PERMISSION_DENIED
-        ? "Location permission denied. Allow access or search for your address."
-        : error.code === error.TIMEOUT ? "Location request timed out. Please try again."
-        : "Your current location could not be detected.");
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-  }
-
-  async function chooseLocationSuggestion(item: LocationSuggestion) {
-    try {
-      setLocationLoading(true);
-      setLocationError("");
-      const result = await getReadableLocation(Number(item.lat), Number(item.lon));
-      setLocationCandidate(result);
-      setLocationQuery(result.address);
-      setLocationSuggestions([]);
-    } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "Unable to select this address.");
-    } finally { setLocationLoading(false); }
-  }
-
-  async function confirmDeliveryLocation() {
-    if (!locationCandidate || deliveryCheckLoading) return;
-
-    setDeliveryCheckLoading(true);
-    setLocationError("");
-    setDeliveryAvailability(null);
-
-    try {
-      const apiBaseUrl = (
-        process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL ||
-        process.env.NEXT_PUBLIC_API_BASE_URL ||
-        "http://192.168.0.138:8082"
-      ).replace(/\/$/, "");
-
-      const response = await fetch(`${apiBaseUrl}/api/delivery/check-availability`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          latitude: locationCandidate.latitude,
-          longitude: locationCandidate.longitude,
-          address: locationCandidate.address,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok || result?.success === false) {
-        throw new Error(result?.message || "Unable to check delivery availability. Please try again.");
-      }
-
-      // API response shape: { success, message, data: { available, zoneName, ... } }
-      const availability = result?.data as DeliveryAvailability | undefined;
-      if (!availability || typeof availability.available !== "boolean") {
-        throw new Error("The delivery service returned an unexpected response.");
-      }
-
-      setSelectedLocation(locationCandidate);
-      setDeliveryAvailability(availability);
-      localStorage.setItem("rrv-delivery-location", JSON.stringify({
-        ...locationCandidate,
-        deliveryAvailability: availability,
-      }));
-      setLocationOpen(false);
-      setNotice(availability.available
-        ? availability.message || `Delivery is available${availability.zoneName ? ` in ${availability.zoneName}` : ""}.`
-        : availability.message || "Sorry, delivery is not available at this location.");
-    } catch (error) {
-      console.error("[Delivery] Availability check failed:", error);
-      setLocationError(error instanceof Error ? error.message : "Could not verify this delivery location.");
-    } finally {
-      setDeliveryCheckLoading(false);
-    }
-  }
 
   // Fetch categories from backend API
   const loadCategories = useCallback(async () => {
@@ -484,16 +303,6 @@ export default function Home() {
 
   // Cart modification handler connecting to Spring Boot Cart Service
   async function handleAddToCart(p: StoreProduct, variant: ProductWeightVariant, qty: number = 1) {
-    if (!selectedLocation) {
-      setNotice("Please select and confirm your delivery location first.");
-      setLocationOpen(true);
-      return;
-    }
-    if (!deliveryAvailability?.available) {
-      setNotice("Delivery is not available at your selected location. Please choose another location.");
-      setLocationOpen(true);
-      return;
-    }
     const pPublicId = p.publicId || String(p.id);
     const multiplier =
       Number.isFinite(Number(variant.multiplier)) && variant.multiplier > 0
@@ -558,28 +367,14 @@ export default function Home() {
               </div>
             </button>
 
-            {/* Mobile Delivery Location Selector - opens inside the navigation */}
+            {/* Mobile Delivery Location Selector */}
             <div className="relative min-w-0 flex-1 md:hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setLocationCandidate(selectedLocation);
-                  setLocationQuery(selectedLocation?.address || "");
-                  setLocationError("");
-                  setLocationOpen((open) => !open);
-                }}
-                className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-green-100 bg-green-50/70 px-2.5 py-2 text-left"
-                aria-expanded={locationOpen}
-              >
-                <MapPin size={18} className="shrink-0 text-green-700" />
-                <span className="min-w-0 leading-tight">
-                  <span className="block text-[9px] text-gray-500">Deliver to</span>
-                  <span className="block truncate text-[11px] font-bold text-gray-800">
-                    {selectedLocation?.displayName || "Select location"}
-                  </span>
-                </span>
-                <ChevronDown size={13} className="shrink-0 text-gray-500" />
-              </button>
+              <LocationNavbar variant="mobile" />
+            </div>
+
+            {/* Mobile Customer Account Icon */}
+            <div className="shrink-0 md:hidden flex items-center pl-1">
+              <CustomerNavAuth />
             </div>
 
             {/* Desktop Search + Category Select (Synced with backend categoryId) */}
@@ -651,32 +446,13 @@ export default function Home() {
               </button>
             </form>
 
-            {/* Desktop Delivery Location Selector - same navigation flow */}
+            {/* Desktop Delivery Location Selector */}
             <div className="relative hidden shrink-0 lg:block">
-              <button
-                type="button"
-                onClick={() => {
-                  setLocationCandidate(selectedLocation);
-                  setLocationQuery(selectedLocation?.address || "");
-                  setLocationError("");
-                  setLocationOpen((open) => !open);
-                }}
-                className="flex items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-green-50"
-                aria-expanded={locationOpen}
-              >
-                <MapPin size={20} className="text-green-700" />
-                <span className="leading-tight">
-                  <span className="block text-[10px] text-gray-500">Deliver to</span>
-                  <span className="flex max-w-[180px] items-center gap-1 truncate text-xs font-bold text-gray-900">
-                    {selectedLocation?.displayName || "Select location"}
-                    <ChevronDown size={12} />
-                  </span>
-                </span>
-              </button>
+              <LocationNavbar variant="desktop" />
             </div>
 
             {/* Customer Account / Auth Navigation */}
-            <div className="hidden shrink-0 border-l border-gray-100 pl-3 lg:block">
+            <div className="hidden shrink-0 border-l border-gray-100 pl-3 md:block">
               <CustomerNavAuth />
             </div>
 
@@ -1120,9 +896,9 @@ export default function Home() {
           </Link>
 
           <Link
-            href="/customer/profile?tab=profile"
-            aria-label="My Account"
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
+            href={isCustomerLoggedIn ? "/customer/profile?tab=overview" : "/login"}
+            aria-label="Account"
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700 cursor-pointer"
           >
             <UserRound size={21} strokeWidth={1.8} />
             <span className="text-[10px] font-semibold">Account</span>

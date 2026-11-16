@@ -78,7 +78,7 @@ export const CustomerProfileLayout: React.FC<CustomerProfileLayoutProps> = ({
   }
 
   // Unauthenticated guard
-  const hasAuth = isAuthenticated || !!customerTokenStorage.getAccessToken();
+  const hasAuth = isAuthenticated && Boolean(customer?.mobileNumber);
   if (!hasAuth) {
     return (
       <main className="min-h-screen bg-[#f8faf7] text-gray-900">

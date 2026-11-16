@@ -19,16 +19,17 @@ export const CustomerLogoutDialog: React.FC<CustomerLogoutDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-y-auto bg-black/60 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="logout-dialog-title"
+      onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl transition-all scale-100 border border-gray-100"
+        className="relative my-auto w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600 text-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 text-2xl">
           🚪
         </div>
 
@@ -39,16 +40,16 @@ export const CustomerLogoutDialog: React.FC<CustomerLogoutDialogProps> = ({
           Sign Out of RRV Green Basket?
         </h3>
 
-        <p className="mt-2 text-center text-sm text-gray-500">
+        <p className="mt-2 text-center text-xs sm:text-sm text-gray-500 leading-relaxed">
           Are you sure you want to end your current session? You will need your mobile OTP to log in again.
         </p>
 
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+        <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={isLoggingOut}
-            className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 active:scale-[0.99] disabled:opacity-50 transition"
+            className="w-full sm:flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-xs sm:text-sm font-semibold text-gray-700 hover:bg-gray-50 active:scale-[0.99] disabled:opacity-50 transition cursor-pointer"
           >
             Cancel
           </button>
@@ -56,7 +57,7 @@ export const CustomerLogoutDialog: React.FC<CustomerLogoutDialogProps> = ({
             type="button"
             onClick={onConfirm}
             disabled={isLoggingOut}
-            className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white shadow hover:bg-red-700 active:scale-[0.99] disabled:opacity-50 transition flex items-center justify-center gap-2"
+            className="w-full sm:flex-1 rounded-xl bg-red-600 py-2.5 text-xs sm:text-sm font-semibold text-white shadow hover:bg-red-700 active:scale-[0.99] disabled:opacity-50 transition flex items-center justify-center gap-2 cursor-pointer"
           >
             {isLoggingOut ? (
               <>

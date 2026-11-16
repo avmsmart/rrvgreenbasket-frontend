@@ -138,6 +138,67 @@ class DeliveryService {
   // ==========================================================================
 
   /**
+   * GET /api/delivery/store-location
+   * Retrieve store information and maximum delivery distance
+   */
+  async getStoreLocation(): Promise<{
+    storeName: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    maxDeliveryDistanceKm: number;
+    baseDeliveryCharge: number;
+    freeDeliveryThreshold?: number;
+    minimumOrderAmount?: number;
+    operatingHours?: string;
+  }> {
+    try {
+      const res = await this.request<any>("/api/delivery/store-location", {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (res && typeof res.latitude === "number") {
+        return res;
+      }
+    } catch {
+      // Fallback configuration for Kurnool Hub
+    }
+    return {
+      storeName: "RRV Green Basket Hub",
+      address: "Rajivihar, Kurnool, Andhra Pradesh 518002",
+      latitude: 15.8281,
+      longitude: 78.0373,
+      maxDeliveryDistanceKm: 5.0,
+      baseDeliveryCharge: 20,
+      freeDeliveryThreshold: 500,
+      minimumOrderAmount: 100,
+      operatingHours: "06:00 AM – 10:00 PM",
+    };
+  }
+
+  /**
+   * POST /api/delivery/verify-address
+   * Verify selected Google Place ID with backend
+   */
+  async verifyAddress(placeId: string): Promise<any> {
+    return this.request<any>("/api/delivery/verify-address", {
+      method: "POST",
+      body: JSON.stringify({ placeId }),
+    });
+  }
+
+  /**
+   * POST /api/delivery/resolve-location
+   * Resolve device coordinates into a verified address via backend reverse-geocoding
+   */
+  async resolveLocation(latitude: number, longitude: number): Promise<any> {
+    return this.request<any>("/api/delivery/resolve-location", {
+      method: "POST",
+      body: JSON.stringify({ latitude, longitude }),
+    });
+  }
+
+  /**
    * GET /api/delivery/zones
    * Retrieve list of all currently active delivery zones with boundaries
    */
@@ -150,18 +211,76 @@ class DeliveryService {
 
   /**
    * POST /api/delivery/check-availability
-   * Check if a coordinate location is within a serviceable delivery zone
+   * Check if a coordinate location or placeId is within a serviceable delivery zone (e.g. within 5 km)
    */
   async checkAvailability(
-    payload: CheckDeliveryAvailabilityRequest
-  ): Promise<DeliveryAvailabilityResponse> {
-    return this.request<DeliveryAvailabilityResponse>(
-      "/api/delivery/check-availability",
-      {
+    payload: CheckDeliveryAvailabilityRequest & { placeId?: string }
+  ): Promise<DeliveryAvailabilityResponse & {
+    distanceKm?: number;
+    distanceMeters?: number;
+    maxDistanceKm?: number;
+    estimatedDuration?: string;
+    status?: string;
+  }> {
+    return this.request<DeliveryAvailabilityResponse & {
+      distanceKm?: number;
+      distanceMeters?: number;
+      maxDistanceKm?: number;
+      estimatedDuration?: string;
+      status?: string;
+    }>("/api/delivery/check-availability", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * POST /api/delivery/validate-checkout
+   * Perform authoritative final delivery validation and fee retrieval for checkout
+   */
+  async validateCheckout(payload: {
+    placeId?: string;
+    cartId?: string;
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+  }): Promise<{
+    valid: boolean;
+    serviceable: boolean;
+    deliveryCharge: number;
+    distanceKm?: number;
+    zoneName?: string;
+    minimumOrderAmount?: number;
+    freeDeliveryThreshold?: number;
+    message?: string;
+  }> {
+    try {
+      const res = await this.request<any>("/api/delivery/validate-checkout", {
         method: "POST",
         body: JSON.stringify(payload),
+      });
+      if (res && typeof res.serviceable === "boolean") {
+        return res;
       }
-    );
+    } catch {
+      // Fall back to checkAvailability if backend hasn't separated validate-checkout yet
+    }
+    const avail = await this.checkAvailability({
+      placeId: payload.placeId,
+      latitude: payload.latitude || 15.8281,
+      longitude: payload.longitude || 78.0373,
+      address: payload.address,
+    });
+    return {
+      valid: avail.available,
+      serviceable: avail.available,
+      deliveryCharge: avail.deliveryCharge ?? 20,
+      distanceKm: avail.distanceKm,
+      zoneName: avail.zoneName,
+      minimumOrderAmount: avail.minimumOrderAmount,
+      freeDeliveryThreshold: avail.freeDeliveryThreshold,
+      message: avail.message,
+    };
   }
 
   /**

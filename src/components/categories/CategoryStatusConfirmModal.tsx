@@ -4,6 +4,13 @@ import React, { useState } from "react";
 import { X, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Category } from "@/types/category";
 
+const T = {
+  primary: "#0B8A4F", primaryDark: "#076B3D", primaryTint: "#E7F6EE",
+  accent: "#F59E0B", danger: "#E23744",
+  bg: "#F6F8F7", card: "#FFFFFF", border: "#E6EBE8",
+  text: "#111827", text2: "#5B6770", text3: "#9AA5AD",
+};
+
 interface CategoryStatusConfirmModalProps {
   category: Category | null;
   isOpen: boolean;
@@ -12,10 +19,7 @@ interface CategoryStatusConfirmModalProps {
 }
 
 export const CategoryStatusConfirmModal: React.FC<CategoryStatusConfirmModalProps> = ({
-  category,
-  isOpen,
-  onClose,
-  onConfirm,
+  category, isOpen, onClose, onConfirm,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -25,53 +29,32 @@ export const CategoryStatusConfirmModal: React.FC<CategoryStatusConfirmModalProp
   const willBeActive = !category.isActive;
 
   const handleConfirm = async () => {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    try {
-      await onConfirm(category, willBeActive);
-      onClose();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to update category status.";
-      setErrorMessage(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
+    setIsSubmitting(true); setErrorMessage(null);
+    try { await onConfirm(category, willBeActive); onClose(); }
+    catch (err: unknown) { setErrorMessage(err instanceof Error ? err.message : "Failed to update."); }
+    finally { setIsSubmitting(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111827]/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-3xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="p-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg }}>
           <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                willBeActive
-                  ? "bg-emerald-50 text-emerald-800"
-                  : "bg-amber-50 text-amber-700"
-              }`}
-            >
-              {willBeActive ? (
-                <CheckCircle2 className="w-5 h-5 text-[#00875a]" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              )}
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ backgroundColor: willBeActive ? T.primaryTint : "#FFF8EC" }}>
+              {willBeActive
+                ? <CheckCircle2 className="w-5 h-5" style={{ color: T.primary }} />
+                : <AlertTriangle className="w-5 h-5" style={{ color: T.accent }} />}
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-800 tracking-tight">
+              <h3 className="text-base font-black tracking-tight" style={{ color: T.text }}>
                 {willBeActive ? "Activate Category" : "Deactivate Category"}
               </h3>
-              <p className="text-xs text-slate-400 font-medium">
-                PATCH /api/admin/products/categories/status
-              </p>
+              <p className="text-xs font-medium" style={{ color: T.text3 }}>Confirm status change</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-          >
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="p-2 rounded-xl cursor-pointer" style={{ color: T.text3 }}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -79,72 +62,53 @@ export const CategoryStatusConfirmModal: React.FC<CategoryStatusConfirmModalProp
         {/* Body */}
         <div className="p-6 space-y-4">
           {errorMessage && (
-            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+            <div className="p-3 rounded-2xl text-xs font-medium" style={{ backgroundColor: "#FFF1F2", border: `1px solid #FECDD3`, color: T.danger }}>
               {errorMessage}
             </div>
           )}
-
-          <p className="text-xs text-slate-600 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: T.text2 }}>
             {willBeActive ? (
-              <>
-                Are you sure you want to activate category{" "}
-                <strong className="text-slate-900">&quot;{category.name}&quot;</strong>? It will
-                immediately become visible in the customer storefront catalog and search filters.
-              </>
+              <>Are you sure you want to activate <strong style={{ color: T.text }}>&quot;{category.name}&quot;</strong>? It will become visible on the storefront.</>
             ) : (
-              <>
-                Are you sure you want to deactivate category{" "}
-                <strong className="text-slate-900">&quot;{category.name}&quot;</strong>? This
-                category will be hidden from the customer storefront.
-              </>
+              <>Are you sure you want to deactivate <strong style={{ color: T.text }}>&quot;{category.name}&quot;</strong>? It will be hidden from customers.</>
             )}
           </p>
-
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-            <div className="flex items-center justify-between text-slate-500">
-              <span>Category:</span>
-              <strong className="text-slate-800">{category.name}</strong>
-            </div>
-            <div className="flex items-center justify-between text-slate-500">
-              <span>Slug:</span>
-              <code className="text-[11px] font-mono text-slate-700">{category.slug}</code>
-            </div>
-            <div className="flex items-center justify-between text-slate-500">
-              <span>Current Status:</span>
-              <span className={`font-bold ${category.isActive ? "text-emerald-700" : "text-rose-600"}`}>
-                {category.isActive ? "Active" : "Inactive"}
-              </span>
-            </div>
+          <div className="p-3 rounded-2xl text-xs space-y-1" style={{ backgroundColor: T.bg, border: `1px solid ${T.border}` }}>
+            <Row label="Category" value={category.name} />
+            <Row label="Slug" value={category.slug} mono />
+            <Row label="Current"
+              value={category.isActive ? "Active" : "Inactive"}
+              valueColor={category.isActive ? T.primary : T.accent}
+            />
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-white transition-colors cursor-pointer"
-          >
+        {/* Footer */}
+        <div className="p-6 flex items-center justify-end gap-3" style={{ borderTop: `1px solid ${T.border}`, backgroundColor: T.bg }}>
+          <button type="button" onClick={onClose} disabled={isSubmitting}
+            className="px-4 py-2.5 rounded-2xl font-bold text-xs cursor-pointer"
+            style={{ border: `1px solid ${T.border}`, color: T.text2 }}>
             Cancel
           </button>
-          <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={handleConfirm}
-            className={`px-5 py-2.5 rounded-2xl font-bold text-xs text-white shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 ${
-              willBeActive
-                ? "bg-[#00875a] hover:bg-emerald-700 shadow-emerald-200"
-                : "bg-rose-600 hover:bg-rose-700 shadow-rose-200"
-            }`}
-          >
-            {isSubmitting && (
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            )}
-            <span>{willBeActive ? "Yes, Activate Category" : "Yes, Deactivate Category"}</span>
+          <button type="button" disabled={isSubmitting} onClick={handleConfirm}
+            className="px-5 py-2.5 rounded-2xl font-bold text-xs text-white flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            style={{ backgroundColor: willBeActive ? T.primary : T.danger }}>
+            {isSubmitting && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            <span>{willBeActive ? "Yes, Activate" : "Yes, Deactivate"}</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+const Row: React.FC<{ label: string; value: string; mono?: boolean; valueColor?: string }> = ({
+  label, value, mono, valueColor,
+}) => (
+  <div className="flex items-center justify-between" style={{ color: T.text2 }}>
+    <span>{label}:</span>
+    <span className={`font-bold ${mono ? "font-mono text-[11px]" : ""}`} style={{ color: valueColor || T.text }}>
+      {value}
+    </span>
+  </div>
+);
