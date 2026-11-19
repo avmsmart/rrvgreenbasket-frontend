@@ -642,7 +642,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({
     async (productPublicId: string, productName?: string): Promise<boolean> => {
       if (!isCustomerLoggedIn()) {
         showToast("Please sign in to save products to your wishlist", "info");
-        router.push("/mobile-auth");
+        router.push("/login");
         return false;
       }
 

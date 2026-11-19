@@ -51,7 +51,7 @@ export class CartService {
       return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
     }
 
-    return "http://192.168.0.142:8080";
+    return "http://192.168.0.111:8080";
   }
 
   private normalizeToken(value?: string | null): string {

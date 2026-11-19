@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -20,11 +21,11 @@ export const CartQuantitySelector: React.FC<CartQuantitySelectorProps> = ({
 }) => {
   const isKg = (unitOfMeasure || "KG").toUpperCase().includes("KG");
   const step = isKg ? 0.5 : 1.0;
-  const minQuantity = isKg ? 0.5 : 1.0;
 
   const handleDecrement = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
     if (disabled || isMutating) return;
 
     const nextVal = Number((quantityKg - step).toFixed(3));
@@ -34,51 +35,56 @@ export const CartQuantitySelector: React.FC<CartQuantitySelectorProps> = ({
   const handleIncrement = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
     if (disabled || isMutating) return;
 
     const nextVal = Number((quantityKg + step).toFixed(3));
     onUpdate(nextVal);
   };
 
-  // Formatted display value
   const displayValue = isKg
     ? quantityKg % 1 === 0
       ? `${quantityKg.toFixed(0)} KG`
       : `${quantityKg.toFixed(1)} KG`
     : `${Math.max(1, Math.round(quantityKg))} ${unitOfMeasure || "Unit"}`;
 
+  const buttonClass =
+    "flex h-8 w-8 items-center justify-center rounded-full text-[#2f6f5e] transition-all hover:bg-emerald-50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 sm:h-9 sm:w-9";
+
   return (
-    <div className="inline-flex items-center rounded-xl border border-emerald-200/90 bg-[#f8faf7] p-0.5 shadow-3xs transition-all hover:border-emerald-300">
+    <div className="inline-flex items-center gap-1 bg-white">
+
+      {/* Decrease */}
       <button
         type="button"
         onClick={handleDecrement}
         disabled={disabled || isMutating}
         aria-label="Decrease quantity"
-        className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 shadow-3xs transition-all hover:bg-emerald-50 hover:text-[#00875a] active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className={buttonClass}
       >
-        <Minus className="h-3.5 w-3.5 stroke-[2.5]" />
+        <Minus className="h-4 w-4 stroke-[2.2]" />
       </button>
 
-      <div className="min-w-16 px-2 text-center">
+      {/* Quantity */}
+      <div className="flex min-w-[58px] items-center justify-center px-1">
         {isMutating ? (
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#00875a]" />
-          </div>
+          <Loader2 className="h-4 w-4 animate-spin text-[#2f6f5e]" />
         ) : (
-          <span className="text-xs font-black tracking-tight text-slate-900 select-none">
+          <span className="whitespace-nowrap text-xs font-bold text-slate-800 sm:text-sm">
             {displayValue}
           </span>
         )}
       </div>
 
+      {/* Increase */}
       <button
         type="button"
         onClick={handleIncrement}
         disabled={disabled || isMutating}
         aria-label="Increase quantity"
-        className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 shadow-3xs transition-all hover:bg-emerald-50 hover:text-[#00875a] active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className={buttonClass}
       >
-        <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+        <Plus className="h-4 w-4 stroke-[2.2]" />
       </button>
     </div>
   );

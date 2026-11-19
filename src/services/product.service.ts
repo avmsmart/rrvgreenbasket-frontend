@@ -778,6 +778,8 @@ export function mapBackendToStoreProduct(p: AdminProduct | Product): StoreProduc
   const inStockStatus = p.status !== "Out of Stock" && p.status !== "INACTIVE";
 
   return {
+    // Preserve optional backend fields such as averageRating and reviewCount.
+    ...(p as unknown as Record<string, unknown>),
     id: idVal,
     publicId: p.publicId || String(idVal),
     name: p.name,

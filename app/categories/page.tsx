@@ -898,16 +898,25 @@ export default function Home() {
       </section>
 
       {/* =========================================================================
-          3. MAIN CONTENT: DESKTOP SIDEBAR + STOREFRONT PRODUCTS GRID
+          3. MAIN CONTENT: MOBILE ZEPTO CATEGORY GRID + DESKTOP SIDEBAR & PRODUCTS
          ========================================================================= */}
       
-      <div className="mx-auto grid max-w-[1600px] grid-cols-[80px_minmax(0,1fr)] gap-1.5 px-1.5 py-2 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4 sm:px-5 sm:py-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
-                   {/* Sidebar: Shop Categories — vertical image tiles, scrolls with page */}
-                {/* Sidebar: Shop Categories — narrow vertical image tiles */}
-                {/* Sidebar: Shop Categories — vertical on mobile, horizontal on desktop */}
+      {/* Mobile Zepto-Style 4-Column Category Grid */}
+      <div className="block sm:hidden px-1 pt-2">
+        <CategoryGrid
+          categories={categories}
+          onSelect={selectCategory}
+          selectedCategoryId={activeCategoryId}
+          title="All Categories"
+          showSeeAll={false}
+        />
+      </div>
+
+      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-1.5 px-1.5 py-2 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4 sm:px-5 sm:py-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
+        {/* Sidebar: Shop Categories — visible on tablet/desktop, replaced by 4-col grid on mobile */}
         <aside
           id="categories"
-          className="sticky top-2 max-h-[calc(100vh-110px)] overflow-y-auto bg-white p-1 sm:top-4 sm:p-2.5 lg:top-[88px]"
+          className="sticky top-2 hidden max-h-[calc(100vh-110px)] overflow-y-auto bg-white p-1 sm:top-4 sm:block sm:p-2.5 lg:top-[88px]"
         >
           {/* Header — hidden on mobile */}
           <h2 className="mb-2 hidden px-1 text-sm font-extrabold tracking-tight text-slate-900 sm:mb-3 sm:block">

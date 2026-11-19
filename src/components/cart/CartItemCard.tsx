@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Trash2, Loader2, ExternalLink } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { CartItemResponse } from "@/types/cart";
 import { resolveImageUrl } from "@/utils/image-utils";
 import { CartQuantitySelector } from "./CartQuantitySelector";
@@ -31,92 +32,126 @@ export const CartItemCard: React.FC<CartItemCardProps> = ({
     : "#";
 
   return (
-    <article className="group relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all hover:border-emerald-300 hover:shadow-sm">
-      {/* Left side: Image and details */}
-      <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 flex-1">
-        {/* Product Image */}
-        <Link
-          href={productLink}
-          className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl bg-[#f8faf7] border border-emerald-100 p-1 flex items-center justify-center cursor-pointer transition-transform group-hover:scale-102"
-        >
-          {resolvedImage && !imageError ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={resolvedImage}
-              alt={item.productName}
-              loading="lazy"
-              onError={() => setImageError(true)}
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-2xl select-none">
-              🥦
-            </div>
-          )}
-        </Link>
+    <article
+      className={`grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-3 border-b border-slate-200 py-5 transition-opacity sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:gap-x-5 sm:py-6 ${
+        isMutating ? "opacity-60" : ""
+      }`}
+    >
+      {/* Product Image - No card, border or background */}
+      <Link
+        href={productLink}
+        aria-label={`View ${item.productName}`}
+        className="flex h-[76px] w-[76px] items-center justify-center sm:h-28 sm:w-28"
+      >
+        {resolvedImage && !imageError ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resolvedImage}
+            alt={item.productName}
+            loading="lazy"
+            onError={() => setImageError(true)}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <span className="text-3xl">🥦</span>
+        )}
+      </Link>
 
-        {/* Product Details */}
-        <div className="min-w-0 flex-1 space-y-1">
+      {/* Product Details */}
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-2">
           <Link
             href={productLink}
-            className="block text-sm sm:text-base font-black tracking-tight text-slate-900 hover:text-[#00875a] transition-colors truncate cursor-pointer"
+            className="line-clamp-2 text-sm font-bold leading-snug text-slate-900 transition-colors hover:text-[#2f6f5e] sm:text-base"
           >
             {item.productName}
           </Link>
 
-          <p className="text-xs text-slate-500 font-medium flex items-center gap-2">
-            <span>
-              Price: <strong className="text-slate-800">₹{item.pricePerKg}</strong> / {item.unitOfMeasure}
-            </span>
-          </p>
-
-          <div className="pt-0.5 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10px] font-black text-[#00875a] uppercase tracking-wide">
-              Farm Fresh
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Right side: Quantity Stepper, Total Price, and Remove Button */}
-      <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-3 sm:gap-6 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-        {/* Reusable Stepper */}
-        <div>
-          <CartQuantitySelector
-            quantityKg={item.quantityKg}
-            unitOfMeasure={item.unitOfMeasure}
-            isMutating={isMutating}
-            onUpdate={(newQty) => onUpdateQuantity(item.publicId, newQty)}
-            disabled={isMutating}
-          />
-        </div>
-
-        {/* Item Total Price */}
-        <div className="text-right min-w-20">
-          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Subtotal
-          </span>
-          <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-            ₹{item.totalPrice}
-          </span>
-        </div>
-
-        {/* Remove Button */}
-        <div>
+          {/* Mobile Remove */}
           <button
             type="button"
             onClick={() => onRemoveItem(item.publicId, item.productName)}
             disabled={isMutating}
             aria-label={`Remove ${item.productName} from cart`}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 border border-slate-200 text-slate-400 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-slate-400 transition hover:text-red-600 disabled:opacity-50 sm:hidden"
           >
             {isMutating ? (
-              <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Trash2 className="w-4 h-4" />
+              <X className="h-4 w-4" />
             )}
           </button>
         </div>
+
+        <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+          Price:{" "}
+          <strong className="font-semibold text-slate-800">
+            ₹{item.pricePerKg}
+          </strong>{" "}
+          / {item.unitOfMeasure}
+        </p>
+
+        <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#00875a]">
+          Farm Fresh
+        </span>
+
+        {/* Mobile Quantity and Subtotal */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 sm:hidden">
+          <CartQuantitySelector
+            quantityKg={item.quantityKg}
+            unitOfMeasure={item.unitOfMeasure}
+            isMutating={isMutating}
+            onUpdate={(newQty) =>
+              onUpdateQuantity(item.publicId, newQty)
+            }
+            disabled={isMutating}
+          />
+
+          <div className="text-right">
+            <span className="block text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+              Subtotal
+            </span>
+            <span className="text-sm font-extrabold text-slate-900">
+              ₹{item.totalPrice}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Quantity, Subtotal and Remove */}
+      <div className="hidden items-center gap-5 sm:flex">
+        <CartQuantitySelector
+          quantityKg={item.quantityKg}
+          unitOfMeasure={item.unitOfMeasure}
+          isMutating={isMutating}
+          onUpdate={(newQty) =>
+            onUpdateQuantity(item.publicId, newQty)
+          }
+          disabled={isMutating}
+        />
+
+        <div className="min-w-[75px] text-right">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Subtotal
+          </span>
+          <span className="text-base font-extrabold text-slate-900">
+            ₹{item.totalPrice}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onRemoveItem(item.publicId, item.productName)}
+          disabled={isMutating}
+          className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition-colors hover:text-red-600 disabled:opacity-50"
+        >
+          {isMutating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <X className="h-3.5 w-3.5" />
+          )}
+          Remove
+        </button>
       </div>
     </article>
   );

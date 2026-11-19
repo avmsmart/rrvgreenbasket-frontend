@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
 import { LocationNavbar } from "@/components/location";
 import HomeFooter from "@/components/HomeFooter";
-import { ImageSlider, MarqueeBar, CategoryGrid } from "@/components/home";
+import {
+  MarqueeBar,
+  ZeptoProductCard,
+  ZeptoCategorySection,
+  ZeptoPromoBanner,
+  ZeptoFloatingCart,
+} from "@/components/home";
 
 import {
   Search,
-  MapPin,
-  LocateFixed,
-  Loader2,
   CheckCircle2,
   Heart,
   ShoppingCart,
@@ -23,8 +26,6 @@ import {
   Sparkles,
   AlertTriangle,
   RefreshCw,
-  Plus,
-  Minus,
   X,
   Tag,
 } from "lucide-react";
@@ -83,6 +84,65 @@ const getCategoryVisuals = (cat: BackendCategory) => {
   return { img, icon };
 };
 
+const extractProductItems = (
+  response: unknown
+): Parameters<typeof mapBackendToStoreProduct>[0][] => {
+  if (Array.isArray(response)) {
+    return response as Parameters<typeof mapBackendToStoreProduct>[0][];
+  }
+
+  if (!response || typeof response !== "object") return [];
+
+  const root = response as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object"
+    ? (root.data as Record<string, unknown>)
+    : null;
+
+  const candidates = [
+    root.content,
+    root.items,
+    root.products,
+    root.data,
+    data?.content,
+    data?.items,
+    data?.products,
+    data?.data,
+  ];
+
+  const list = candidates.find(Array.isArray);
+  return Array.isArray(list)
+    ? (list as Parameters<typeof mapBackendToStoreProduct>[0][])
+    : [];
+};
+
+// Reuse the same quantity variants in mobile and desktop category sections.
+const expandProductVariants = (
+  items: StoreProduct[]
+): { product: StoreProduct; variant: ProductWeightVariant | null }[] =>
+  items.flatMap((product) => {
+    const unit = String(product.quantityUnit || product.unit || "").trim().toUpperCase();
+
+    if (["KG", "KILO", "KILOGRAM", "KILOGRAMS"].includes(unit)) {
+      const variants: ProductWeightVariant[] = [
+        { key: "1kg", label: "1 KG", unit: "KG", multiplier: 1 },
+        { key: "500g", label: "500 g", unit: "KG", multiplier: 0.5 },
+        { key: "250g", label: "250 g", unit: "KG", multiplier: 0.25 },
+      ];
+      return variants.map((variant) => ({ product, variant }));
+    }
+
+    if (["DOZEN", "DOZENS"].includes(unit)) {
+      const variants: ProductWeightVariant[] = [
+        { key: "1-dozen", label: "1 Dozen (12 pcs)", unit: "DOZEN", multiplier: 1 },
+        { key: "6-pieces", label: "6 Pieces", unit: "DOZEN", multiplier: 0.5 },
+        { key: "3-pieces", label: "3 Pieces", unit: "DOZEN", multiplier: 0.25 },
+      ];
+      return variants.map((variant) => ({ product, variant }));
+    }
+
+    return [{ product, variant: null }];
+  });
+
 export default function Home() {
   // Public Store Branding Settings
   const { settings } = useStoreSettings();
@@ -91,10 +151,15 @@ export default function Home() {
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>("Best Sellers");
+  const [produceMode, setProduceMode] = useState<"all" | "vegetables" | "fruits">("all");
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [allProducts, setAllProducts] = useState<StoreProduct[]>([]);
+  // Each homepage category is loaded independently so categories such as Fruits
+  // are not hidden just because their products are outside the first global page.
+  const [categoryProducts, setCategoryProducts] = useState<Record<string, StoreProduct[]>>({});
+  const [isCategoryProductsLoading, setIsCategoryProductsLoading] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -119,6 +184,8 @@ export default function Home() {
   // UI state
   const [notice, setNotice] = useState<string>("");
   const [scrolling, setScrolling] = useState<boolean>(false);
+  // Collapse the mobile delivery/brand row while scrolling down; reveal it again on upward scroll.
+  const [isCompactHeader, setIsCompactHeader] = useState<boolean>(false);
 
   // Fetch categories from backend API
   const loadCategories = useCallback(async () => {
@@ -166,7 +233,7 @@ export default function Home() {
         }
 
         const res = await productService.getStorefrontProducts(params);
-        const rawItems = res?.content || (Array.isArray(res) ? res : []);
+        const rawItems = extractProductItems(res);
         const mapped = rawItems.map(mapBackendToStoreProduct);
         setProducts(mapped);
         if (mapped.length > 0) {
@@ -204,6 +271,74 @@ export default function Home() {
     loadCategories();
   }, [loadCategories]);
 
+  // Fetch a separate product page for every backend category. The homepage's
+  // global product request is intentionally paginated and may not contain all
+  // categories (for example, Fruits), so it must not drive category visibility.
+  useEffect(() => {
+    if (categories.length === 0) {
+      setCategoryProducts({});
+      setIsCategoryProductsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCategoryProductsLoading(true);
+
+    const loadProductsByCategory = async () => {
+      try {
+      const entries = await Promise.all(
+        categories.map(async (cat) => {
+          const categoryId = getCategoryId(cat);
+          if (!categoryId) return [String(cat.name || ""), [] as StoreProduct[]] as const;
+
+          try {
+            const response = await productService.getStorefrontProducts({
+              categoryId,
+              page: 0,
+              size: 100,
+            });
+            const rawItems = extractProductItems(response);
+            const mapped = rawItems.map(mapBackendToStoreProduct);
+            return [String(categoryId), mapped] as const;
+          } catch (error) {
+            console.error(`[Storefront] Failed to load category ${cat.name}:`, error);
+            return [String(categoryId), [] as StoreProduct[]] as const;
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const nextCategoryProducts: Record<string, StoreProduct[]> = {};
+      const mergedProducts = new Map<string, StoreProduct>();
+      entries.forEach(([categoryId, items]) => {
+        nextCategoryProducts[categoryId] = items;
+        items.forEach((item) => mergedProducts.set(String(item.id), item));
+      });
+
+      setCategoryProducts(nextCategoryProducts);
+      if (mergedProducts.size > 0) {
+        setAllProducts((previous) => {
+          const combined = new Map<string, StoreProduct>();
+          previous.forEach((item) => combined.set(String(item.id), item));
+          mergedProducts.forEach((item, id) => combined.set(id, item));
+          return Array.from(combined.values());
+        });
+      }
+      } finally {
+        if (!cancelled) setIsCategoryProductsLoading(false);
+      }
+    };
+
+    loadProductsByCategory().catch((error) => {
+      console.error("[Storefront] Category product loading failed:", error);
+      if (!cancelled) setIsCategoryProductsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [categories]);
+
   // Re-fetch products whenever activeCategoryId or debouncedSearch changes
   useEffect(() => {
     loadProducts(activeCategoryId, debouncedSearch);
@@ -217,17 +352,34 @@ export default function Home() {
     }
   }, [products, checkBulkWishlistStatus]);
 
-  // Scroll listener for mobile strip hiding/revealing
+  // Stable mobile header: collapse once the page leaves the top area.
+  // Do not expand on every small upward movement; that caused the header to flicker.
   useEffect(() => {
+    let frame = 0;
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
     const onScroll = () => {
-      setScrolling(true);
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => setScrolling(false), 220);
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const currentY = window.scrollY;
+
+        setIsCompactHeader((wasCompact) => {
+          if (currentY <= 24) return false;
+          if (currentY >= 105) return true;
+          return wasCompact;
+        });
+
+        setScrolling(true);
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => setScrolling(false), 260);
+      });
     };
+
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
       if (idleTimer) clearTimeout(idleTimer);
     };
   }, []);
@@ -263,10 +415,8 @@ export default function Home() {
         const matchesName =
           activeNameLower &&
           activeNameLower !== "all products" &&
-          (pCatLower === activeNameLower ||
-            pCatLower.includes(activeNameLower) ||
-            activeNameLower.includes(pCatLower));
-        return Boolean(matchesId || matchesName);
+          pCatLower === activeNameLower;
+        return Boolean(matchesId || (!p.categoryId && matchesName));
       });
     }
 
@@ -282,6 +432,77 @@ export default function Home() {
 
     return list;
   }, [showFavorites, isWishlisted, products, allProducts, activeCategoryId, activeCategoryName, search, debouncedSearch]);
+
+  /**
+   * Expand KG and DOZEN products into separate storefront cards.
+   * Explicitly typed to prevent flatMap union mismatch errors.
+   */
+  const displayedProductCards = useMemo(
+    () => expandProductVariants(displayedProducts),
+    [displayedProducts]
+  );
+
+  const hasDesktopFilters =
+    activeCategoryId !== null || Boolean(search.trim() || debouncedSearch.trim()) || showFavorites;
+
+  // Helper to extract products for a specific category (for Zepto mobile rows)
+  const getProductsForCategory = useCallback(
+    (cat: BackendCategory) => {
+      const catId = getCategoryId(cat);
+      const categorySpecificProducts = categoryProducts[String(catId)];
+      if (categorySpecificProducts) return categorySpecificProducts;
+
+      const catNameLower = (cat.name || "").toLowerCase().trim();
+      const source = allProducts.length > 0 ? allProducts : products;
+
+      return source.filter((p) => {
+        const matchesId = p.categoryId && String(p.categoryId) === String(catId);
+        const pCatLower = (p.category || "").toLowerCase().trim();
+        // Exact category match prevents child categories appearing in parent rows.
+        const matchesName = pCatLower && pCatLower === catNameLower;
+        return Boolean(matchesId || (!p.categoryId && matchesName));
+      });
+    },
+    [allProducts, products, categoryProducts]
+  );
+
+  const visibleProduceCategories = useMemo(() => {
+    if (produceMode === "all") return categories;
+    return categories.filter((category) => {
+      const name = String(category.name || "").toLowerCase();
+      if (produceMode === "fruits") return /fruit/.test(name);
+      return /vegetable|veggie|veg\\b/.test(name);
+    });
+  }, [categories, produceMode]);
+
+  // Helper for best-selling / top-picks products (for Zepto mobile top section)
+  const bestSellerProducts = useMemo(() => {
+    const source = allProducts.length > 0 ? allProducts : products;
+    const produceCategoryIds = new Set(
+      visibleProduceCategories.map((category) => String(getCategoryId(category)))
+    );
+    const produceSource =
+      produceMode === "all"
+        ? source
+        : source.filter((product) => {
+            if (product.categoryId) {
+              return produceCategoryIds.has(String(product.categoryId));
+            }
+            const productCategory = String(product.category || "").toLowerCase().trim();
+            return visibleProduceCategories.some(
+              (category) =>
+                productCategory === String(category.name || "").toLowerCase().trim()
+            );
+          });
+    const featured = produceSource.filter(
+      (p) =>
+        p.badge === "Featured" ||
+        (typeof p.originalPrice === "number" &&
+          typeof p.price === "number" &&
+          p.originalPrice > p.price)
+    );
+    return featured.length > 0 ? featured.slice(0, 10) : produceSource.slice(0, 10);
+  }, [allProducts, products, visibleProduceCategories, produceMode]);
 
   // Handle category selection using actual categoryId
   function selectCategory(cat: BackendCategory | null) {
@@ -324,60 +545,59 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f9f3] pb-24 text-[#20392a] md:pb-0">
+    <main className="min-h-screen bg-white pb-32 text-[#20392a] md:pb-0">
       
       {/* =========================================================================
-          1. HEADER NAVIGATION
+          1. HEADER NAVIGATION (Zepto-Style Mobile & Desktop Responsive)
          ========================================================================= */}
-      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-[1600px] px-3 sm:px-5 lg:px-6">
-          <div className="flex min-h-[68px] items-center gap-3 lg:gap-5">
+      <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1400px] px-3 sm:px-5 lg:px-6">
+          
+          {/* DESKTOP HEADER (Preserved 100%) */}
+          <div className="hidden min-h-[70px] items-center gap-3 lg:gap-5 md:flex">
 
-            {/* Logo */}
+            {/* Brand: left side */}
             <button
+              type="button"
               onClick={() => {
                 selectCategory(null);
                 setSearch("");
                 setShowFavorites(false);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
-              className="flex shrink-0 items-center gap-2 cursor-pointer"
+              className="flex shrink-0 items-center gap-2.5 text-left cursor-pointer"
+              aria-label="Go to homepage"
             >
               {settings.logoUrl ? (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-green-100 p-0.5 shadow-sm overflow-hidden">
+                // <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-emerald-100 bg-white p-1">
                   <img
-                    src={settings.logoUrl}
-                    alt={settings.storeName}
-                    className="h-full w-full object-contain"
+                    // src={settings.logoUrl}
+                    src={"/images/auth/logo1.png"}
+                    alt={settings.storeName || "RRV Green Basket"}
+                   className="h-20 w-20 object-contain"
                   />
-                </div>
+                // </div>
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white shadow-md shadow-emerald-700/20">
-                  <Leaf size={23} />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                  <Leaf size={25} />
                 </div>
               )}
-
-              <div className="text-left leading-tight">
-                <h1 className="text-lg font-extrabold tracking-tight text-gray-900">
+              <div className="hidden leading-tight sm:block">
+                <h1 className="whitespace-nowrap text-lg font-extrabold tracking-tight text-slate-900">
                   {settings.storeName || "RRV Green Basket"}
                 </h1>
-                <p className="text-[9px] font-medium tracking-wide text-gray-500 uppercase">
+                <p className="mt-0.5 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {settings.brandTagline || "FRESHNESS DELIVERED DAILY"}
                 </p>
               </div>
             </button>
 
-            {/* Mobile Delivery Location Selector */}
-            <div className="relative min-w-0 flex-1 md:hidden">
-              <LocationNavbar variant="mobile" />
+            {/* Desktop delivery location: beside brand, Zepto-style */}
+            <div className="hidden min-w-[205px] max-w-[245px] shrink-0 lg:block">
+              <LocationNavbar variant="desktop" />
             </div>
 
-            {/* Mobile Customer Account Icon */}
-            <div className="shrink-0 md:hidden flex items-center pl-1">
-              <CustomerNavAuth />
-            </div>
-
-            {/* Desktop Search + Category Select (Synced with backend categoryId) */}
+            {/* Search: wide center section */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -385,32 +605,41 @@ export default function Home() {
                   behavior: "smooth",
                 });
               }}
-              className="hidden h-[42px] min-w-0 w-full flex-1 overflow-hidden rounded-full border border-gray-200 bg-white focus-within:border-green-500 md:flex transition-all shadow-3xs"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
-                <Search size={17} className="shrink-0 text-gray-400" />
+             className="hidden h-[50px] w-full min-w-0
+           md:w-[420px] lg:w-[500px] xl:w-[560px]
+           shrink-0 overflow-hidden rounded-xl
+           border border-[#E5E7EB]
+           bg-[#F5F5F5] transition
+           focus-within:border-slate-300
+           focus-within:bg-white
+           focus-within:ring-2 focus-within:ring-slate-100
+           md:flex">
+              <div className="flex min-w-0 flex-1 items-center gap-3 px-4">
+                <Search size={20} className="shrink-0 text-slate-700" />
                 <input
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
                     setShowFavorites(false);
                   }}
-                  placeholder="Search fresh fruits, vegetables, mushrooms..."
-                  className="w-full min-w-0 bg-transparent text-xs font-medium outline-hidden placeholder:text-gray-400"
-                />
+                  placeholder='Search for "fresh vegetables, fruits..."'
+                  aria-label="Search products"
+                className="h-full w-full min-w-0 bg-transparent
+           text-sm font-medium text-slate-800
+           outline-none placeholder:text-slate-500"/>
                 {search && (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="text-gray-400 hover:text-gray-600 p-1"
+                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+                    aria-label="Clear search"
                   >
-                    <X size={14} />
+                    <X size={16} />
                   </button>
                 )}
               </div>
 
-              {/* Category Dropdown in Search Bar */}
-              <div className="hidden items-center border-l border-gray-200 px-2 sm:flex">
+              {/* <div className="flex shrink-0 items-center border-l border-slate-200 px-3">
                 <select
                   value={activeCategoryId || "ALL"}
                   onChange={(e) => {
@@ -422,7 +651,8 @@ export default function Home() {
                       if (matched) selectCategory(matched);
                     }
                   }}
-                  className="max-w-[135px] cursor-pointer appearance-none bg-transparent pr-4 text-xs font-bold text-slate-700 outline-hidden"
+                  aria-label="Select product category"
+                  className="max-w-[145px] cursor-pointer appearance-none bg-transparent pr-5 text-xs font-semibold text-slate-700 outline-none"
                 >
                   <option value="ALL">All Categories</option>
                   {categories.map((cat) => {
@@ -434,238 +664,204 @@ export default function Home() {
                     );
                   })}
                 </select>
-                <ChevronDown size={13} className="-ml-3 text-gray-400 pointer-events-none" />
-              </div>
-
-              <button
+                <ChevronDown size={14} className="-ml-4 pointer-events-none text-slate-500" />
+              </div> */}
+              {/* <button
                 type="submit"
-                className="flex items-center justify-center bg-green-600 px-4 text-white transition hover:bg-green-700 cursor-pointer"
+                className="flex w-[54px] shrink-0 items-center justify-center bg-emerald-600 text-white transition hover:bg-emerald-700 cursor-pointer"
                 aria-label="Submit search"
               >
-                <Search size={17} />
-              </button>
+                <Search size={20} />
+              </button> */}
             </form>
 
-            {/* Desktop Delivery Location Selector */}
-            <div className="relative hidden shrink-0 lg:block">
-              <LocationNavbar variant="desktop" />
-            </div>
-
-            {/* Customer Account / Auth Navigation */}
-            <div className="hidden shrink-0 border-l border-gray-100 pl-3 md:block">
+            {/* Desktop account: Login before authentication, Profile after */}
+            <div className="hidden shrink-0 items-center justify-center border-l border-slate-100 pl-4 md:flex">
               <CustomerNavAuth />
             </div>
 
-            {/* Wishlist Link with Live Backend Count */}
+            {/* Wishlist */}
             <Link
               href="/wishlist"
               data-nav-wishlist
-              className="hidden shrink-0 items-center gap-1.5 border-l border-gray-100 pl-3 text-gray-700 transition hover:text-green-700 md:flex cursor-pointer"
-              aria-label="View Wishlist"
+              aria-label="View wishlist"
+              className="hidden shrink-0 flex-col items-center justify-center gap-1 border-l border-slate-100 px-4 text-slate-800 transition hover:text-emerald-700 md:flex"
             >
-              <div className="relative">
-                <Heart size={20} className={wishlistCount > 0 ? "fill-rose-50 text-rose-500" : ""} />
+              <span className="relative">
+                <Heart
+                  size={23}
+                  strokeWidth={1.8}
+                  className={wishlistCount > 0 ? "fill-rose-50 text-rose-500" : ""}
+                />
                 {wishlistCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white shadow-2xs">
+                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
                     {wishlistCount}
                   </span>
                 )}
-              </div>
-              <span className="hidden text-xs font-medium xl:block">Wishlist</span>
+              </span>
+              <span className="text-[10px] font-medium">Wishlist</span>
             </Link>
 
-            {/* Cart Button */}
+            {/* Cart */}
             <Link
               href="/cart"
               data-nav-cart
-              className="hidden shrink-0 items-center gap-2 border-l border-gray-100 pl-3 text-gray-800 transition hover:text-green-700 md:flex"
+              aria-label="View cart"
+              className="hidden shrink-0 flex-col items-center justify-center gap-1 border-l border-slate-100 pl-4 text-slate-800 transition hover:text-emerald-700 md:flex"
             >
-              <div className="relative">
-                <ShoppingCart size={21} />
+              <span className="relative">
+                <ShoppingCart size={28} strokeWidth={1.8} />
                 {cartCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white">
+                  <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
                     {cartCount}
                   </span>
                 )}
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] font-semibold">Cart</p>
-                <p className="text-[10px] font-bold text-green-700">₹{cartTotal}</p>
-              </div>
+              </span>
+              <span className="text-[10px] font-medium">Cart</span>
             </Link>
-
           </div>
 
-          {/* Mobile Search Bar */}
+          {/* MOBILE TOP NAVIGATION (Zepto Style - Row 1: Logo + Delivery Location + Account) */}
+          <div
+            aria-hidden={isCompactHeader}
+            className={`flex items-center justify-between gap-2 overflow-hidden transition-[max-height,opacity,padding] duration-300 ease-out md:hidden ${
+              isCompactHeader
+                ? "pointer-events-none max-h-0 py-0 opacity-0"
+                : "max-h-[52px] pt-2.5 pb-2 opacity-100"
+            }`}
+          >
+            {/* Brand Logo */}
+            <button
+              type="button"
+              onClick={() => {
+                selectCategory(null);
+                setSearch("");
+                setShowFavorites(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="flex shrink-0 items-center gap-2 text-left cursor-pointer"
+              aria-label="Go to homepage"
+            >
+              {settings.logoUrl ? (
+                <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-emerald-100 bg-white p-0.5">
+                  <img
+                    src={settings.logoUrl}
+                    alt={settings.storeName || "RRV Green Basket"}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                  <Leaf size={20} />
+                </div>
+              )}
+            </button>
+
+            {/* Mobile Delivery Location Pill */}
+            <div className="relative min-w-0 flex-1 px-1">
+              <LocationNavbar variant="mobile" />
+            </div>
+
+            {/* Mobile Account Profile Icon */}
+            <div className="flex shrink-0 items-center">
+              <CustomerNavAuth />
+            </div>
+          </div>
+
+          {/* MOBILE SEARCH: remains visible because the complete header is sticky. */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
             }}
-            className="mx-1 mb-2.5 flex h-[38px] items-center overflow-hidden rounded-full border border-gray-200 bg-white md:hidden shadow-3xs"
+            className="mb-0 flex h-[46px] items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 shadow-none md:hidden"
           >
-            <Search size={16} className="ml-3 shrink-0 text-gray-400" />
+            <Search size={18} className="shrink-0 text-slate-500" />
             <input
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setShowFavorites(false);
               }}
-              placeholder="Search fruits, vegetables, groceries..."
+              placeholder='Search fruits, vegetables, groceries...'
               aria-label="Search products"
-              className="min-w-0 flex-1 bg-transparent px-2 text-xs font-medium outline-hidden placeholder:text-gray-400"
+              className="h-full min-w-0 flex-1 border-0 bg-transparent px-1 text-[13px] font-medium text-slate-800 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 placeholder:text-slate-400"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="text-gray-400 p-1"
+                className="p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                aria-label="Clear search"
               >
-                <X size={14} />
+                <X size={15} />
               </button>
             )}
-            <button
-              type="submit"
-              className="m-1 rounded-full bg-green-600 px-3.5 py-1 text-xs font-bold text-white cursor-pointer"
-            >
-              Search
-            </button>
           </form>
+
+      {/* Mobile produce tabs: fixed directly beneath search, with a smooth active underline. */}
+      <section className="sticky top-[46px] z-40 border-b border-slate-200 bg-white md:hidden">
+        <div className="relative grid grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              setProduceMode("vegetables");
+              setActiveCategoryId(null);
+              setActiveCategoryName("Best Sellers");
+              setSearch("");
+              setShowFavorites(false);
+            }}
+            aria-pressed={produceMode === "vegetables"}
+            className={`relative z-10 flex h-11 items-center justify-center text-[13px] font-semibold transition-colors duration-300 ease-out ${
+              produceMode === "vegetables" ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Vegetables
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setProduceMode("fruits");
+              setActiveCategoryId(null);
+              setActiveCategoryName("Best Sellers");
+              setSearch("");
+              setShowFavorites(false);
+            }}
+            aria-pressed={produceMode === "fruits"}
+            className={`relative z-10 flex h-11 items-center justify-center text-[13px] font-semibold transition-colors duration-300 ease-out ${
+              produceMode === "fruits" ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Fruits
+          </button>
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute bottom-0 h-[2px] w-1/2 bg-emerald-600 transition-transform duration-300 ease-in-out ${
+              produceMode === "fruits" ? "translate-x-full" : "translate-x-0"
+            }`}
+          />
+        </div>
+      </section>
+
         </div>
       </header>
 
-      {/* Shared location panel anchored below the navigation. It is not a separate page. */}
-      {locationOpen && (
-        <div className="fixed inset-0 z-[150] bg-black/25" onClick={() => setLocationOpen(false)}>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Choose delivery location"
-            onClick={(event) => event.stopPropagation()}
-            className="absolute left-3 right-3 top-[76px] mx-auto max-w-md rounded-2xl border border-green-100 bg-white p-4 shadow-2xl sm:left-auto sm:right-8 sm:top-[78px]"
-          >
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">Where should we deliver?</h2>
-                <p className="mt-1 text-xs text-gray-500">Choose your location before shopping.</p>
-              </div>
-              <button type="button" onClick={() => setLocationOpen(false)} className="rounded-full bg-gray-100 p-1.5 text-gray-600" aria-label="Close location selector">
-                <X size={16} />
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={detectCustomerLocation}
-              disabled={locationLoading}
-              className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-bold text-green-800 disabled:opacity-60"
-            >
-              {locationLoading ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}
-              Use my current location
-            </button>
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={locationQuery}
-                onChange={(event) => {
-                  setLocationQuery(event.target.value);
-                  setLocationCandidate(null);
-                  setLocationError("");
-                }}
-                placeholder="Search locality, street or landmark"
-                className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-9 text-xs outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-              />
-              {locationLoading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-green-700" />}
-            </div>
-            {locationSuggestions.length > 0 && (
-              <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
-                {locationSuggestions.map((item, index) => (
-                  <button
-                    key={`${item.lat}-${item.lon}-${index}`}
-                    type="button"
-                    onClick={() => chooseLocationSuggestion(item)}
-                    className="flex w-full items-start gap-2 border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-green-50"
-                  >
-                    <MapPin size={14} className="mt-0.5 shrink-0 text-green-700" />
-                    <span className="text-[11px] leading-4 text-gray-700">{item.display_name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {locationCandidate && (
-              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-green-800"><CheckCircle2 size={14} /> Confirm this location</p>
-                <p className="mt-1 text-[11px] leading-4 text-gray-700">{locationCandidate.address}</p>
-              </div>
-            )}
-            {locationError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] text-red-700">{locationError}</p>}
-            <button
-              type="button"
-              onClick={confirmDeliveryLocation}
-              disabled={!locationCandidate || locationLoading || deliveryCheckLoading}
-              className="mt-3 w-full rounded-xl bg-green-700 px-4 py-3 text-xs font-extrabold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
-            >
-              {deliveryCheckLoading ? <><Loader2 size={14} className="animate-spin" /> Checking availability...</> : "Confirm location"}
-            </button>
-            <p className="mt-2 text-center text-[10px] text-gray-400">Delivery serviceability must be verified by the server at checkout.</p>
-          </section>
-        </div>
-      )}
       {/* =========================================================================
-          1.5 HOME HERO: IMAGE SLIDER + MARQUEE + CATEGORY GRID
+          2. MOBILE HERO CATEGORY SHORTCUTS
          ========================================================================= */}
-      <ImageSlider categories={categories} onSelect={selectCategory} />
-      <MarqueeBar />
-      <CategoryGrid categories={categories} onSelect={selectCategory} />
-
-      {/* =========================================================================
-          2. MOBILE HORIZONTALLY SCROLLABLE CATEGORY CHIPS
-         ========================================================================= */}
-      <section
-        className={`sticky top-[110px] z-40 border-b border-green-100/70 bg-white/95 px-2.5 py-2 backdrop-blur-xl transition-all duration-300 ease-out md:hidden ${
-          scrolling ? "pointer-events-none -translate-y-full opacity-0" : "translate-y-0 opacity-100"
-        }`}
-      >
-        <div className="flex gap-2.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* "All Products" chip */}
-          <button
-            type="button"
-            onClick={() => selectCategory(null)}
-            className={`flex w-[68px] shrink-0 flex-col items-center gap-1 rounded-2xl border px-1.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
-              activeCategoryId === null && !showFavorites
-                ? "border-green-700 bg-green-50 text-green-800 shadow-xs ring-2 ring-green-600/20"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-green-50/50"
-            }`}
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-sm">
-              ▦
-            </div>
-            <span className="line-clamp-1 w-full text-center">All</span>
+      <section className="md:hidden border-b border-emerald-100 bg-[#e8f8f1]">
+        <div className="flex gap-4 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button type="button" onClick={() => selectCategory(null)} className="flex min-w-[42px] shrink-0 flex-col items-center gap-1 text-[11px] font-semibold text-slate-800">
+            <span className="flex h-9 w-9 items-center justify-center text-xl">🛍️</span>
+            All
           </button>
-
-          {/* Dynamic Backend Categories */}
           {categories.map((c) => {
             const catId = getCategoryId(c);
-            const { img } = getCategoryVisuals(c);
-            const isActive = activeCategoryId === catId && !showFavorites;
-
+            const { icon } = getCategoryVisuals(c);
             return (
-              <button
-                key={catId}
-                type="button"
-                onClick={() => selectCategory(c)}
-                className={`flex w-[68px] shrink-0 flex-col items-center gap-1 rounded-2xl border px-1.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
-                  isActive
-                    ? "border-green-700 bg-green-50 text-green-800 shadow-xs ring-2 ring-green-600/20"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-green-50/50"
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={resolveImageUrl(img, 120)}
-                  alt={c.name}
-                  className="h-8 w-8 rounded-full object-cover ring-1 ring-white shadow-2xs"
-                />
-                <span className="line-clamp-1 w-full text-center">{c.name}</span>
+              <button key={catId} type="button" onClick={() => selectCategory(c)} className="flex min-w-[54px] shrink-0 flex-col items-center gap-1 text-[11px] font-semibold text-slate-800">
+                <span className="flex h-9 w-9 items-center justify-center text-xl">{icon}</span>
+                <span className="max-w-[68px] truncate">{c.name}</span>
               </button>
             );
           })}
@@ -673,18 +869,238 @@ export default function Home() {
       </section>
 
       {/* =========================================================================
-          3. MAIN CONTENT: DESKTOP SIDEBAR + STOREFRONT PRODUCTS GRID
+          3. DESKTOP PROMOTIONAL STRIP & CATEGORY GRID
+          Mobile image slider removed as requested.
          ========================================================================= */}
-      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-5 lg:px-6 lg:py-5">
+      <div className="mx-auto hidden w-full max-w-[1400px] px-3 sm:px-5 lg:px-6 md:block">
+        <MarqueeBar />
+
+        {/* Desktop category navigation: same simple icon-and-name style as mobile.
+            No image tiles, card backgrounds, or category-grid cards. */}
+        <nav
+          aria-label="Browse product categories"
+          className="border-b border-slate-100 bg-white"
+        >
+          <div className="flex items-start gap-7 overflow-x-auto py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => selectCategory(null)}
+              className={`flex min-w-[58px] shrink-0 flex-col items-center gap-1 text-[12px] font-semibold transition-colors ${
+                activeCategoryId === null ? "text-emerald-700" : "text-slate-600 hover:text-emerald-700"
+              }`}
+            >
+              <span className="flex h-9 items-center justify-center text-2xl" aria-hidden="true">🛍️</span>
+              <span>All</span>
+              <span className={`h-0.5 w-8 rounded-full ${activeCategoryId === null ? "bg-emerald-600" : "bg-transparent"}`} />
+            </button>
+            {categories.map((cat) => {
+              const categoryId = getCategoryId(cat);
+              const active = activeCategoryId === categoryId;
+              const { icon } = getCategoryVisuals(cat);
+              return (
+                <button
+                  key={categoryId}
+                  type="button"
+                  onClick={() => selectCategory(cat)}
+                  className={`flex min-w-[76px] shrink-0 flex-col items-center gap-1 text-[12px] font-semibold transition-colors ${
+                    active ? "text-emerald-700" : "text-slate-600 hover:text-emerald-700"
+                  }`}
+                >
+                  <span className="flex h-9 items-center justify-center text-2xl" aria-hidden="true">{icon}</span>
+                  <span className="max-w-[130px] truncate">{cat.name}</span>
+                  <span className={`h-0.5 w-8 rounded-full ${active ? "bg-emerald-600" : "bg-transparent"}`} />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
+
+      {/* Mobile brand hero and compact sticky category navigation */}
+      <section className="md:hidden bg-gradient-to-b from-sky-100 via-white to-white px-4 pb-3 pt-2 text-center">
+        <div className="mx-auto flex min-h-[72px] flex-col items-center justify-center">
+          <h2 className="text-[25px] font-black leading-none tracking-tight text-emerald-700">FRESH</h2>
+          <p className="mt-1 text-[10px] font-bold tracking-wide text-emerald-800">Fruits &amp; Vegetables</p>
+        </div>
+      </section>
+
+      <nav
+        aria-label="Shop by category"
+        className="sticky top-[46px] z-50 border-b border-slate-200 bg-white md:hidden"
+      >
+        <div className="flex gap-6 overflow-x-auto scroll-smooth px-4 [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+          <button type="button" onClick={() => selectCategory(null)} className={`relative shrink-0 py-3 text-[11px] font-bold ${activeCategoryId === null ? "text-emerald-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-emerald-600" : "text-slate-600"}`}>All</button>
+          {categories.map((c) => {
+            const catId = getCategoryId(c);
+            const active = activeCategoryId === catId;
+            return (
+              <button key={catId} type="button" onClick={() => selectCategory(c)} className={`relative shrink-0 py-3 text-[11px] font-bold ${active ? "text-emerald-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-emerald-600" : "text-slate-600"}`}>
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* =========================================================================
+          4. MOBILE HOMEPAGE: CATEGORY-WISE HORIZONTAL SECTIONS (Zepto Style)
+         ========================================================================= */}
+      <div className="block md:hidden">
+        {/* State A: When Search, Wishlist, or Category Filter is Active -> Filtered Grid View */}
+        {activeCategoryId !== null || search || showFavorites ? (
+          <div className="px-3 py-3">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {showFavorites
+                    ? "Wishlist Favorites"
+                    : search
+                    ? `Results for "${search}"`
+                    : activeCategoryName}
+                </h3>
+                <p className="text-xs font-medium text-gray-500">
+                  {displayedProducts.length} items found
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  selectCategory(null);
+                  setSearch("");
+                  setShowFavorites(false);
+                }}
+                className="text-xs font-bold text-[#00875a] hover:underline cursor-pointer"
+              >
+                Reset Filters &rarr;
+              </button>
+            </div>
+
+            {isLoading ? (
+              <div className="grid grid-cols-3 gap-x-2 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-48 rounded-xl bg-slate-100 animate-pulse" />
+                ))}
+              </div>
+            ) : displayedProducts.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="text-4xl mb-2">🔎</div>
+                <h4 className="text-sm font-bold text-slate-800">No products found</h4>
+                <p className="text-xs text-gray-500 mt-1">Try another search or category</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectCategory(null);
+                    setSearch("");
+                    setShowFavorites(false);
+                  }}
+                  className="mt-4 rounded-xl bg-[#00875a] px-4 py-2 text-xs font-bold text-white shadow-xs"
+                >
+                  Show All Products
+                </button>
+              </div>
+            ) : (
+              <div
+                
+                  className="
+                        flex w-full gap-3
+                        overflow-x-auto
+                        pl-3 pr-3 pb-3
+                        snap-x snap-mandatory
+                        [scrollbar-width:none]
+                        [&::-webkit-scrollbar]:hidden
+                      "
+                      >
+            {displayedProductCards.map(({ product: p, variant }) => (
+              <div
+                key={`${p.publicId || p.id}-${variant?.key || "default"}`}
+                className="w-[142px] min-w-[142px] shrink-0 snap-start"
+              >
+                {/* Keep your existing ProductCard props and handlers here */}
+                <ProductCard
+                  product={p}
+                  fixedVariant={variant || undefined}
+                  // Keep your existing wishlist and cart props here
+                />
+              </div>
+            ))}
+          </div>
+            )}
+          </div>
+        ) : (
+          /* State B: Default Mobile Homepage -> Horizontally Scrollable Category Rows (Zepto Style) */
+          <div className="pb-8">
+            {/* Seasonal launch strip, as shown in the reference recording */}
+            <div className="mx-3 mt-3 mb-4 overflow-hidden rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 px-4 py-3 text-white shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-white/80">Fresh seasonal launches</p>
+                  <p className="mt-0.5 text-sm font-black">Explore this season’s picks</p>
+                  <p className="text-[10px] text-white/85">Picked fresh for your basket</p>
+                </div>
+                <span className="text-3xl" aria-hidden="true">🍓🍊</span>
+              </div>
+            </div>
+
+            {/* Best Sellers & Top Picks carousel */}
+            <ZeptoCategorySection
+              title="Trending & Best Sellers"
+              subtitle="Most ordered farm-fresh favorites"
+              products={bestSellerProducts}
+              onSeeAll={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
+              isWishlisted={(id) => isWishlisted(id)}
+              onToggleWishlist={toggleFavorite}
+              onAddToCart={handleAddToCart}
+            />
+
+            {/* Promotional banner between product groups */}
+            <ZeptoPromoBanner variant="seasonal" onClick={() => selectCategory(null)} />
+
+            {/* Backend category product rows */}
+            <div id="mobile-category-sections">
+            {visibleProduceCategories.map((cat, idx) => {
+              const catProducts = getProductsForCategory(cat);
+              if (catProducts.length === 0) return null;
+
+              return (
+                <React.Fragment key={getCategoryId(cat)}>
+                  <ZeptoCategorySection
+                    title={cat.name}
+                    subtitle={`Fresh ${cat.name.toLowerCase()} direct from local harvest`}
+                    products={catProducts}
+                    onSeeAll={() => selectCategory(cat)}
+                    isWishlisted={(id) => isWishlisted(id)}
+                    onToggleWishlist={toggleFavorite}
+                    onAddToCart={handleAddToCart}
+                  />
+
+                  {/* Interleaved Promotional Banners between product rows */}
+                  {idx === 0 && (
+                    <ZeptoPromoBanner variant="organic" onClick={() => selectCategory(cat)} />
+                  )}
+                  {idx === 2 && (
+                    <ZeptoPromoBanner variant="express" onClick={() => selectCategory(cat)} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* =========================================================================
+          5. MAIN CONTENT: DESKTOP STOREFRONT PRODUCTS GRID (Preserved 100%)
+         ========================================================================= */}
+      <div className="hidden mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6 lg:py-5 md:block">
       
-        {/* Product Listing Main Section */}
+        
         <section className="min-w-0">
 
-          {/* Products Header */}
+          
           <section id="products" className="scroll-mt-28">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700 flex items-center gap-1.5">
+                {/* <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700 flex items-center gap-1.5">
                   <Sparkles size={13} />
                   <span>
                     {showFavorites
@@ -693,18 +1109,18 @@ export default function Home() {
                       ? "Search results"
                       : "Top picks for you"}
                   </span>
-                </p>
+                </p> */}
 
-                <h2 className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">
+                {/* <h2 className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">
                   {showFavorites
                     ? "Wishlist Favorites"
                     : search
                     ? `Results for "${search}"`
                     : activeCategoryName}
-                </h2>
+                </h2> */}
 
-                <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-gray-500">
-                  <span>{displayedProducts.length} products available</span>
+                {/* <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-gray-500">
+                  <span>{displayedProductCards.length} product options available</span>
                   {activeCategoryId && (
                     <>
                       <span>•</span>
@@ -714,7 +1130,7 @@ export default function Home() {
                       </span>
                     </>
                   )}
-                </div>
+                </div> */}
               </div>
 
               {(activeCategoryId !== null || search || showFavorites) && (
@@ -752,81 +1168,161 @@ export default function Home() {
             )}
 
             {/* Loading Skeleton Grid */}
-            {isLoading ? (
+            {isLoading ||
+            (!hasDesktopFilters && (isCategoriesLoading || isCategoryProductsLoading)) ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 2xl:grid-cols-6">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={i}
-                    className="flex flex-col justify-between h-full bg-white rounded-xl border border-emerald-100/80 p-2.5 sm:p-3 shadow-2xs animate-pulse"
+                    className="flex flex-col justify-between h-full rounded-xl border border-emerald-100/80 bg-white p-2.5 shadow-2xs animate-pulse sm:p-3"
                   >
-                    <div className="w-full aspect-square rounded-lg bg-slate-100 mb-2" />
+                    <div className="mb-2 aspect-square w-full rounded-lg bg-slate-100" />
                     <div className="space-y-2">
-                      <div className="h-3 w-16 bg-slate-100 rounded-md" />
-                      <div className="h-4 w-3/4 bg-slate-100 rounded-md" />
-                      <div className="h-7 w-full bg-slate-100 rounded-md" />
-                      <div className="h-4 w-1/2 bg-slate-100 rounded-md" />
-                    </div>
-                    <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                      <div className="h-7 w-16 bg-slate-100 rounded-lg" />
-                      <div className="h-7 flex-1 bg-slate-100 rounded-lg" />
+                      <div className="h-3 w-16 rounded-md bg-slate-100" />
+                      <div className="h-4 w-3/4 rounded-md bg-slate-100" />
+                      <div className="h-7 w-full rounded-md bg-slate-100" />
                     </div>
                   </div>
                 ))}
               </div>
+            ) : !hasDesktopFilters ? (
+              /* Default desktop homepage: a separate section for every backend category. */
+              <div className="space-y-10">
+                {categories.map((cat) => {
+                  const catId = getCategoryId(cat);
+                  const catProducts = getProductsForCategory(cat);
+                  const categoryCards = expandProductVariants(catProducts);
+
+                  if (categoryCards.length === 0) return null;
+
+                  return (
+                    <section
+                      key={catId}
+                      id={`desktop-category-${catId}`}
+                      className="scroll-mt-28"
+                    >
+                      <div className="mb-4 flex items-end justify-between gap-4 border-b border-emerald-100 pb-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl" aria-hidden="true">
+                              {getCategoryVisuals(cat).icon}
+                            </span>
+                            <h3 className="text-xl font-extrabold tracking-tight text-slate-900">
+                              {cat.name}
+                            </h3>
+                          </div>
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {catProducts.length} {catProducts.length === 1 ? "product" : "products"} available
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => selectCategory(cat)}
+                          className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
+                        >
+                          View all <span aria-hidden="true">→</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-5 2xl:grid-cols-7">
+                        {categoryCards.map(({ product, variant }) => {
+                          const isFav = isWishlisted(product.publicId || String(product.id));
+                          return (
+                            <div
+                              key={`${product.publicId || product.id}-${variant?.key || "default"}`}
+                              className="w-full min-w-0"
+                            >
+                              <ProductCard
+                                product={product}
+                                fixedVariant={variant || undefined}
+                                isWishlisted={isFav}
+                                onToggleWishlist={toggleFavorite}
+                                onAddToCart={handleAddToCart}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+
+                {categories.length > 0 &&
+                  categories.every((cat) => getProductsForCategory(cat).length === 0) && (
+                    <div className="rounded-3xl border border-dashed border-green-200 bg-white px-5 py-14 text-center">
+                      <div className="mb-2 text-4xl">🥬</div>
+                      <h3 className="text-base font-extrabold text-slate-900">
+                        No products available in these categories
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Products will appear here when they are available from the store.
+                      </p>
+                    </div>
+                  )}
+              </div>
             ) : displayedProducts.length === 0 ? (
-              /* Empty State */
+              /* Empty state for search, wishlist, or selected category. */
               <div className="rounded-3xl border border-dashed border-green-200 bg-white px-5 py-14 text-center shadow-xs">
-                <div className="text-4xl mb-2">🔎</div>
+                <div className="mb-2 text-4xl">🔎</div>
                 <h3 className="text-base font-extrabold text-slate-900">No products found</h3>
-                <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
                   {search
                     ? `No items matching "${search}" in ${activeCategoryName}.`
                     : `No produce items currently listed under ${activeCategoryName}.`}
                 </p>
                 <button
+                  type="button"
                   onClick={() => {
                     selectCategory(null);
                     setSearch("");
                     setShowFavorites(false);
                   }}
-                  className="mt-5 rounded-2xl bg-[#00875a] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-700/20 hover:bg-[#00734d] transition-all cursor-pointer"
+                  className="mt-5 rounded-2xl bg-[#00875a] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-700/20 transition hover:bg-[#00734d]"
                 >
-                  Show Best Sellers
+                  Show All Categories
                 </button>
               </div>
             ) : (
-              /* Product Grid (Responsive: 2-col mobile, 3-col small, 4-col lg, 6-col 2xl) */
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 2xl:grid-cols-6">
-                {displayedProducts.map((p) => {
+              /* Filtered desktop grid: preserve search/category/wishlist behavior. */
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-5 2xl:grid-cols-7">
+                {displayedProductCards.map(({ product: p, variant }) => {
                   const isFav = isWishlisted(p.publicId || String(p.id));
-
                   return (
-                    <ProductCard
-                      key={p.id}
-                      product={p}
-                      isWishlisted={isFav}
-                      onToggleWishlist={toggleFavorite}
-                      onAddToCart={handleAddToCart}
-                    />
+                    <div
+                      key={`${p.publicId || p.id}-${variant?.key || "default"}`}
+                      className="w-full min-w-0"
+                    >
+                      <ProductCard
+                        product={p}
+                        fixedVariant={variant || undefined}
+                        isWishlisted={isFav}
+                        onToggleWishlist={toggleFavorite}
+                        onAddToCart={handleAddToCart}
+                      />
+                    </div>
                   );
                 })}
               </div>
-            )}
-          </section>
+            )}          </section>
 
-         <HomeFooter />
+          <HomeFooter />
         </section>
       </div>
 
       {/* =========================================================================
-          4. FIXED MOBILE BOTTOM NAVIGATION
+          6. FLOATING OFFERS AND CART SUMMARY (Zepto Style on Mobile)
+         ========================================================================= */}
+      {/* <ZeptoFloatingCart scrolling={scrolling} /> */}
+
+      {/* =========================================================================
+          7. FIXED MOBILE BOTTOM NAVIGATION (Zepto Style)
          ========================================================================= */}
       <nav
-        className={`fixed inset-x-3 bottom-2 z-[100] rounded-[26px] border border-white/70 bg-white/75 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_8px_32px_rgba(22,55,35,0.18)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden ${
-          scrolling ? "pointer-events-none translate-y-[130%] opacity-0" : "translate-y-0 opacity-100"
+        className={`fixed inset-x-0 bottom-0 z-[100] border-t border-slate-200/80 bg-white/95 px-3 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden ${
+          scrolling ? "pointer-events-none translate-y-full opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="mx-auto flex h-[64px] max-w-md items-center justify-around">
+        <div className="mx-auto flex h-[58px] max-w-md items-center justify-around">
           <button
             type="button"
             onClick={() => {
@@ -837,23 +1333,32 @@ export default function Home() {
             }}
             className={`flex flex-1 flex-col items-center justify-center gap-1 cursor-pointer ${
               !showFavorites && activeCategoryId === null && !search
-                ? "text-green-700 font-bold"
-                : "text-gray-400 hover:text-green-700"
+                ? "text-[#00875a] font-bold"
+                : "text-gray-400 hover:text-[#00875a]"
             }`}
           >
-            <HomeIcon size={21} strokeWidth={2} />
+            <HomeIcon size={20} strokeWidth={2} />
             <span className="text-[10px] font-semibold">Home</span>
           </button>
 
           <Link
+            href="/categories"
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 hover:text-[#00875a]"
+            aria-label="Categories"
+          >
+            <LayoutGrid size={20} strokeWidth={1.8} />
+            <span className="text-[10px] font-semibold">Categories</span>
+          </Link>
+
+          <Link
             href="/wishlist"
             data-nav-wishlist-mobile
-            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 hover:text-green-700"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 hover:text-[#00875a]"
             aria-label="Wishlist"
           >
             <span className="relative">
               <Heart
-                size={21}
+                size={20}
                 strokeWidth={1.8}
                 className={wishlistCount > 0 ? "fill-rose-500 text-rose-500" : ""}
               />
@@ -866,28 +1371,15 @@ export default function Home() {
             <span className="text-[10px] font-semibold">Wishlist</span>
           </Link>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowFavorites(false);
-              setSearch("");
-              document.getElementById("categories")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700 cursor-pointer"
-          >
-            <LayoutGrid size={21} strokeWidth={1.8} />
-            <span className="text-[10px] font-semibold">Categories</span>
-          </button>
-
           <Link
             href="/cart"
             data-nav-cart-mobile
-            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-[#00875a]"
           >
             <span className="relative">
-              <ShoppingCart size={21} strokeWidth={1.8} />
+              <ShoppingCart size={20} strokeWidth={1.8} />
               {cartCount > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-orange-500 px-1 text-[8px] font-bold text-white">
+                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#00875a] px-1 text-[8px] font-bold text-white">
                   {cartCount}
                 </span>
               )}
@@ -897,11 +1389,13 @@ export default function Home() {
 
           <Link
             href={isCustomerLoggedIn ? "/customer/profile?tab=overview" : "/login"}
-            aria-label="Account"
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700 cursor-pointer"
+            aria-label={isCustomerLoggedIn ? "Profile" : "Login"}
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-[#00875a] cursor-pointer"
           >
-            <UserRound size={21} strokeWidth={1.8} />
-            <span className="text-[10px] font-semibold">Account</span>
+            <UserRound size={20} strokeWidth={1.8} />
+            <span className="text-[10px] font-semibold">
+              {isCustomerLoggedIn ? "Profile" : "Login"}
+            </span>
           </Link>
         </div>
       </nav>
@@ -935,7 +1429,5 @@ export default function Home() {
         </Link>
       )}
     </main>
-    
   );
-  
 }
