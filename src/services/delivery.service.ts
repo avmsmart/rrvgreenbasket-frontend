@@ -21,6 +21,8 @@ import {
   DeliveryTimelineItem,
   DeliveryIssue,
   DeliveryStatus,
+  AdminStoreLocationSettings,
+  UpdateAdminStoreLocationRequest,
 } from "@/types";
 import { getAuthToken } from "./api-client";
 import { customerTokenStorage } from "./customer-auth.service";
@@ -168,11 +170,253 @@ class DeliveryService {
       address: "Rajivihar, Kurnool, Andhra Pradesh 518002",
       latitude: 15.8281,
       longitude: 78.0373,
-      maxDeliveryDistanceKm: 5.0,
+      maxDeliveryDistanceKm: 10.0, // Default 10 km (10,000 metres)
       baseDeliveryCharge: 20,
       freeDeliveryThreshold: 500,
       minimumOrderAmount: 100,
       operatingHours: "06:00 AM – 10:00 PM",
+    };
+  }
+
+  /**
+   * GET /api/admin/delivery/settings
+   * Retrieve primary store location and delivery radius configuration for admin
+   */
+  async getAdminStoreSettings(): Promise<AdminStoreLocationSettings> {
+    try {
+      const res = await this.request<any>("/api/admin/delivery/settings", {
+        method: "GET",
+        cache: "no-store",
+      }, true);
+
+      if (res && (typeof res.latitude === "number" || typeof res.radiusMeters === "number" || typeof res.maximumDeliveryDistanceMeters === "number")) {
+        const radiusMeters = Number(
+          res.maximumDeliveryDistanceMeters ||
+          res.radiusMeters ||
+          (res.maximumDeliveryDistanceKm ? res.maximumDeliveryDistanceKm * 1000 : 0) ||
+          (res.maxDeliveryDistanceKm ? res.maxDeliveryDistanceKm * 1000 : 10000)
+        );
+        const resolvedPostalCode = res.postalCode || res.pincode || "518001";
+        const isDeliveryActive = res.deliveryEnabled !== undefined ? res.deliveryEnabled : res.active !== false;
+
+        return {
+          storeId: res.storeId || res.id,
+          storeName: res.storeName || "RRV Green Basket Hub",
+          address: res.formattedAddress || res.address || "Rajivihar, Kurnool, Andhra Pradesh 518001",
+          formattedAddress: res.formattedAddress || res.address || "Rajivihar, Kurnool, Andhra Pradesh 518001",
+          googlePlaceId: res.googlePlaceId || res.placeId,
+          latitude: typeof res.latitude === "number" ? res.latitude : 15.8281,
+          longitude: typeof res.longitude === "number" ? res.longitude : 78.0373,
+          city: res.city || "Kurnool",
+          state: res.state || "Andhra Pradesh",
+          postalCode: resolvedPostalCode,
+          pincode: resolvedPostalCode,
+          country: res.country || "India",
+          radiusMeters: radiusMeters,
+          maximumDeliveryDistanceMeters: radiusMeters,
+          deliveryRadiusKm: Number((radiusMeters / 1000).toFixed(2)),
+          maxDeliveryDistanceKm: Number((radiusMeters / 1000).toFixed(2)),
+          deliveryEnabled: isDeliveryActive,
+          active: isDeliveryActive,
+          baseDeliveryCharge: typeof res.baseDeliveryCharge === "number" ? res.baseDeliveryCharge : 20,
+          minimumOrderAmount: typeof res.minimumOrderAmount === "number" ? res.minimumOrderAmount : 0,
+          freeDeliveryThreshold: typeof res.freeDeliveryThreshold === "number" ? res.freeDeliveryThreshold : 500,
+          estimatedDeliveryTime: res.estimatedDeliveryTime || "30–45 Mins",
+          currency: res.currency || "INR",
+          operatingHours: res.operatingHours || "06:00 AM – 10:00 PM",
+          updatedAt: res.updatedAt || new Date().toISOString(),
+          updatedBy: res.updatedBy,
+        };
+      }
+    } catch {
+      // If admin settings endpoint is unavailable or returns 404, fallback to store location
+      try {
+        const publicLoc = await this.getStoreLocation();
+        const distKm = publicLoc.maxDeliveryDistanceKm || 10.0;
+        const distMeters = Math.round(distKm * 1000);
+        return {
+          storeName: publicLoc.storeName || "RRV Green Basket Hub",
+          address: publicLoc.address || "Rajivihar, Kurnool, Andhra Pradesh 518001",
+          formattedAddress: publicLoc.address || "Rajivihar, Kurnool, Andhra Pradesh 518001",
+          latitude: publicLoc.latitude || 15.8281,
+          longitude: publicLoc.longitude || 78.0373,
+          postalCode: "518001",
+          pincode: "518001",
+          city: "Kurnool",
+          state: "Andhra Pradesh",
+          country: "India",
+          radiusMeters: distMeters,
+          maximumDeliveryDistanceMeters: distMeters,
+          deliveryRadiusKm: distKm,
+          maxDeliveryDistanceKm: distKm,
+          deliveryEnabled: true,
+          active: true,
+          baseDeliveryCharge: publicLoc.baseDeliveryCharge || 20,
+          minimumOrderAmount: publicLoc.minimumOrderAmount || 0,
+          freeDeliveryThreshold: publicLoc.freeDeliveryThreshold || 500,
+          operatingHours: publicLoc.operatingHours || "06:00 AM – 10:00 PM",
+          updatedAt: new Date().toISOString(),
+        };
+      } catch {
+        // Fall through to hard default
+      }
+    }
+
+    return {
+      storeName: "RRV Green Basket Hub",
+      address: "Rajivihar, Kurnool, Andhra Pradesh 518001",
+      formattedAddress: "Rajivihar, Kurnool, Andhra Pradesh 518001",
+      latitude: 15.8281,
+      longitude: 78.0373,
+      postalCode: "518001",
+      pincode: "518001",
+      city: "Kurnool",
+      state: "Andhra Pradesh",
+      country: "India",
+      radiusMeters: 10000,
+      maximumDeliveryDistanceMeters: 10000,
+      deliveryRadiusKm: 10.0,
+      maxDeliveryDistanceKm: 10.0,
+      deliveryEnabled: true,
+      active: true,
+      baseDeliveryCharge: 20,
+      minimumOrderAmount: 0,
+      freeDeliveryThreshold: 500,
+      operatingHours: "06:00 AM – 10:00 PM",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * PUT /api/admin/delivery/settings
+   * Persist updated central store location and circular delivery radius
+   * Fully strictly conforms to Spring Boot UpdateStoreSettingsRequest DTO
+   */
+  async updateAdminStoreSettings(
+    payload: UpdateAdminStoreLocationRequest
+  ): Promise<AdminStoreLocationSettings> {
+    const postalCode = (payload.postalCode || payload.pincode || "").trim();
+    if (!postalCode) {
+      throw new DeliveryApiError("Postal PIN code is required", 400, "/api/admin/delivery/settings", {
+        field: "postalCode",
+        message: "Postal PIN code is required",
+      });
+    }
+
+    const meters = Math.round(
+      payload.maximumDeliveryDistanceMeters || payload.radiusMeters || 10000
+    );
+    const isDeliveryActive =
+      payload.deliveryEnabled !== undefined ? payload.deliveryEnabled : payload.active;
+
+    // Authoritative backend request payload matching Spring Boot UpdateStoreSettingsRequest
+    const backendPayload = {
+      storeName: payload.storeName.trim(),
+      formattedAddress: (payload.formattedAddress || payload.address || "").trim(),
+      googlePlaceId: payload.googlePlaceId || undefined,
+      latitude: Number(payload.latitude),
+      longitude: Number(payload.longitude),
+      city: (payload.city || "Kurnool").trim(),
+      state: (payload.state || "Andhra Pradesh").trim(),
+      postalCode: postalCode, // REQUIRED: Spring Boot @NotBlank validation
+      country: (payload.country || "India").trim(),
+      maximumDeliveryDistanceMeters: meters, // REQUIRED: Spring Boot @NotNull validation
+      deliveryEnabled: isDeliveryActive, // REQUIRED: Spring Boot @NotNull validation
+      minimumOrderAmount:
+        typeof payload.minimumOrderAmount === "number" ? payload.minimumOrderAmount : 0,
+      freeDeliveryThreshold:
+        typeof payload.freeDeliveryThreshold === "number" ? payload.freeDeliveryThreshold : 500,
+      estimatedDeliveryTime: payload.estimatedDeliveryTime || "30-45 mins",
+      currency: payload.currency || "INR",
+
+      // Legacy compatibility alias properties
+      pincode: postalCode,
+      address: (payload.formattedAddress || payload.address || "").trim(),
+      radiusMeters: meters,
+      maxDeliveryDistanceKm: Number((meters / 1000).toFixed(2)),
+      deliveryRadiusKm: Number((meters / 1000).toFixed(2)),
+      active: isDeliveryActive,
+    };
+
+    let savedResult: any;
+
+    try {
+      // Primary method is PUT as defined in OpenAPI spec
+      savedResult = await this.request<any>("/api/admin/delivery/settings", {
+        method: "PUT",
+        body: JSON.stringify(backendPayload),
+      }, true);
+    } catch (err: unknown) {
+      // If method is not allowed (405), retry with POST
+      if (err instanceof DeliveryApiError && err.statusCode === 405) {
+        try {
+          savedResult = await this.request<any>("/api/admin/delivery/settings", {
+            method: "POST",
+            body: JSON.stringify(backendPayload),
+          }, true);
+        } catch (postErr) {
+          throw postErr;
+        }
+      } else if (err instanceof DeliveryApiError && err.statusCode === 404) {
+        // Fallback endpoint if admin settings route is 404
+        try {
+          savedResult = await this.request<any>("/api/delivery/store-location", {
+            method: "PUT",
+            body: JSON.stringify(backendPayload),
+          }, true);
+        } catch {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    // Broadcast change so LocationContext and storefront dynamically update
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("rrv:location:store-updated", {
+            detail: {
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+              maxDeliveryDistanceKm: meters / 1000,
+              radiusMeters: meters,
+              storeName: payload.storeName,
+              address: payload.formattedAddress || payload.address,
+              postalCode: postalCode,
+            },
+          })
+        );
+      } catch {
+        // Safe dispatch failure ignore
+      }
+    }
+
+    const returnedRadius = Number(
+      savedResult?.maximumDeliveryDistanceMeters || savedResult?.radiusMeters || meters
+    );
+    const returnedPostal = savedResult?.postalCode || savedResult?.pincode || postalCode;
+
+    return {
+      storeName: savedResult?.storeName || payload.storeName,
+      address: savedResult?.formattedAddress || savedResult?.address || payload.formattedAddress || payload.address || "",
+      formattedAddress: savedResult?.formattedAddress || payload.formattedAddress || payload.address || "",
+      googlePlaceId: savedResult?.googlePlaceId || payload.googlePlaceId,
+      latitude: typeof savedResult?.latitude === "number" ? savedResult.latitude : payload.latitude,
+      longitude: typeof savedResult?.longitude === "number" ? savedResult.longitude : payload.longitude,
+      city: savedResult?.city || payload.city || "Kurnool",
+      state: savedResult?.state || payload.state || "Andhra Pradesh",
+      postalCode: returnedPostal,
+      pincode: returnedPostal,
+      country: savedResult?.country || payload.country || "India",
+      radiusMeters: returnedRadius,
+      maximumDeliveryDistanceMeters: returnedRadius,
+      deliveryRadiusKm: Number((returnedRadius / 1000).toFixed(2)),
+      maxDeliveryDistanceKm: Number((returnedRadius / 1000).toFixed(2)),
+      deliveryEnabled: savedResult?.deliveryEnabled !== undefined ? savedResult.deliveryEnabled : isDeliveryActive,
+      active: savedResult?.deliveryEnabled !== undefined ? savedResult.deliveryEnabled : isDeliveryActive,
+      updatedAt: savedResult?.updatedAt || new Date().toISOString(),
     };
   }
 

@@ -255,3 +255,60 @@ export interface DeliveryFilterParams {
   date?: string;
   sortBy?: string;
 }
+
+// ============================================================================
+// Admin Store Location & Circular Delivery Coverage Settings
+// Matches backend Spring Boot UpdateStoreSettingsRequest / StoreLocationResponse
+// ============================================================================
+export interface AdminStoreLocationSettings {
+  storeId?: string;
+  storeName: string;
+  address: string;
+  formattedAddress?: string;
+  googlePlaceId?: string;
+  latitude: number;
+  longitude: number;
+  city?: string;
+  state?: string;
+  postalCode?: string; // Authoritative backend DTO property
+  pincode?: string;    // Compatibility alias
+  country?: string;
+  radiusMeters: number; // e.g. 10000 (Default 10 km)
+  maximumDeliveryDistanceMeters?: number; // Backend integer
+  deliveryRadiusKm?: number; // e.g. 10.0
+  maxDeliveryDistanceKm?: number;
+  deliveryEnabled?: boolean; // Authoritative backend boolean
+  baseDeliveryCharge?: number;
+  minimumOrderAmount?: number;
+  freeDeliveryThreshold?: number;
+  estimatedDeliveryTime?: string;
+  currency?: string;
+  operatingHours?: string;
+  active: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface UpdateAdminStoreLocationRequest {
+  storeName: string;
+  formattedAddress: string;
+  address?: string;
+  googlePlaceId?: string;
+  latitude: number;
+  longitude: number;
+  city: string;
+  state: string;
+  postalCode: string; // Authoritative backend DTO required property
+  pincode?: string;   // Compatibility alias
+  country?: string;
+  maximumDeliveryDistanceMeters?: number; // Backend required integer
+  radiusMeters: number;                   // Visual radius in meters
+  deliveryEnabled?: boolean;              // Backend required boolean
+  active: boolean;                        // Status flag
+  baseDeliveryCharge?: number;
+  minimumOrderAmount?: number;
+  freeDeliveryThreshold?: number;
+  estimatedDeliveryTime?: string;
+  currency?: string;
+}
+

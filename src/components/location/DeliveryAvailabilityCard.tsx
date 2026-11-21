@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -7,12 +8,14 @@ import {
   Clock,
   Truck,
   IndianRupee,
-  Navigation,
   RotateCcw,
   Search,
   Sparkles,
 } from "lucide-react";
-import { VerifiedAddress, DeliveryVerificationResult } from "@/types/location";
+import {
+  VerifiedAddress,
+  DeliveryVerificationResult,
+} from "@/types/location";
 
 interface DeliveryAvailabilityCardProps {
   address: VerifiedAddress;
@@ -23,7 +26,9 @@ interface DeliveryAvailabilityCardProps {
   isLoading?: boolean;
 }
 
-export const DeliveryAvailabilityCard: React.FC<DeliveryAvailabilityCardProps> = ({
+export const DeliveryAvailabilityCard: React.FC<
+  DeliveryAvailabilityCardProps
+> = ({
   address,
   result,
   onConfirmSuccess,
@@ -32,189 +37,204 @@ export const DeliveryAvailabilityCard: React.FC<DeliveryAvailabilityCardProps> =
   isLoading = false,
 }) => {
   const isAvailable = result.available && result.serviceable;
-  const isOutside = result.status === "OUTSIDE_RANGE" || (!isAvailable && result.status !== "ROUTE_FAILED");
-  const isRouteFailed = result.status === "ROUTE_FAILED";
+  const isOutside =
+    result.status === "OUTSIDE_RANGE" ||
+    (!isAvailable && result.status !== "ROUTE_FAILED");
 
-  // CASE A: DELIVERY AVAILABLE
+  const formatDistance = () =>
+    result.distanceKm
+      ? `${result.distanceKm} km`
+      : `< ${result.maxDistanceKm || 10} km`;
+
+  // Delivery available
   if (isAvailable) {
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
-        <div className="p-4 sm:p-5 rounded-2xl border border-emerald-300 bg-gradient-to-b from-emerald-50/80 to-emerald-50/30 space-y-4">
-          <div className="flex items-center gap-2.5 text-emerald-800">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-6 w-6 shrink-0 text-[#00875a]" />
             <div>
-              <h4 className="text-sm sm:text-base font-black text-emerald-950">
-                Great! We deliver to your location.
-              </h4>
-              <p className="text-[11px] text-emerald-700 font-medium">
-                Your address is within our serviceable delivery zone ({result.zoneName || "Kurnool Zone"}).
+              <h3 className="text-base font-bold text-[#24594b]">
+                Great! We deliver here.
+              </h3>
+              <p className="text-xs text-slate-500">
+                Your location is within our delivery area.
               </p>
             </div>
           </div>
 
-          <div className="p-3 bg-white/90 rounded-xl border border-emerald-100 space-y-1">
-            <div className="text-xs font-bold text-slate-800">
+          <div className="border-y border-slate-100 py-3">
+            <p className="text-sm font-semibold text-slate-800">
               {address.displayName || address.city}
-            </div>
-            <div className="text-[11px] text-slate-500 leading-relaxed">
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
               {address.formattedAddress}
-            </div>
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-            <div className="p-2.5 rounded-xl bg-white border border-emerald-100 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 shrink-0 text-[#00875a]" />
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Road Distance</span>
-                <span className="font-extrabold text-slate-800">
-                  {result.distanceKm ? `${result.distanceKm} km` : "< 5 km"}
-                </span>
+                <p className="text-[10px] text-slate-400">
+                  Road distance
+                </p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {formatDistance()}
+                </p>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-white border border-emerald-100 flex items-center gap-2">
-              <IndianRupee className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-2">
+              <IndianRupee className="h-4 w-4 shrink-0 text-[#00875a]" />
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Delivery Fee</span>
-                <span className="font-extrabold text-emerald-800">
+                <p className="text-[10px] text-slate-400">
+                  Delivery fee
+                </p>
+                <p className="text-sm font-semibold text-[#24594b]">
                   {result.isFreeDelivery || result.deliveryCharge === 0
                     ? "FREE"
                     : `₹${result.deliveryCharge ?? 20}`}
-                </span>
+                </p>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-white border border-emerald-100 col-span-2 sm:col-span-1 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
+              <Clock className="h-4 w-4 shrink-0 text-[#00875a]" />
               <div>
-                <span className="text-[10px] text-slate-400 block font-medium">Coverage Area</span>
-                <span className="font-extrabold text-slate-800">
-                  Within {result.maxDistanceKm || 5} km
-                </span>
+                <p className="text-[10px] text-slate-400">
+                  Delivery coverage
+                </p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {result.maxDistanceKm || 5} km
+                </p>
               </div>
             </div>
           </div>
 
           {result.freeDeliveryThreshold && (
-            <p className="text-[11px] text-emerald-800 font-medium flex items-center gap-1.5 bg-emerald-100/60 p-2 rounded-lg">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>Enjoy free delivery on vegetable & grocery baskets over ₹{result.freeDeliveryThreshold}!</span>
+            <p className="flex items-center gap-2 text-xs text-[#24594b]">
+              <Sparkles className="h-4 w-4 shrink-0 text-[#00875a]" />
+              Free delivery on orders above ₹
+              {result.freeDeliveryThreshold}.
             </p>
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             onClick={onConfirmSuccess}
-            className="w-full sm:flex-1 py-3 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            disabled={isLoading}
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#00875a] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#006f49] disabled:opacity-50"
           >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Confirm & Continue Shopping</span>
+            <CheckCircle2 className="h-4 w-4" />
+            Confirm & Continue Shopping
           </button>
 
           <button
             type="button"
             onClick={onSearchAnother}
-            className="w-full sm:w-auto py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer"
+            className="min-h-11 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Choose Another
+            Choose another
           </button>
         </div>
       </div>
     );
   }
 
-  // CASE B: DELIVERY UNAVAILABLE (Outside 5 km)
+  // Location outside delivery coverage
   if (isOutside) {
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
-        <div className="p-4 sm:p-5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/80 to-rose-50/30 space-y-4">
-          <div className="flex items-start gap-3 text-rose-900">
-            <div className="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
-              <AlertCircle className="w-5 h-5" />
-            </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-6 w-6 shrink-0 text-rose-600" />
             <div>
-              <h4 className="text-sm sm:text-base font-black text-rose-950">
-                Sorry! We don&apos;t deliver to this location yet.
-              </h4>
-              <p className="text-[11px] text-rose-800 font-medium mt-0.5">
-                Your selected location is outside our current {result.maxDistanceKm || 5} km serviceable delivery coverage.
+              <h3 className="text-base font-bold text-slate-900">
+                Sorry! We don't deliver here yet.
+              </h3>
+              <p className="text-xs text-slate-500">
+                This location is outside our current delivery area.
               </p>
             </div>
           </div>
 
-          <div className="p-3 bg-white/90 rounded-xl border border-rose-100 space-y-1">
-            <div className="text-xs font-bold text-slate-800">
+          <div className="border-y border-slate-100 py-3">
+            <p className="text-sm font-semibold text-slate-800">
               {address.displayName || address.city}
-            </div>
-            <div className="text-[11px] text-slate-500 leading-relaxed">
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
               {address.formattedAddress}
-            </div>
+            </p>
           </div>
 
-          <div className="p-3 bg-rose-100/50 rounded-xl border border-rose-200 text-xs text-rose-900 flex justify-between items-center">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <div>
-              <span className="text-[10px] text-rose-700 block font-medium">Calculated Road Distance</span>
-              <span className="font-extrabold text-sm">
-                {result.distanceKm ? `${result.distanceKm} km` : "Outside limits"}
-              </span>
+              <p className="text-[10px] text-slate-400">
+                Calculated road distance
+              </p>
+              <p className="font-semibold text-slate-800">
+                {result.distanceKm
+                  ? `${result.distanceKm} km`
+                  : "Outside limits"}
+              </p>
             </div>
+
             <div className="text-right">
-              <span className="text-[10px] text-rose-700 block font-medium">Max Delivery Coverage</span>
-              <span className="font-bold text-xs">{result.maxDistanceKm || 5} km from Kurnool Hub</span>
+              <p className="text-[10px] text-slate-400">
+                Maximum coverage
+              </p>
+              <p className="font-semibold text-slate-800">
+                {result.maxDistanceKm || 5} km
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2.5">
-          <button
-            type="button"
-            onClick={onSearchAnother}
-            className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Search className="w-4 h-4" />
-            <span>Search Another Location</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onSearchAnother}
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#24594b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#194438]"
+        >
+          <Search className="h-4 w-4" />
+          Search another location
+        </button>
       </div>
     );
   }
 
-  // CASE C: ROUTE UNAVAILABLE / TEMPORARY FAILURE
+  // Route calculation or temporary service failure
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="p-4 sm:p-5 rounded-2xl border border-amber-200 bg-amber-50/60 space-y-3">
-        <div className="flex items-start gap-2.5 text-amber-900">
-          <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-black text-amber-950">
-              We couldn&apos;t calculate the delivery distance right now.
-            </h4>
-            <p className="text-[11px] text-amber-800 mt-0.5">
-              Please check your connection and try again, or search for a more specific landmark nearby.
-            </p>
-          </div>
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+        <div>
+          <h3 className="text-base font-bold text-slate-900">
+            Unable to check delivery availability.
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Please check your internet connection and try again.
+          </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex gap-2">
         <button
           type="button"
           onClick={onRetry}
           disabled={isLoading}
-          className="flex-1 py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#00875a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#006f49] disabled:opacity-50"
         >
-          <RotateCcw className="w-4 h-4" />
-          <span>Try Again</span>
+          <RotateCcw className="h-4 w-4" />
+          Try again
         </button>
 
         <button
           type="button"
           onClick={onSearchAnother}
-          className="py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer"
+          className="min-h-11 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Change
         </button>

@@ -11,9 +11,10 @@ import { useCart } from "@/context/CartContext";
 
 export interface ProductCardProps {
   product: StoreProduct;
+  fixedVariant?: ProductWeightVariant | null;
   isWishlisted?: boolean;
   onToggleWishlist?: (product: StoreProduct) => void;
-  onAddToCart?: (product: StoreProduct, variant: ProductWeightVariant, quantity: number) => void;
+  onAddToCart?: (product: StoreProduct, variant: ProductWeightVariant, quantity: number) => void | Promise<void>;
   rating?: number;
   reviewsCount?: number;
 }
@@ -103,6 +104,7 @@ export function getProductVariants(product: StoreProduct): ProductWeightVariant[
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
+  fixedVariant,
   isWishlisted: propIsWishlisted,
   onToggleWishlist,
   onAddToCart,
@@ -117,11 +119,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   // Default to the 1.0 multiplier variant or the first one
   const defaultVariantKey = useMemo(() => {
+    if (fixedVariant?.key) return fixedVariant.key;
     const unitOne = variants.find((v) => v.multiplier === 1.0);
     return unitOne ? unitOne.key : variants[0]?.key || "default";
-  }, [variants]);
+  }, [variants, fixedVariant]);
 
-  const [selectedVariantKey, setSelectedVariantKey] = useState<string>(defaultVariantKey);
+  const [selectedVariantKey, setSelectedVariantKey] = useState<string>(fixedVariant?.key || defaultVariantKey);
+
+  useEffect(() => {
+    if (fixedVariant?.key) {
+      setSelectedVariantKey(fixedVariant.key);
+    }
+  }, [fixedVariant]);
   const [isVariantMenuOpen, setIsVariantMenuOpen] = useState<boolean>(false);
   const [isAddedFeedback, setIsAddedFeedback] = useState<boolean>(false);
   const [isWishlistLoading, setIsWishlistLoading] = useState<boolean>(false);

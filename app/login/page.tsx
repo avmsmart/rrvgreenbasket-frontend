@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Poppins } from "next/font/google";
 import {
   Eye,
   EyeOff,
@@ -30,11 +29,6 @@ import {
 type AuthMode = "login" | "register" | "forgot-password";
 type RegisterStep = "form" | "otp";
 type ForgotStep = "email" | "otp" | "reset" | "success";
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REMEMBER_KEY = "rrv_remember_email";
@@ -747,7 +741,7 @@ function CustomerLoginPageContent() {
     );
 
   return (
-    <main className={`${poppins.className} min-h-screen bg-[#ffffff] px-4 pb-6 text-slate-900 sm:px-6 lg:px-8`}>
+    <main className="font-sans min-h-screen bg-[#ffffff] px-4 pb-6 text-slate-900 sm:px-6 lg:px-8">
       {/* Top navigation */}
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-3 py-3">
         <a

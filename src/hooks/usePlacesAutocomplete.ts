@@ -23,9 +23,9 @@ export function usePlacesAutocomplete({
   const activeRequestRef = useRef<number>(0);
 
   // Initialize or get session token
-  const getSessionToken = useCallback(() => {
+  const getSessionToken = useCallback(async () => {
     if (!sessionTokenRef.current) {
-      sessionTokenRef.current = GooglePlacesService.createSessionToken();
+      sessionTokenRef.current = await GooglePlacesService.createSessionToken();
     }
     return sessionTokenRef.current;
   }, []);
@@ -57,7 +57,7 @@ export function usePlacesAutocomplete({
 
     const timer = setTimeout(async () => {
       try {
-        const token = getSessionToken();
+        const token = await getSessionToken();
         const results = await GooglePlacesService.getAutocompleteSuggestions(
           trimmed,
           token
@@ -90,7 +90,7 @@ export function usePlacesAutocomplete({
       setIsLoading(true);
       setError(null);
       try {
-        const token = getSessionToken();
+        const token = sessionTokenRef.current || (await getSessionToken());
         const details = await GooglePlacesService.getPlaceDetails(
           suggestion.placeId,
           token

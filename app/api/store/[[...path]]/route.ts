@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 function getStoreTargetBaseUrl(): string {
+  // Routes to API Gateway or Store Service
+  if (process.env.BACKEND_API_URL) {
+    return process.env.BACKEND_API_URL.replace(/\/$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
+  }
   if (process.env.BACKEND_STORE_URL) {
     return process.env.BACKEND_STORE_URL.replace(/\/$/, "");
   }
   if (process.env.NEXT_PUBLIC_STORE_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_STORE_API_BASE_URL.replace(/\/$/, "");
   }
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (apiBase) {
-    try {
-      const url = new URL(apiBase);
-      url.port = "8090";
-      return url.origin.replace(/\/$/, "");
-    } catch {
-      // ignore
-    }
-  }
-  return "http://localhost:8090";
+  return "http://192.168.0.110:8080";
 }
 
 async function handleStoreProxy(
@@ -70,37 +67,22 @@ async function handleStoreProxy(
 
     let upstreamResponse: Response;
     try {
-      upstreamResponse = await fetch(targetUrl, init);
-    } catch {
-      upstreamResponse = new Response(null, { status: 502 });
-    }
-
-    // If upstream returned 401 or failed, and this is a public settings endpoint,
-    // fallback to direct microservice port 8090
-    if ((upstreamResponse.status === 401 || !upstreamResponse.ok) && isPublicEndpoint) {
-      const fallbacks = [
-        `http://192.168.0.138:8090/api/store/settings/public${search}`,
-        `http://localhost:8090/api/store/settings/public${search}`,
-      ];
-
-      for (const fallbackUrl of fallbacks) {
-        if (fallbackUrl === targetUrl) continue;
-        try {
-          const directHeaders = new Headers(forwardHeaders);
-          directHeaders.delete("authorization");
-          const fbResponse = await fetch(fallbackUrl, {
-            method: "GET",
-            headers: directHeaders,
-            cache: "no-store",
-          });
-          if (fbResponse.ok) {
-            upstreamResponse = fbResponse;
-            break;
-          }
-        } catch {
-          // try next fallback
-        }
-      }
+      upstreamResponse = await fetch(targetUrl, {
+        ...init,
+        signal: AbortSignal.timeout(6000),
+      });
+    } catch (fetchErr: unknown) {
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : "Service connection failed";
+      return NextResponse.json(
+        {
+          success: false,
+          status: 502,
+          error: "Bad Gateway",
+          message: `Store service connection to ${targetUrl} failed: ${errMsg}`,
+          path: `/api/store${subPath ? `/${subPath}` : ""}`,
+        },
+        { status: 502 }
+      );
     }
 
     const responseHeaders = new Headers();

@@ -1,7 +1,12 @@
+
 "use client";
 
 import React from "react";
-import { MapPin, Building2, Landmark, Navigation } from "lucide-react";
+import {
+  MapPin,
+  Building2,
+  Landmark,
+} from "lucide-react";
 import { GooglePlaceSuggestion } from "@/types/location";
 
 interface LocationSuggestionListProps {
@@ -12,7 +17,9 @@ interface LocationSuggestionListProps {
   query: string;
 }
 
-export const LocationSuggestionList: React.FC<LocationSuggestionListProps> = ({
+export const LocationSuggestionList: React.FC<
+  LocationSuggestionListProps
+> = ({
   suggestions,
   selectedIndex,
   onSelect,
@@ -21,73 +28,90 @@ export const LocationSuggestionList: React.FC<LocationSuggestionListProps> = ({
 }) => {
   if (isLoading) {
     return (
-      <div className="py-6 px-4 text-center space-y-2">
-        <div className="inline-block w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-500 font-medium">
-          Searching matching locations in Kurnool...
-        </p>
+      <div className="flex items-center gap-2 py-5 text-sm text-slate-500">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#00875a] border-t-transparent" />
+        Searching locations...
       </div>
     );
   }
 
   if (!suggestions.length && query.trim().length >= 2) {
     return (
-      <div className="py-8 px-4 text-center space-y-2">
-        <MapPin className="w-8 h-8 text-slate-300 mx-auto" />
-        <p className="text-xs sm:text-sm font-bold text-slate-700">No matching locations found</p>
-        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-          Try searching for a prominent landmark, street, colony name (e.g. Rajivihar, Kondareddy Burj, Checkpost, Bus Stand), or PIN code.
+      <div className="py-6 text-center">
+        <MapPin className="mx-auto h-6 w-6 text-slate-300" />
+
+        <p className="mt-2 text-sm font-semibold text-slate-600">
+          No locations found
+        </p>
+
+        <p className="mt-1 text-xs text-slate-400">
+          Try another area, street or landmark.
         </p>
       </div>
     );
   }
 
-  if (!suggestions.length) {
-    return null;
-  }
+  if (!suggestions.length) return null;
 
-  const getIconForTypes = (types?: string[]) => {
-    if (!types || !types.length) return <MapPin className="w-4 h-4 text-emerald-600" />;
-    if (types.includes("establishment") || types.includes("point_of_interest")) {
-      return <Landmark className="w-4 h-4 text-emerald-600" />;
+  const getIcon = (types?: string[]) => {
+    if (
+      types?.includes("establishment") ||
+      types?.includes("point_of_interest")
+    ) {
+      return <Landmark className="h-4 w-4" />;
     }
-    if (types.includes("premise") || types.includes("subpremise") || types.includes("apartment")) {
-      return <Building2 className="w-4 h-4 text-emerald-600" />;
+
+    if (
+      types?.includes("premise") ||
+      types?.includes("subpremise") ||
+      types?.includes("apartment")
+    ) {
+      return <Building2 className="h-4 w-4" />;
     }
-    return <MapPin className="w-4 h-4 text-emerald-600" />;
+
+    return <MapPin className="h-4 w-4" />;
   };
 
   return (
     <ul
       role="listbox"
       aria-label="Location suggestions"
-      className="max-h-64 sm:max-h-72 overflow-y-auto divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-lg [scrollbar-width:thin]"
+      className="max-h-64 divide-y divide-slate-100 overflow-y-auto"
     >
-      {suggestions.map((suggestion, idx) => {
-        const isSelected = selectedIndex === idx;
+      {suggestions.map((suggestion, index) => {
+        const isSelected = selectedIndex === index;
+
         return (
           <li
-            key={suggestion.placeId || idx}
+            key={suggestion.placeId || index}
             role="option"
             aria-selected={isSelected}
-            onClick={() => onSelect(suggestion)}
-            className={`p-3 sm:p-3.5 flex items-start gap-3 transition-colors cursor-pointer text-left ${
-              isSelected ? "bg-emerald-50/80" : "hover:bg-slate-50"
-            }`}
           >
-            <div className="p-2 rounded-xl bg-slate-100 text-slate-600 shrink-0 mt-0.5">
-              {getIconForTypes(suggestion.types)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                {suggestion.mainText}
-              </div>
-              {suggestion.secondaryText && (
-                <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {suggestion.secondaryText}
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => onSelect(suggestion)}
+              className={`flex w-full items-start gap-3 px-2 py-3 text-left transition ${
+                isSelected
+                  ? "bg-emerald-50"
+                  : "hover:bg-slate-50"
+              }`}
+            >
+              <span className="mt-0.5 shrink-0 text-slate-400">
+                {getIcon(suggestion.types)}
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-800">
+                  {suggestion.mainText}
+                </span>
+
+                {suggestion.secondaryText && (
+                  <span className="mt-0.5 block truncate text-xs text-slate-500">
+                    {suggestion.secondaryText}
+                  </span>
+                )}
+              </span>
+            </button>
           </li>
         );
       })}

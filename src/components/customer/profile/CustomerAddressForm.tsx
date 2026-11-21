@@ -9,12 +9,15 @@ import {
   Loader2,
   Check,
   AlertCircle,
+  LocateFixed,
+  Navigation,
 } from "lucide-react";
 import {
   CustomerAddress,
   CustomerAddressRequest,
   CustomerAddressType,
 } from "@/types/customer-address";
+import { useCustomerLocation } from "@/hooks/useCustomerLocation";
 
 interface CustomerAddressFormProps {
   isOpen: boolean;
@@ -72,8 +75,8 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [city, setCity] = useState("Hyderabad");
-  const [state, setState] = useState("Telangana");
+  const [city, setCity] = useState("Kurnool");
+  const [state, setState] = useState("Andhra Pradesh");
   const [pincode, setPincode] = useState("");
   const [country, setCountry] = useState("India");
   const [addressType, setAddressType] = useState<CustomerAddressType>("HOME");
@@ -81,6 +84,24 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { isDetecting: isDetectingGps, detectLocation: detectGpsLocation } = useCustomerLocation();
+
+  const handleAutofillGps = async () => {
+    setError(null);
+    const loc = await detectGpsLocation();
+    if (loc) {
+      if (loc.city) setCity(loc.city);
+      if (loc.state) setState(loc.state);
+      if (loc.pincode) setPincode(loc.pincode);
+      if (loc.landmark) setLandmark(loc.landmark);
+      if (loc.addressLine && !addressLine1) {
+        setAddressLine1(loc.addressLine);
+      } else if (loc.displayName && !addressLine2) {
+        setAddressLine2(loc.displayName);
+      }
+    }
+  };
 
   // Sync initialData when modal opens or initialData changes
   useEffect(() => {
@@ -90,8 +111,8 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
       setAddressLine1(initialData.addressLine1 || "");
       setAddressLine2(initialData.addressLine2 || "");
       setLandmark(initialData.landmark || "");
-      setCity(initialData.city || "Hyderabad");
-      setState(initialData.state || "Telangana");
+      setCity(initialData.city || "Kurnool");
+      setState(initialData.state || "Andhra Pradesh");
       setPincode(initialData.pincode || "");
       setCountry(initialData.country || "India");
       setAddressType(initialData.addressType || "HOME");
@@ -102,8 +123,8 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
       setAddressLine1("");
       setAddressLine2("");
       setLandmark("");
-      setCity("Hyderabad");
-      setState("Telangana");
+      setCity("Kurnool");
+      setState("Andhra Pradesh");
       setPincode("");
       setCountry("India");
       setAddressType("HOME");
@@ -229,6 +250,35 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
               <span>{error}</span>
             </div>
           )}
+
+          {/* Quick GPS Location Autofill */}
+          <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                {isDetectingGps ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-emerald-950">
+                  Autofill with Device GPS
+                </span>
+                <span className="block text-[11px] text-emerald-700 truncate">
+                  Quickly detect your street, city, state and PIN code
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutofillGps}
+              disabled={isDetectingGps}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition shrink-0 cursor-pointer disabled:opacity-50"
+            >
+              {isDetectingGps ? "Detecting..." : "Detect Location"}
+            </button>
+          </div>
 
           {/* Address Type Selection */}
           <div>

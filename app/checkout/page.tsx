@@ -335,6 +335,33 @@ export default function CheckoutPage() {
     };
 
     try {
+      // 1. Authoritative backend checkout validation
+      try {
+        const val = await deliveryService.validateCheckout({
+          placeId: globalLocation?.placeId,
+          latitude: customCoordinates?.lat || 15.8281,
+          longitude: customCoordinates?.lng || 78.0373,
+          address: `${selectedAddress.addressLine1}, ${selectedAddress.city}`,
+        });
+        if (val && !val.serviceable) {
+          setOrderError(
+            val.message ||
+              "Your selected delivery address is outside our serviceable delivery zone. Please choose another address."
+          );
+          setIsSubmittingOrder(false);
+          return;
+        }
+      } catch {
+        // Fallback: verify with latest availability state
+        if (deliveryAvailability && !deliveryAvailability.available) {
+          setOrderError(
+            "Your selected delivery address is not serviceable. Please choose another location within Kurnool."
+          );
+          setIsSubmittingOrder(false);
+          return;
+        }
+      }
+
       const createdOrder = await orderService.createOrder({
         deliveryAddress: addressDto,
         addressId: selectedAddress.id,

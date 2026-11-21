@@ -119,7 +119,7 @@ const extractProductItems = (
 const expandProductVariants = (
   items: StoreProduct[]
 ): { product: StoreProduct; variant: ProductWeightVariant | null }[] =>
-  items.flatMap((product) => {
+  items.flatMap<{ product: StoreProduct; variant: ProductWeightVariant | null }>((product): { product: StoreProduct; variant: ProductWeightVariant | null }[] => {
     const unit = String(product.quantityUnit || product.unit || "").trim().toUpperCase();
 
     if (["KG", "KILO", "KILOGRAM", "KILOGRAMS"].includes(unit)) {
@@ -151,7 +151,7 @@ export default function Home() {
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>("Best Sellers");
-  const [produceMode, setProduceMode] = useState<"all" | "vegetables" | "fruits">("all");
+  const [produceMode, setProduceMode] = useState<"all" | "vegetables" | "fruits" | "season" | "launches">("vegetables");
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -467,11 +467,13 @@ export default function Home() {
   );
 
   const visibleProduceCategories = useMemo(() => {
-    if (produceMode === "all") return categories;
+    if (produceMode === "all" || produceMode === "season" || produceMode === "launches") {
+      return categories;
+    }
     return categories.filter((category) => {
       const name = String(category.name || "").toLowerCase();
       if (produceMode === "fruits") return /fruit/.test(name);
-      return /vegetable|veggie|veg\\b/.test(name);
+      return /vegetable|veggie|veg|leafy|root|seasoning|mushroom/.test(name);
     });
   }, [categories, produceMode]);
 
@@ -482,7 +484,7 @@ export default function Home() {
       visibleProduceCategories.map((category) => String(getCategoryId(category)))
     );
     const produceSource =
-      produceMode === "all"
+      produceMode === "all" || produceMode === "season" || produceMode === "launches"
         ? source
         : source.filter((product) => {
             if (product.categoryId) {
@@ -799,72 +801,137 @@ export default function Home() {
             )}
           </form>
 
-      {/* Mobile produce tabs: fixed directly beneath search, with a smooth active underline. */}
-      <section className="sticky top-[46px] z-40 border-b border-slate-200 bg-white md:hidden">
-        <div className="relative grid grid-cols-2">
+        </div>
+
+        {/* MOBILE DEPARTMENT TABS (Zepto Reference: All | Fresh | Categories) */}
+        <section className="border-b border-slate-200 bg-white md:hidden">
+          <div className="flex items-center gap-5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                selectCategory(null);
+                setProduceMode("all");
+              }}
+              className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
+                activeCategoryId === null && produceMode === "all"
+                  ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryId(null);
+                setProduceMode("vegetables");
+              }}
+              className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
+                activeCategoryId === null && (produceMode === "vegetables" || produceMode === "fruits" || produceMode === "season" || produceMode === "launches")
+                  ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Fresh
+            </button>
+            {categories.map((c) => {
+              const catId = getCategoryId(c);
+              const active = activeCategoryId === catId;
+              return (
+                <button
+                  key={catId}
+                  type="button"
+                  onClick={() => selectCategory(c)}
+                  className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
+                    active
+                      ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </header>
+
+      {/* MOBILE FRESH HERO & PILL SUB-FILTERS (Zepto Reference Screenshot) */}
+      <section className="bg-gradient-to-b from-[#e3f4ee] via-[#edf7f3] to-white pt-3 pb-2 text-center md:hidden">
+        {/* Stylized FRESH Header */}
+        <div className="mx-auto flex flex-col items-center justify-center">
+          <div className="flex items-center gap-1.5">
+            <Leaf size={20} className="text-[#00875a]" />
+            <h2 className="text-[24px] font-black tracking-tight text-[#00875a]">
+              FRESH
+            </h2>
+          </div>
+          <p className="text-[10.5px] font-extrabold tracking-wider text-emerald-800">
+            Fruits &amp; Vegetables
+          </p>
+        </div>
+
+        {/* Subcategory Pills: [ Veggies ] [ Fruits ] [ Season's Best ] [ New Launches ] */}
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={() => {
               setProduceMode("vegetables");
               setActiveCategoryId(null);
-              setActiveCategoryName("Best Sellers");
-              setSearch("");
-              setShowFavorites(false);
             }}
-            aria-pressed={produceMode === "vegetables"}
-            className={`relative z-10 flex h-11 items-center justify-center text-[13px] font-semibold transition-colors duration-300 ease-out ${
-              produceMode === "vegetables" ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
+            className={`flex shrink-0 items-center justify-center rounded-xl px-3.5 py-1.5 text-[12px] font-bold transition-all shadow-2xs ${
+              produceMode === "vegetables"
+                ? "border-2 border-[#00875a] bg-white text-[#00875a]"
+                : "border border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
             }`}
           >
-            Vegetables
+            Veggies
           </button>
+
           <button
             type="button"
             onClick={() => {
               setProduceMode("fruits");
               setActiveCategoryId(null);
-              setActiveCategoryName("Best Sellers");
-              setSearch("");
-              setShowFavorites(false);
             }}
-            aria-pressed={produceMode === "fruits"}
-            className={`relative z-10 flex h-11 items-center justify-center text-[13px] font-semibold transition-colors duration-300 ease-out ${
-              produceMode === "fruits" ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
+            className={`flex shrink-0 items-center justify-center rounded-xl px-3.5 py-1.5 text-[12px] font-bold transition-all shadow-2xs ${
+              produceMode === "fruits"
+                ? "border-2 border-[#00875a] bg-white text-[#00875a]"
+                : "border border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
             }`}
           >
             Fruits
           </button>
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none absolute bottom-0 h-[2px] w-1/2 bg-emerald-600 transition-transform duration-300 ease-in-out ${
-              produceMode === "fruits" ? "translate-x-full" : "translate-x-0"
+
+          <button
+            type="button"
+            onClick={() => {
+              setProduceMode("season");
+              setActiveCategoryId(null);
+            }}
+            className={`flex shrink-0 items-center justify-center rounded-xl px-3.5 py-1.5 text-[12px] font-bold transition-all shadow-2xs ${
+              produceMode === "season"
+                ? "border-2 border-[#00875a] bg-white text-[#00875a]"
+                : "border border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
             }`}
-          />
-        </div>
-      </section>
-
-        </div>
-      </header>
-
-      {/* =========================================================================
-          2. MOBILE HERO CATEGORY SHORTCUTS
-         ========================================================================= */}
-      <section className="md:hidden border-b border-emerald-100 bg-[#e8f8f1]">
-        <div className="flex gap-4 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button type="button" onClick={() => selectCategory(null)} className="flex min-w-[42px] shrink-0 flex-col items-center gap-1 text-[11px] font-semibold text-slate-800">
-            <span className="flex h-9 w-9 items-center justify-center text-xl">🛍️</span>
-            All
+          >
+            Season’s Best
           </button>
-          {categories.map((c) => {
-            const catId = getCategoryId(c);
-            const { icon } = getCategoryVisuals(c);
-            return (
-              <button key={catId} type="button" onClick={() => selectCategory(c)} className="flex min-w-[54px] shrink-0 flex-col items-center gap-1 text-[11px] font-semibold text-slate-800">
-                <span className="flex h-9 w-9 items-center justify-center text-xl">{icon}</span>
-                <span className="max-w-[68px] truncate">{c.name}</span>
-              </button>
-            );
-          })}
+
+          <button
+            type="button"
+            onClick={() => {
+              setProduceMode("launches");
+              setActiveCategoryId(null);
+            }}
+            className={`flex shrink-0 items-center justify-center rounded-xl px-3.5 py-1.5 text-[12px] font-bold transition-all shadow-2xs ${
+              produceMode === "launches"
+                ? "border-2 border-[#00875a] bg-white text-[#00875a]"
+                : "border border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
+            }`}
+          >
+            New Launches
+          </button>
         </div>
       </section>
 
@@ -915,32 +982,6 @@ export default function Home() {
           </div>
         </nav>
       </div>
-
-      {/* Mobile brand hero and compact sticky category navigation */}
-      <section className="md:hidden bg-gradient-to-b from-sky-100 via-white to-white px-4 pb-3 pt-2 text-center">
-        <div className="mx-auto flex min-h-[72px] flex-col items-center justify-center">
-          <h2 className="text-[25px] font-black leading-none tracking-tight text-emerald-700">FRESH</h2>
-          <p className="mt-1 text-[10px] font-bold tracking-wide text-emerald-800">Fruits &amp; Vegetables</p>
-        </div>
-      </section>
-
-      <nav
-        aria-label="Shop by category"
-        className="sticky top-[46px] z-50 border-b border-slate-200 bg-white md:hidden"
-      >
-        <div className="flex gap-6 overflow-x-auto scroll-smooth px-4 [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-          <button type="button" onClick={() => selectCategory(null)} className={`relative shrink-0 py-3 text-[11px] font-bold ${activeCategoryId === null ? "text-emerald-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-emerald-600" : "text-slate-600"}`}>All</button>
-          {categories.map((c) => {
-            const catId = getCategoryId(c);
-            const active = activeCategoryId === catId;
-            return (
-              <button key={catId} type="button" onClick={() => selectCategory(c)} className={`relative shrink-0 py-3 text-[11px] font-bold ${active ? "text-emerald-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-emerald-600" : "text-slate-600"}`}>
-                {c.name}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {/* =========================================================================
           4. MOBILE HOMEPAGE: CATEGORY-WISE HORIZONTAL SECTIONS (Zepto Style)
@@ -1312,7 +1353,7 @@ export default function Home() {
       {/* =========================================================================
           6. FLOATING OFFERS AND CART SUMMARY (Zepto Style on Mobile)
          ========================================================================= */}
-      {/* <ZeptoFloatingCart scrolling={scrolling} /> */}
+      <ZeptoFloatingCart scrolling={scrolling} />
 
       {/* =========================================================================
           7. FIXED MOBILE BOTTOM NAVIGATION (Zepto Style)

@@ -213,16 +213,11 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
   return (
     <div
       ref={cardRef}
-      className="group relative flex w-[124px] shrink-0 flex-col border-r border-slate-200 px-2 pb-3 last:border-r-0 select-none sm:w-[150px] sm:px-2.5 lg:w-[180px]">
-      {/* Product image */}
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl ">
-        {discountPercent > 0 && (
-          <span className="absolute left-1 top-1 z-10 rounded-full bg-[#00875a] px-1.5 py-0.5 text-[9px] font-extrabold leading-tight text-white">
-            {discountPercent}% OFF
-          </span>
-        )}
-
-        {/* Wishlist */}
+      className="group relative flex w-[114px] min-w-[114px] sm:w-[136px] sm:min-w-[136px] lg:w-[170px] shrink-0 flex-col rounded-xl bg-white p-1.5 transition-all select-none border border-slate-100/90 shadow-2xs hover:shadow-xs"
+    >
+      {/* Product image container */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[#f8f9fa] p-1 flex items-center justify-center">
+        {/* Wishlist button */}
         <button
           type="button"
           onClick={handleToggleWishlist}
@@ -230,21 +225,21 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
           aria-label={
             isFav ? "Remove from wishlist" : "Add to wishlist"
           }
-          className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition active:scale-90 disabled:opacity-50"
+          className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-2xs transition active:scale-90 disabled:opacity-50"
         >
           <Heart
-            size={13}
+            size={12}
             className={
               isFav
                 ? "fill-rose-500 text-rose-500"
-                : "text-slate-400"
+                : "text-slate-400 hover:text-slate-600"
             }
           />
         </button>
 
         {!isAvailable && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/75">
-            <span className="rounded-md bg-slate-800 px-1.5 py-1 text-[9px] font-bold text-white">
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/75 backdrop-blur-2xs">
+            <span className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[8.5px] font-bold text-white uppercase tracking-wider">
               Out of Stock
             </span>
           </div>
@@ -256,14 +251,14 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
             src={resolveImageUrl(product.image, 300)}
             alt={product.name}
             loading="lazy"
-            className="h-full w-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
           />
         </Link>
 
-        {/* Add / quantity control */}
+        {/* Add / Quantity control (Zepto-style positioned at the bottom of the image container) */}
         <div className="absolute bottom-1 right-1 z-20">
           {!isAvailable ? (
-            <span className="inline-flex h-6 items-center rounded-md bg-gray-100 px-2 text-[10px] font-bold text-gray-400">
+            <span className="inline-flex h-6 items-center rounded-md bg-gray-100 px-2 text-[9.5px] font-bold text-gray-400">
               N/A
             </span>
           ) : countInCart === 0 ? (
@@ -271,16 +266,16 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
               type="button"
               onClick={handleIncrement}
               disabled={isMutatingCart}
-              className="flex h-7 min-w-[48px] items-center justify-center rounded-lg bg-[#009b68] px-2 text-[10px] font-extrabold uppercase text-white shadow-sm transition hover:bg-[#007f56] active:scale-95 disabled:opacity-60"
+              className="flex h-6 sm:h-7 min-w-[50px] sm:min-w-[56px] items-center justify-center rounded-lg border-2 border-[#ff3269] bg-white px-2 text-[10.5px] font-black uppercase text-[#ff3269] shadow-2xs transition hover:bg-rose-50 active:scale-95 disabled:opacity-60 cursor-pointer"
             >
               {isMutatingCart ? (
-                <Loader2 size={12} className="animate-spin" />
+                <Loader2 size={11} className="animate-spin text-[#ff3269]" />
               ) : (
                 "ADD"
               )}
             </button>
           ) : (
-            <div className="flex h-7 min-w-[60px] items-center justify-between rounded-lg bg-[#00875a] px-1 text-white shadow-sm">
+            <div className="flex h-6 sm:h-7 min-w-[62px] items-center justify-between rounded-lg bg-[#00875a] px-1 text-white shadow-xs">
               <button
                 type="button"
                 onClick={handleDecrement}
@@ -288,10 +283,10 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
                 className="flex h-5 w-5 items-center justify-center rounded active:scale-90 disabled:opacity-50"
                 aria-label="Decrease quantity"
               >
-                <Minus size={11} strokeWidth={3} />
+                <Minus size={10} strokeWidth={3} />
               </button>
 
-              <span className="px-0.5 text-[10px] font-extrabold">
+              <span className="px-1 text-[10.5px] font-black">
                 {countInCart}
               </span>
 
@@ -302,51 +297,50 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
                 className="flex h-5 w-5 items-center justify-center rounded active:scale-90 disabled:opacity-50"
                 aria-label="Increase quantity"
               >
-                <Plus size={11} strokeWidth={3} />
+                <Plus size={10} strokeWidth={3} />
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Product title first */}
+      {/* Pricing: Green badge for selling price + Strikethrough MRP (Matching Zepto reference screenshot) */}
+      <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+        <span className="rounded-md bg-[#00875a] px-1.5 py-0.5 text-[11px] font-black leading-tight text-white shadow-2xs">
+          ₹{currentSellingPrice}
+        </span>
+
+        {currentOriginalPrice > currentSellingPrice && (
+          <span className="truncate text-[10px] text-slate-400 line-through">
+            ₹{currentOriginalPrice}
+          </span>
+        )}
+      </div>
+
+      {/* Rupee discount label with dashed bottom border (Matching Zepto reference: ₹26 OFF) */}
+      {discountAmount > 0 && (
+        <div className="mt-0.5 border-b border-dashed border-slate-200 pb-0.5">
+          <span className="text-[10px] font-extrabold text-[#00875a]">
+            ₹{discountAmount} OFF
+          </span>
+        </div>
+      )}
+
+      {/* Product title (2 lines max, clean Zepto font weight) */}
       <Link
         href={detailsHref}
-        className="mt-2 line-clamp-2 min-h-[28px] text-[11px] font-semibold leading-[15px] text-slate-900 transition-colors hover:text-[#00875a]"
+        className="mt-1 line-clamp-2 min-h-[28px] text-[11px] font-bold leading-[14px] text-slate-900 transition-colors hover:text-[#00875a]"
         title={product.name}
       >
         {product.name}
       </Link>
 
-      {/* Price */}
-      <div className="mt-1 flex min-w-0 items-center gap-1">
-        <span className="rounded-md bg-[#00875a] px-1.5 py-0.5 text-[11px] font-extrabold leading-tight text-white">
-          ₹{currentSellingPrice}
-        </span>
+      {/* Weight / Variant label (e.g. 100 g, 500 g, 1 kg) */}
+      <p className="mt-0.5 text-[9.5px] font-semibold text-slate-500">
+        {activeVariant.label || product.unit || "1 unit"}
+      </p>
 
-        {currentOriginalPrice > currentSellingPrice && (
-          <span className="truncate text-[9px] text-gray-400 line-through">
-            ₹{currentOriginalPrice}
-          </span>
-        )}
-      </div>
-        <p className="mt-0.5 text-[9px] font-extrabold leading-3 text-[#00875a]">
-          {activeVariant.label}
-        </p>
-      
-
-
-      {/* One-line backend description */}
-      {shortDescription && (
-        <p
-          className="mt-1 truncate text-[9px] leading-3 text-slate-500"
-          title={shortDescription}
-        >
-          {shortDescription}
-        </p>
-      )}
-
-      {/* Rating */}
+      {/* Rating if present */}
       {rating !== undefined && rating > 0 && (
         <div className="mt-1 flex items-center gap-1 text-[9px] font-bold text-emerald-700">
           <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1 py-0.5">

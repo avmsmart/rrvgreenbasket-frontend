@@ -87,7 +87,7 @@ class ApiClient {
     this.baseUrl = (
       process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://192.168.0.111:8080"
+      "http://192.168.0.110:8080"
     ).replace(/\/$/, "");
     this.defaultTimeout = Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 15000;
     this.enableMockFallback = process.env.NEXT_PUBLIC_ENABLE_MOCK_FALLBACK !== "false";

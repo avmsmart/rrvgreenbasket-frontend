@@ -10,4 +10,5 @@ export * from "./DeliveryDetailsDrawer";
 export * from "./DeliveryIssuesModal";
 export * from "./AllPartnersModal";
 export * from "./DeliveryZonesManager";
+export * from "./StoreLocationCoverageManager";
 export * from "./DeliveryLocationPicker";

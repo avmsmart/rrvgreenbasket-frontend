@@ -1,7 +1,8 @@
+
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X, MapPin, Sparkles, ArrowLeft } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, MapPin, ArrowLeft } from "lucide-react";
 import { useLocation } from "@/context/LocationContext";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { CurrentLocationButton } from "./CurrentLocationButton";
@@ -9,7 +10,10 @@ import { LocationSearchInput } from "./LocationSearchInput";
 import { LocationSuggestionList } from "./LocationSuggestionList";
 import { AddressConfirmation } from "./AddressConfirmation";
 import { DeliveryAvailabilityCard } from "./DeliveryAvailabilityCard";
-import { VerifiedAddress, DeliveryVerificationResult } from "@/types/location";
+import {
+  VerifiedAddress,
+  DeliveryVerificationResult,
+} from "@/types/location";
 
 export const LocationSelectionModal: React.FC = () => {
   const {
@@ -17,15 +21,20 @@ export const LocationSelectionModal: React.FC = () => {
     closeLocationModal,
     verifyAddressAvailability,
     confirmLocation,
-    selectedAddress: currentSelected,
-    storeInfo,
   } = useLocation();
 
-  // Workflow steps: "SEARCH" -> "CONFIRM_ADDRESS" -> "AVAILABILITY_RESULT"
-  const [step, setStep] = useState<"SEARCH" | "CONFIRM_ADDRESS" | "AVAILABILITY_RESULT">("SEARCH");
-  const [candidateAddress, setCandidateAddress] = useState<VerifiedAddress | null>(null);
-  const [availabilityResult, setAvailabilityResult] = useState<DeliveryVerificationResult | null>(null);
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [step, setStep] = useState<
+    "SEARCH" | "CONFIRM_ADDRESS" | "AVAILABILITY_RESULT"
+  >("SEARCH");
+
+  const [candidateAddress, setCandidateAddress] =
+    useState<VerifiedAddress | null>(null);
+
+  const [availabilityResult, setAvailabilityResult] =
+    useState<DeliveryVerificationResult | null>(null);
+
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
 
   const {
     query,
@@ -40,144 +49,216 @@ export const LocationSelectionModal: React.FC = () => {
   } = usePlacesAutocomplete({
     onSelect: async (address) => {
       setCandidateAddress(address);
+      setVerificationError("");
       setStep("CONFIRM_ADDRESS");
     },
   });
 
-  // Reset internal state whenever modal is opened
   useEffect(() => {
     if (isModalOpen) {
       setStep("SEARCH");
       setCandidateAddress(null);
       setAvailabilityResult(null);
+      setVerificationError("");
+      setIsVerifying(false);
       clearSearch();
     }
   }, [isModalOpen, clearSearch]);
 
   if (!isModalOpen) return null;
 
-  // Handle GPS location detection
+  // GPS: detect location and automatically verify delivery
   const handleLocationDetected = async (address: VerifiedAddress) => {
-    setCandidateAddress(address);
-    setStep("CONFIRM_ADDRESS");
-  };
+    if (isVerifying) return;
 
-  // Run availability check
-  const handleProceedVerification = async () => {
-    if (!candidateAddress) return;
+    setCandidateAddress(address);
+    setAvailabilityResult(null);
+    setVerificationError("");
     setIsVerifying(true);
+
     try {
-      const result = await verifyAddressAvailability(candidateAddress);
+      const result = await verifyAddressAvailability(address);
+
+      // Automatically save and close when delivery is available
+      if (result.available && result.serviceable) {
+        confirmLocation(address, result);
+        return;
+      }
+
+      // Show the unavailable result if outside the delivery zone
       setAvailabilityResult(result);
       setStep("AVAILABILITY_RESULT");
+    } catch (error) {
+      console.error("GPS delivery verification failed:", error);
+      setVerificationError(
+        "Unable to verify delivery availability. Please try again."
+      );
     } finally {
       setIsVerifying(false);
     }
   };
 
-  // Final confirmation when serviceable
+  // Manual address verification
+  const handleProceedVerification = async () => {
+    if (!candidateAddress || isVerifying) return;
+
+    setIsVerifying(true);
+    setVerificationError("");
+
+    try {
+      const result = await verifyAddressAvailability(candidateAddress);
+      setAvailabilityResult(result);
+      setStep("AVAILABILITY_RESULT");
+    } catch (error) {
+      console.error("Address verification failed:", error);
+      setVerificationError(
+        "Unable to verify this address. Please try again."
+      );
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Manual confirmation after successful verification
   const handleFinalConfirm = () => {
-    if (candidateAddress && availabilityResult) {
+    if (
+      candidateAddress &&
+      availabilityResult?.available &&
+      availabilityResult?.serviceable
+    ) {
       confirmLocation(candidateAddress, availabilityResult);
     }
   };
 
   const handleBackToSearch = () => {
     setStep("SEARCH");
+    setCandidateAddress(null);
     setAvailabilityResult(null);
+    setVerificationError("");
   };
+
+  const title =
+    step === "SEARCH"
+      ? "Change Location"
+      : step === "CONFIRM_ADDRESS"
+        ? "Confirm your address"
+        : "Delivery availability";
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Delivery location selector"
-      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      aria-label="Select delivery location"
       onClick={closeLocationModal}
+      className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-200 sm:items-start sm:justify-start sm:pt-[106px] sm:pl-[6vw]"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl border border-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom sm:slide-in-from-bottom-2 duration-300"
+        onClick={(event) => event.stopPropagation()}
+        className="flex h-[65dvh] min-h-[420px] max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl animate-in slide-in-from-bottom duration-300 sm:h-auto sm:min-h-0 sm:max-h-[80vh] sm:w-[585px] sm:max-w-[calc(100vw-32px)] sm:rounded-none sm:animate-in sm:fade-in sm:duration-200"
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-2.5">
-            {step !== "SEARCH" ? (
+        <div className="flex shrink-0 items-center justify-between px-4 py-3.5 sm:px-7 sm:py-5">
+          <div className="flex min-w-0 items-center gap-3">
+            {step !== "SEARCH" && (
               <button
                 type="button"
                 onClick={handleBackToSearch}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-                aria-label="Back to search"
+                aria-label="Back to location search"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#2f6f5e] hover:bg-emerald-50"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="h-5 w-5" />
               </button>
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4" />
-              </div>
             )}
-            <div>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
-                {step === "SEARCH" && "Where should we deliver your groceries?"}
-                {step === "CONFIRM_ADDRESS" && "Confirm Delivery Address"}
-                {step === "AVAILABILITY_RESULT" && "Delivery Coverage Status"}
-              </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {step === "SEARCH" && "Enter your location to verify delivery availability and fees."}
-                {step === "CONFIRM_ADDRESS" && "Check the address details before verifying coverage."}
-                {step === "AVAILABILITY_RESULT" && "Real-time delivery verification from Kurnool Hub."}
-              </p>
-            </div>
+
+            {step === "SEARCH" && (
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[#00875a] sm:hidden">
+                <MapPin className="h-4 w-4" />
+              </span>
+            )}
+
+            <h2 className="truncate text-base font-semibold text-[#24594b] sm:text-[15px] sm:font-medium sm:text-slate-800">
+              {title}
+            </h2>
           </div>
 
           <button
             type="button"
             onClick={closeLocationModal}
-            className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
-            aria-label="Close modal"
+            aria-label="Close location selector"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
-            <X className="w-4 h-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+        <div className="h-px shrink-0 bg-slate-100" />
+
+        {/* Main content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7 sm:py-5">
           {step === "SEARCH" && (
-            <div className="space-y-4">
-              {/* Option A: Use My Current Location */}
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-                  Option 1 — Automatic Detection
-                </span>
-                <CurrentLocationButton onLocationDetected={handleLocationDetected} />
-              </div>
-
-              {/* Divider */}
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-200/80"></div>
-                <span className="flex-shrink mx-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Or Search Address
-                </span>
-                <div className="flex-grow border-t border-slate-200/80"></div>
-              </div>
-
-              {/* Option B: Search Delivery Location */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Option 2 — Search Locality / Landmark
-                </span>
+            <>
+              {/* Mobile layout */}
+              <div className="space-y-3 sm:hidden">
                 <LocationSearchInput
                   value={query}
                   onChange={setQuery}
                   onKeyDown={handleKeyDown}
                   onClear={clearSearch}
                   isLoading={isSearching}
-                  autoFocus={true}
-                  placeholder="Enter apartment, street, landmark, or area in Kurnool..."
+                  autoFocus
+                  placeholder="Search delivery location"
                 />
 
                 {searchError && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                  <p className="text-xs text-amber-700">
+                    {searchError}
+                  </p>
+                )}
+
+                <LocationSuggestionList
+                  suggestions={suggestions}
+                  selectedIndex={selectedIndex}
+                  onSelect={selectSuggestion}
+                  isLoading={isSearching}
+                  query={query}
+                />
+
+                <div className="border-t border-slate-100 pt-2">
+                  <CurrentLocationButton
+                    onLocationDetected={handleLocationDetected}
+                    disabled={isVerifying}
+                  />
+                </div>
+              </div>
+
+              {/* Desktop layout */}
+              <div className="hidden sm:block">
+                <div className="flex items-center gap-2">
+                  <div className="shrink-0">
+                    <CurrentLocationButton
+                      onLocationDetected={handleLocationDetected}
+                      disabled={isVerifying}
+                    />
+                  </div>
+
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 text-[11px] text-slate-400">
+                    OR
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <LocationSearchInput
+                      value={query}
+                      onChange={setQuery}
+                      onKeyDown={handleKeyDown}
+                      onClear={clearSearch}
+                      isLoading={isSearching}
+                      placeholder="Search delivery location"
+                    />
+                  </div>
+                </div>
+
+                {searchError && (
+                  <p className="mt-2 text-xs text-amber-700">
                     {searchError}
                   </p>
                 )}
@@ -191,42 +272,65 @@ export const LocationSelectionModal: React.FC = () => {
                 />
               </div>
 
-              {/* Current active location reminder */}
-              {currentSelected && (
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Currently delivering to:</span>
-                  <span className="font-bold text-emerald-800 truncate max-w-[200px]">
-                    {currentSelected.displayName}
-                  </span>
+              {/* GPS verification status */}
+              {isVerifying && (
+                <div className="mt-4 flex items-center gap-2 text-sm text-[#00875a]">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#00875a] border-t-transparent" />
+                  Checking delivery availability...
                 </div>
               )}
-            </div>
+
+              {verificationError && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <span>{verificationError}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationError("");
+                      if (candidateAddress) {
+                        handleLocationDetected(candidateAddress);
+                      }
+                    }}
+                    className="shrink-0 font-bold underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
+          {/* Manual address confirmation */}
           {step === "CONFIRM_ADDRESS" && candidateAddress && (
-            <AddressConfirmation
-              address={candidateAddress}
-              onConfirm={handleProceedVerification}
-              onSearchAnother={handleBackToSearch}
-              isLoading={isVerifying}
-            />
+            <>
+              {verificationError && (
+                <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {verificationError}
+                </p>
+              )}
+
+              <AddressConfirmation
+                address={candidateAddress}
+                onConfirm={handleProceedVerification}
+                onSearchAnother={handleBackToSearch}
+                isLoading={isVerifying}
+              />
+            </>
           )}
 
-          {step === "AVAILABILITY_RESULT" && candidateAddress && availabilityResult && (
-            <DeliveryAvailabilityCard
-              address={candidateAddress}
-              result={availabilityResult}
-              onConfirmSuccess={handleFinalConfirm}
-              onSearchAnother={handleBackToSearch}
-              onRetry={handleProceedVerification}
-              isLoading={isVerifying}
-            />
-          )}
-        </div>
-
-        {/* Modal Footer Note */}
-        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-center text-[10px] text-slate-400">
-          Fresh morning harvest delivery operates daily within 5 km of our Kurnool distribution hub.
+          {/* Delivery availability result */}
+          {step === "AVAILABILITY_RESULT" &&
+            candidateAddress &&
+            availabilityResult && (
+              <DeliveryAvailabilityCard
+                address={candidateAddress}
+                result={availabilityResult}
+                onConfirmSuccess={handleFinalConfirm}
+                onSearchAnother={handleBackToSearch}
+                onRetry={handleProceedVerification}
+                isLoading={isVerifying}
+              />
+            )}
         </div>
       </div>
     </div>

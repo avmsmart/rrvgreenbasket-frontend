@@ -78,8 +78,26 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
       localStorage.removeItem(STORAGE_KEY);
     }
 
+    // Listen for real-time admin store location & radius updates
+    const handleStoreUpdated = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail && mounted) {
+        setStoreInfo((prev) => ({
+          storeName: detail.storeName || prev?.storeName || "RRV Green Basket Hub",
+          address: detail.address || prev?.address || "Rajivihar, Kurnool, Andhra Pradesh 518002",
+          latitude: typeof detail.latitude === "number" ? detail.latitude : (prev?.latitude ?? 15.8281),
+          longitude: typeof detail.longitude === "number" ? detail.longitude : (prev?.longitude ?? 78.0373),
+          maxDeliveryDistanceKm: detail.maxDeliveryDistanceKm || 10.0,
+          baseDeliveryCharge: prev?.baseDeliveryCharge ?? 20,
+        }));
+      }
+    };
+
+    window.addEventListener("rrv:location:store-updated", handleStoreUpdated);
+
     return () => {
       mounted = false;
+      window.removeEventListener("rrv:location:store-updated", handleStoreUpdated);
     };
   }, []);
 
@@ -108,7 +126,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
 
         const isAvailable = Boolean(res.available || res.serviceable);
         const distKm = res.distanceKm ?? (res.distanceMeters ? Number((res.distanceMeters / 1000).toFixed(2)) : null);
-        const maxDist = res.maxDistanceKm ?? storeInfo?.maxDeliveryDistanceKm ?? 5.0;
+        const maxDist = res.maxDistanceKm ?? storeInfo?.maxDeliveryDistanceKm ?? 10.0;
 
         let statusKind: DeliveryVerificationResult["status"] = isAvailable ? "AVAILABLE" : "OUTSIDE_RANGE";
         if (distKm !== null && distKm > maxDist) {
@@ -142,7 +160,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
           available: false,
           serviceable: false,
           status: "ROUTE_FAILED",
-          maxDistanceKm: storeInfo?.maxDeliveryDistanceKm ?? 5.0,
+          maxDistanceKm: storeInfo?.maxDeliveryDistanceKm ?? 10.0,
           message: "We couldn't calculate your delivery distance right now. Please try again.",
         };
       } finally {

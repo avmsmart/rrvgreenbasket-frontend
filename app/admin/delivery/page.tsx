@@ -34,6 +34,7 @@ import {
   DeliveryIssuesModal,
   AllPartnersModal,
   DeliveryZonesManager,
+  StoreLocationCoverageManager,
 } from "@/components/delivery";
 import { getSystemDateFormatted } from "@/utils";
 
@@ -356,7 +357,7 @@ if (!selectedDate) return;
           <span className="text-slate-700">Delivery Management</span>
         </nav>
 
-        {/* Section Switcher Tabs: Delivery Zones vs Live Fleet */}
+        {/* Section Switcher Tabs: Store Location & Delivery Coverage vs Live Fleet */}
         <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-fit mb-6 border border-slate-200">
           <button
             type="button"
@@ -368,7 +369,7 @@ if (!selectedDate) return;
             }`}
           >
             <MapIcon className="w-3.5 h-3.5" />
-            <span>Delivery Zones & Geo-Fencing</span>
+            <span>Store Location &amp; Delivery Coverage</span>
           </button>
           <button
             type="button"
@@ -380,13 +381,21 @@ if (!selectedDate) return;
             }`}
           >
             <Truck className="w-3.5 h-3.5" />
-            <span>Live Fleet & In-Transit Orders</span>
+            <span>Live Fleet &amp; In-Transit Orders</span>
           </button>
         </div>
 
         {mainView === "ZONES" ? (
           <div className="mb-12">
-            <DeliveryZonesManager />
+            <div className="mb-6">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Store Location &amp; Delivery Coverage
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Configure your store&apos;s central location and circular delivery coverage.
+              </p>
+            </div>
+            <StoreLocationCoverageManager />
           </div>
         ) : (
           <>
