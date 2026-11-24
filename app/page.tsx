@@ -5,6 +5,7 @@ import Link from "next/link";
 import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
 import { LocationNavbar } from "@/components/location";
 import HomeFooter from "@/components/HomeFooter";
+import ProduceTabs, { PRODUCE_THEME } from "@/components/home/ProduceTabs";
 import {
   MarqueeBar,
   ZeptoProductCard,
@@ -151,7 +152,7 @@ export default function Home() {
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>("Best Sellers");
-  const [produceMode, setProduceMode] = useState<"all" | "vegetables" | "fruits" | "season" | "launches">("vegetables");
+  const [produceMode, setProduceMode] = useState<"fruits" | "vegetables">("vegetables");
 
   // Product state (fetched dynamically from backend API)
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -466,14 +467,18 @@ export default function Home() {
     [allProducts, products, categoryProducts]
   );
 
+  // Mobile home: filter categories by selected tab.
+  // Fruits tab → only "Fruits" sub-category
+  // Vegetables tab → all other food categories (vegetables, leafy, root, mushrooms, seasonings, dry fruits, other, groceries)
   const visibleProduceCategories = useMemo(() => {
-    if (produceMode === "all" || produceMode === "season" || produceMode === "launches") {
-      return categories;
-    }
     return categories.filter((category) => {
       const name = String(category.name || "").toLowerCase();
-      if (produceMode === "fruits") return /fruit/.test(name);
-      return /vegetable|veggie|veg|leafy|root|seasoning|mushroom/.test(name);
+      if (produceMode === "fruits") {
+        // Only the main "Fruits" category
+        return name === "fruits";
+      }
+      // Vegetables tab: show everything else (exclude "Fruits")
+      return name !== "fruits";
     });
   }, [categories, produceMode]);
 
@@ -483,19 +488,16 @@ export default function Home() {
     const produceCategoryIds = new Set(
       visibleProduceCategories.map((category) => String(getCategoryId(category)))
     );
-    const produceSource =
-      produceMode === "all" || produceMode === "season" || produceMode === "launches"
-        ? source
-        : source.filter((product) => {
-            if (product.categoryId) {
-              return produceCategoryIds.has(String(product.categoryId));
-            }
-            const productCategory = String(product.category || "").toLowerCase().trim();
-            return visibleProduceCategories.some(
-              (category) =>
-                productCategory === String(category.name || "").toLowerCase().trim()
-            );
-          });
+    const produceSource = source.filter((product) => {
+      if (product.categoryId) {
+        return produceCategoryIds.has(String(product.categoryId));
+      }
+      const productCategory = String(product.category || "").toLowerCase().trim();
+      return visibleProduceCategories.some(
+        (category) =>
+          productCategory === String(category.name || "").toLowerCase().trim()
+      );
+    });
     const featured = produceSource.filter(
       (p) =>
         p.badge === "Featured" ||
@@ -552,7 +554,7 @@ export default function Home() {
       {/* =========================================================================
           1. HEADER NAVIGATION (Zepto-Style Mobile & Desktop Responsive)
          ========================================================================= */}
-      <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white">
+      <header className="z-[60] border-b border-emerald-100 bg-[#e3f4ee] md:sticky md:top-0">
         <div className="mx-auto max-w-[1400px] px-3 sm:px-5 lg:px-6">
           
           {/* DESKTOP HEADER (Preserved 100%) */}
@@ -724,14 +726,7 @@ export default function Home() {
           </div>
 
           {/* MOBILE TOP NAVIGATION (Zepto Style - Row 1: Logo + Delivery Location + Account) */}
-          <div
-            aria-hidden={isCompactHeader}
-            className={`flex items-center justify-between gap-2 overflow-hidden transition-[max-height,opacity,padding] duration-300 ease-out md:hidden ${
-              isCompactHeader
-                ? "pointer-events-none max-h-0 py-0 opacity-0"
-                : "max-h-[52px] pt-2.5 pb-2 opacity-100"
-            }`}
-          >
+          <div className="flex items-center justify-between gap-2 pt-2.5 pb-2 md:hidden">
             {/* Brand Logo */}
             <button
               type="button"
@@ -760,23 +755,44 @@ export default function Home() {
             </button>
 
             {/* Mobile Delivery Location Pill */}
-            <div className="relative min-w-0 flex-1 px-1">
+            <div className="relative flex min-w-0 flex-1 justify-center px-1">
               <LocationNavbar variant="mobile" />
             </div>
 
             {/* Mobile Account Profile Icon */}
             <div className="flex shrink-0 items-center">
-              <CustomerNavAuth />
+              <CustomerNavAuth variant="icon" />
             </div>
           </div>
 
-          {/* MOBILE SEARCH: remains visible because the complete header is sticky. */}
+          
+        </div>
+
+      </header>
+
+      {/* MOBILE: curved Vegetables / Fruits tabs (scroll away with the page) */}
+      <div className="md:hidden">
+        <ProduceTabs
+          mode={produceMode}
+          onChange={(m) => {
+            setProduceMode(m);
+            setActiveCategoryId(null);
+          }}
+        />
+      </div>
+
+      {/* MOBILE: search bar — stays pinned at the top while scrolling */}
+      <div
+        className="sticky top-0 z-50 md:hidden"
+        style={{ backgroundColor: PRODUCE_THEME[produceMode].panel }}
+      >
+        <div className="px-3 pt-3 pb-3.5">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
             }}
-            className="mb-0 flex h-[46px] items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 shadow-none md:hidden"
+            className="flex h-[44px] items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-[#F5F5F5] px-3 transition focus-within:border-slate-300 focus-within:bg-white"
           >
             <Search size={18} className="shrink-0 text-slate-500" />
             <input
@@ -787,7 +803,7 @@ export default function Home() {
               }}
               placeholder='Search fruits, vegetables, groceries...'
               aria-label="Search products"
-              className="h-full min-w-0 flex-1 border-0 bg-transparent px-1 text-[13px] font-medium text-slate-800 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 placeholder:text-slate-400"
+              className="h-full min-w-0 flex-1 border-0 bg-transparent px-1 text-[13px] font-medium text-slate-800 outline-none placeholder:text-slate-400"
             />
             {search && (
               <button
@@ -800,64 +816,11 @@ export default function Home() {
               </button>
             )}
           </form>
-
         </div>
-
-        {/* MOBILE DEPARTMENT TABS (Zepto Reference: All | Fresh | Categories) */}
-        <section className="border-b border-slate-200 bg-white md:hidden">
-          <div className="flex items-center gap-5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => {
-                selectCategory(null);
-                setProduceMode("all");
-              }}
-              className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
-                activeCategoryId === null && produceMode === "all"
-                  ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveCategoryId(null);
-                setProduceMode("vegetables");
-              }}
-              className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
-                activeCategoryId === null && (produceMode === "vegetables" || produceMode === "fruits" || produceMode === "season" || produceMode === "launches")
-                  ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Fresh
-            </button>
-            {categories.map((c) => {
-              const catId = getCategoryId(c);
-              const active = activeCategoryId === catId;
-              return (
-                <button
-                  key={catId}
-                  type="button"
-                  onClick={() => selectCategory(c)}
-                  className={`relative shrink-0 py-2.5 text-[12.5px] font-bold transition-colors ${
-                    active
-                      ? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-slate-900"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </header>
+      </div>
 
       {/* MOBILE FRESH HERO & PILL SUB-FILTERS (Zepto Reference Screenshot) */}
-      <section className="bg-gradient-to-b from-[#e3f4ee] via-[#edf7f3] to-white pt-3 pb-2 text-center md:hidden">
+      <section className="bg-gradient-to-b from-[#e3f4ee] to-[#edf7f3] pt-3 pb-1 text-center md:hidden">
         {/* Stylized FRESH Header */}
         <div className="mx-auto flex flex-col items-center justify-center">
           <div className="flex items-center gap-1.5">
@@ -872,7 +835,11 @@ export default function Home() {
         </div>
 
         {/* Subcategory Pills: [ Veggies ] [ Fruits ] [ Season's Best ] [ New Launches ] */}
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      </section>
+
+      {/* MOBILE: sub-filter pills — pinned right under the search bar (search bar is 70px tall) */}
+      <div className="sticky top-[70px] z-40 border-b border-emerald-100/70 bg-[#edf7f3] pt-2 pb-2.5 md:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={() => {
@@ -933,7 +900,7 @@ export default function Home() {
             New Launches
           </button>
         </div>
-      </section>
+      </div>
 
       {/* =========================================================================
           3. DESKTOP PROMOTIONAL STRIP & CATEGORY GRID
@@ -1138,7 +1105,7 @@ export default function Home() {
         <section className="min-w-0">
 
           
-          <section id="products" className="scroll-mt-28">
+          <section id="products" className="scroll-mt-32 md:scroll-mt-28">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
                 {/* <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700 flex items-center gap-1.5">
@@ -1426,17 +1393,6 @@ export default function Home() {
               )}
             </span>
             <span className="text-[10px] font-semibold">Cart</span>
-          </Link>
-
-          <Link
-            href={isCustomerLoggedIn ? "/customer/profile?tab=overview" : "/login"}
-            aria-label={isCustomerLoggedIn ? "Profile" : "Login"}
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-[#00875a] cursor-pointer"
-          >
-            <UserRound size={20} strokeWidth={1.8} />
-            <span className="text-[10px] font-semibold">
-              {isCustomerLoggedIn ? "Profile" : "Login"}
-            </span>
           </Link>
         </div>
       </nav>
