@@ -75,12 +75,49 @@ const DEFAULT_CATEGORY_ICONS: Record<string, string> = {
   "Household Items": "🧺",
 };
 
+/**
+ * Category image URLs may be absolute URLs (S3/Cloudinary/etc.) or relative
+ * paths served by the backend. Keep absolute URLs unchanged; resolve only
+ * relative paths through the application's existing image URL utility.
+ */
+const getCategoryImageUrl = (imageUrl: unknown, categoryName: string): string => {
+  const fallback =
+    DEFAULT_CATEGORY_IMAGES[categoryName] || DEFAULT_CATEGORY_IMAGES.Vegetables;
+
+  if (typeof imageUrl !== "string" || !imageUrl.trim()) {
+    return fallback;
+  }
+
+  const value = imageUrl.trim();
+
+  // Do not pass full URLs through resolveImageUrl: some URL helpers prepend
+  // the API base URL and can corrupt an already valid external URL.
+  if (/^(https?:|data:|blob:)/i.test(value)) {
+    return value;
+  }
+
+  if (value.startsWith("//")) {
+    return `https:${value}`;
+  }
+
+  try {
+    const resolved = resolveImageUrl(value, 400);
+    return typeof resolved === "string" && resolved.trim() ? resolved : fallback;
+  } catch (error) {
+    console.warn("[Storefront] Could not resolve category image URL:", value, error);
+    return fallback;
+  }
+};
+
 const getCategoryVisuals = (cat: BackendCategory) => {
   const name = cat.name || "";
-  const img = cat.imageUrl || DEFAULT_CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGES.Vegetables;
+  const img = getCategoryImageUrl(cat.imageUrl, name);
   const icon = cat.icon || DEFAULT_CATEGORY_ICONS[name] || "▦";
   return { img, icon };
 };
+
+const getCategoryFallbackImage = (categoryName: string): string =>
+  DEFAULT_CATEGORY_IMAGES[categoryName] || DEFAULT_CATEGORY_IMAGES.Vegetables;
 
 export default function Home() {
   // Public Store Branding Settings
@@ -119,12 +156,47 @@ export default function Home() {
   const loadCategories = useCallback(async () => {
     setIsCategoriesLoading(true);
     try {
-      const data = await productService.getCategories();
-      if (Array.isArray(data) && data.length > 0) {
-        setCategories(data);
-      } else {
-        setCategories([]);
-      }
+      const response = await productService.getCategories();
+
+      // Support common public API response shapes:
+      // [ ... ], { content: [ ... ] }, { data: [ ... ] }, or { categories: [ ... ] }.
+      const responseRecord =
+        response && typeof response === "object"
+          ? (response as unknown as Record<string, unknown>)
+          : null;
+
+      const categoryList: unknown[] = Array.isArray(response)
+        ? response
+        : Array.isArray(responseRecord?.content)
+          ? responseRecord.content
+          : Array.isArray(responseRecord?.data)
+            ? responseRecord.data
+            : Array.isArray(responseRecord?.categories)
+              ? responseRecord.categories
+              : [];
+
+      const normalizedCategories = categoryList
+        .filter(
+          (item): item is BackendCategory =>
+            Boolean(item) &&
+            typeof item === "object" &&
+            typeof (item as BackendCategory).name === "string"
+        )
+        .map((category) => ({
+          ...category,
+          // Pass a usable imageUrl to ImageSlider, CategoryGrid, chips and sidebar.
+          imageUrl: getCategoryImageUrl(category.imageUrl, category.name),
+        }));
+
+      console.info(
+        `[Storefront] Loaded ${normalizedCategories.length} public categories`,
+        normalizedCategories.map((category) => ({
+          name: category.name,
+          imageUrl: category.imageUrl,
+        }))
+      );
+
+      setCategories(normalizedCategories);
     } catch (err: unknown) {
       console.error("[Storefront] Failed to load categories from backend:", err);
       setCategories([]);
@@ -576,8 +648,15 @@ export default function Home() {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={resolveImageUrl(img, 120)}
+                  src={img}
                   alt={c.name}
+                  loading="lazy"
+                  onError={(event) => {
+                    const fallback = getCategoryFallbackImage(c.name);
+                    if (event.currentTarget.src !== fallback) {
+                      event.currentTarget.src = fallback;
+                    }
+                  }}
                   className="h-8 w-8 rounded-full object-cover ring-1 ring-white shadow-2xs"
                 />
                 <span className="line-clamp-1 w-full text-center">{c.name}</span>
@@ -665,8 +744,15 @@ export default function Home() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 p-0.5 sm:h-12 sm:w-12 lg:h-10 lg:w-10">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={resolveImageUrl(img, 100)}
+                      src={img}
                       alt={c.name}
+                      loading="lazy"
+                      onError={(event) => {
+                        const fallback = getCategoryFallbackImage(c.name);
+                        if (event.currentTarget.src !== fallback) {
+                          event.currentTarget.src = fallback;
+                        }
+                      }}
                       className="h-full w-full rounded-lg object-cover"
                     />
                   </span>

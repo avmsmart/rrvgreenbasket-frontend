@@ -322,7 +322,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
                 value={receiverName}
                 onChange={(e) => setReceiverName(e.target.value)}
                 placeholder="e.g. John Doe"
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               />
             </div>
 
@@ -331,7 +331,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
                 Receiver Mobile Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
                   +91
                 </span>
                 <input
@@ -343,7 +343,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
                     setReceiverMobile(e.target.value.replace(/\D/g, "").slice(0, 10))
                   }
                   placeholder="9876543210"
-                  className="w-full rounded-xl border border-gray-200 bg-white pl-12 pr-3.5 py-2.5 text-xs font-mono text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                  className="w-full rounded-xl border border-gray-200 bg-white pl-12 pr-3.5 py-2.5 text-xs font-mono text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
                 />
               </div>
             </div>
@@ -360,7 +360,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
               value={addressLine1}
               onChange={(e) => setAddressLine1(e.target.value)}
               placeholder="e.g. Flat 101, Main Residency, Tower B"
-              className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
             />
           </div>
 
@@ -368,27 +368,27 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Street, Area, Colony <span className="text-gray-400 font-normal">(Optional)</span>
+                Street, Area, Colony <span className="text-slate-500 font-normal">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={addressLine2}
                 onChange={(e) => setAddressLine2(e.target.value)}
                 placeholder="e.g. Main Street, Madhapur"
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Landmark <span className="text-gray-400 font-normal">(Optional)</span>
+                Landmark <span className="text-slate-500 font-normal">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={landmark}
                 onChange={(e) => setLandmark(e.target.value)}
                 placeholder="e.g. Near Supermarket / Metro Station"
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               />
             </div>
           </div>
@@ -405,7 +405,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="e.g. Hyderabad"
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               />
             </div>
 
@@ -439,7 +439,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
                   setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
                 }
                 placeholder="500001"
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-mono text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-mono text-gray-900 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               />
             </div>
           </div>
@@ -457,7 +457,7 @@ export const CustomerAddressForm: React.FC<CustomerAddressFormProps> = ({
               <span className="text-xs font-semibold text-gray-700">
                 Set as default delivery address
                 {isFirstAddress && (
-                  <span className="ml-1 text-gray-400 font-normal">
+                  <span className="ml-1 text-slate-500 font-normal">
                     (First address is automatically default)
                   </span>
                 )}

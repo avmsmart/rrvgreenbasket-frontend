@@ -1,22 +1,24 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Order, OrderItem } from "@/types";
+import { Order, AdminOrder } from "@/types";
+import {
+  getDeliveryRecipient,
+  getFormattedDeliveryAddress,
+  formatOrderDateTime,
+  formatOrderDateOnly,
+} from "./order-helpers";
 
 /**
  * Generates an official, tax-compliant PDF invoice for RRV Green Basket orders.
- * Uses jsPDF and jspdf-autotable for pixel-perfect, printable A4 documentation.
  *
- * @param order Order entity containing customer, itemized breakdown, and payment details
- * @param action 'download' to save PDF file, 'print' to open in print preview window
+ * CRITICAL PRIVACY REQUIREMENT:
+ * - Identifies the actual DELIVERY RECIPIENT and delivery address.
+ * - MUST NOT expose registered customer's name, registered mobile, or Customer Public ID
+ *   unless the registered customer is also the recipient.
+ * - Does NOT fall back to registered customer details for recipient.
  */
 export function generateInvoicePdf(
-  order: Partial<Order> & {
-    id: string;
-    customerName: string;
-    customerPhone: string;
-    customerAddress: string;
-    amount: number;
-  },
+  order: AdminOrder | Order,
   action: "download" | "print" = "download"
 ): void {
   const doc = new jsPDF({
@@ -27,7 +29,9 @@ export function generateInvoicePdf(
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const cleanId = order.id.replace("#", "");
+
+  const orderNum = order.orderNumber || order.id || "RRV-ORDER";
+  const cleanId = orderNum.replace("#", "");
   const invoiceNo = `INV-${cleanId}`;
 
   // 1. Top Green Header Banner (Brand Emerald: #00875a)
@@ -43,7 +47,7 @@ export function generateInvoicePdf(
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
   doc.text("Freshness Delivered Daily • Farm-Fresh Vegetables & Groceries", 14, 18);
-  doc.text("Kurnool, Andhra Pradesh - 518002 | Helpline: +91 94401 23456", 14, 23);
+  doc.text("Kurnool, Andhra Pradesh - 518001 | Helpline: +91 94401 23456", 14, 23);
 
   // Document Type Header on Top Right
   doc.setFontSize(14);
@@ -55,41 +59,59 @@ export function generateInvoicePdf(
   doc.text("Original for Recipient", pageWidth - 14, 19, { align: "right" });
   doc.text("GSTIN: 37AAECR1234F1Z5", pageWidth - 14, 24, { align: "right" });
 
-  // 2. Metadata Grid (Billed To vs Invoice Details)
+  // 2. Metadata Grid: ONLY Delivery Recipient Details (No Account Owner Details)
   const metaY = 34;
 
   // Box Background
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(226, 232, 240); // slate-200
-  doc.roundedRect(14, metaY, pageWidth - 28, 36, 2, 2, "FD");
+  doc.roundedRect(14, metaY, pageWidth - 28, 38, 2, 2, "FD");
 
   // Divider Line inside Box
   doc.setDrawColor(226, 232, 240);
-  doc.line(pageWidth / 2, metaY + 2, pageWidth / 2, metaY + 34);
+  doc.line(pageWidth / 2, metaY + 2, pageWidth / 2, metaY + 36);
 
-  // Left Column: Customer (Billed To)
+  // Left Column: Delivery Recipient (Billed / Delivered To)
+  // PRIVACY: Only use recipient details!
+  const recipient = getDeliveryRecipient(order);
+  const deliveryAddress = getFormattedDeliveryAddress(order);
+
   doc.setTextColor(0, 135, 90);
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
-  doc.text("BILLED TO / CUSTOMER DETAILS", 18, metaY + 7);
+  doc.text("DELIVERY RECIPIENT & SHIPPING DETAILS", 18, metaY + 7);
 
   doc.setTextColor(30, 41, 59); // slate-800
   doc.setFontSize(10);
-  doc.text(order.customerName, 18, metaY + 14);
+  doc.text(
+    recipient.isMissing ? "Delivery Recipient: Not Specified" : recipient.name,
+    18,
+    metaY + 14
+  );
 
   doc.setTextColor(71, 85, 105); // slate-600
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
-  doc.text(`Phone: ${order.customerPhone}`, 18, metaY + 20);
-
-  // Truncate address if very long
-  const addressLines = doc.splitTextToSize(
-    `Delivery Address: ${order.customerAddress || "Kurnool Town"}`,
-    pageWidth / 2 - 26
+  doc.text(
+    `Mobile: ${recipient.mobile || "Not Provided"}`,
+    18,
+    metaY + 20
   );
-  doc.text(addressLines, 18, metaY + 26);
 
-  // Right Column: Invoice & Order Meta
+  // Delivery Address lines
+  const addressText = deliveryAddress.isMissing
+    ? "Delivery Address: Not Provided"
+    : `Address: ${deliveryAddress.fullAddress}`;
+  const addressLines = doc.splitTextToSize(addressText, pageWidth / 2 - 26);
+  doc.text(addressLines.slice(0, 2), 18, metaY + 26);
+
+  if (deliveryAddress.zoneName) {
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Zone: ${deliveryAddress.zoneName}`, 18, metaY + 34);
+  }
+
+  // Right Column: Invoice & Order Summary
   const rightX = pageWidth / 2 + 6;
   doc.setTextColor(0, 135, 90);
   doc.setFontSize(8.5);
@@ -107,87 +129,75 @@ export function generateInvoicePdf(
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
-  doc.text("Order ID:", rightX, metaY + 20);
+  doc.text("Order Number:", rightX, metaY + 20);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 41, 59);
-  doc.text(order.id, rightX + 25, metaY + 20);
+  doc.text(orderNum, rightX + 25, metaY + 20);
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
-  doc.text("Date & Time:", rightX, metaY + 26);
+  doc.text("Order Date:", rightX, metaY + 26);
   doc.setTextColor(30, 41, 59);
-  const orderTimeStr = order.orderTime ? `(${order.orderTime})` : "";
-  doc.text(
-    `${order.orderDate || new Date().toLocaleDateString("en-IN", { dateStyle: "medium" })} ${orderTimeStr}`,
-    rightX + 25,
-    metaY + 26
+  const formattedDate = formatOrderDateTime(
+    order.orderPlacedAt || order.orderDate,
+    "orderTime" in order ? order.orderTime : undefined
   );
+  doc.text(formattedDate, rightX + 25, metaY + 26);
 
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
-  doc.text("Payment Mode:", rightX, metaY + 32);
+  doc.text("Payment:", rightX, metaY + 32);
   doc.setFont("helvetica", "bold");
+  const payMethod = order.paymentMethod || "COD";
   const payStatus = order.paymentStatus ? `[${order.paymentStatus}]` : "";
-  doc.text(`${order.paymentMethod || "COD"} ${payStatus}`, rightX + 25, metaY + 32);
+  doc.text(`${payMethod} ${payStatus}`, rightX + 25, metaY + 32);
 
   // 3. Products Table
-  const defaultItems: OrderItem[] = [
-    {
-      id: "1",
-      productId: "PRD-1",
-      productName: "Fresh Hybrid Tomato",
-      unit: "Kg",
-      unitPrice: 34,
-      quantity: 2,
-      totalPrice: 68,
-    },
-    {
-      id: "2",
-      productId: "PRD-2",
-      productName: "Red Onions (Nasik Grade)",
-      unit: "Kg",
-      unitPrice: 56,
-      quantity: 2,
-      totalPrice: 112,
-    },
-    {
-      id: "3",
-      productId: "PRD-3",
-      productName: "Green Bell Pepper (Capsicum)",
-      unit: "Kg",
-      unitPrice: 46,
-      quantity: 1,
-      totalPrice: 46,
-    },
-  ];
-
-  const items = order.items && order.items.length > 0 ? order.items : defaultItems;
+  const rawItems = order.items && order.items.length > 0 ? order.items : [];
 
   const tableHead = [
     [
       { content: "#", styles: { halign: "center" as const } },
       "Item Description",
       { content: "HSN Code", styles: { halign: "center" as const } },
-      { content: "UOM", styles: { halign: "center" as const } },
+      { content: "Unit", styles: { halign: "center" as const } },
       { content: "Qty", styles: { halign: "center" as const } },
-      { content: "Rate (₹)", styles: { halign: "right" as const } },
-      { content: "Amount (₹)", styles: { halign: "right" as const } },
+      { content: "Unit Price (₹)", styles: { halign: "right" as const } },
+      { content: "Total (₹)", styles: { halign: "right" as const } },
     ],
   ];
 
-  const tableBody = items.map((it, idx) => [
-    { content: String(idx + 1), styles: { halign: "center" as const } },
-    it.productName,
-    { content: "7101000", styles: { halign: "center" as const } },
-    { content: it.unit || "Kg", styles: { halign: "center" as const } },
-    { content: String(it.quantity), styles: { halign: "center" as const } },
-    { content: (it.unitPrice || 0).toFixed(2), styles: { halign: "right" as const } },
-    { content: (it.totalPrice || it.unitPrice * it.quantity).toFixed(2), styles: { halign: "right" as const } },
-  ]);
+  const tableBody = rawItems.map((it: any, idx: number) => {
+    const unit = it.unitOfMeasure || it.unit || "KG";
+    const qty = typeof it.quantity === "number" ? it.quantity : it.quantityKg || 1;
+    const unitPrice = typeof it.unitPrice === "number" ? it.unitPrice : it.pricePerKg || 0;
+    const totalPrice = typeof it.totalPrice === "number" ? it.totalPrice : unitPrice * qty;
+
+    return [
+      { content: String(idx + 1), styles: { halign: "center" as const } },
+      it.productName || "Fresh Produce Item",
+      { content: it.hsnCode || "07099990", styles: { halign: "center" as const } },
+      { content: unit, styles: { halign: "center" as const } },
+      { content: qty % 1 === 0 ? String(qty) : qty.toFixed(3), styles: { halign: "center" as const } },
+      { content: unitPrice.toFixed(2), styles: { halign: "right" as const } },
+      { content: totalPrice.toFixed(2), styles: { halign: "right" as const } },
+    ];
+  });
 
   autoTable(doc, {
     head: tableHead,
-    body: tableBody,
-    startY: 74,
+    body: tableBody.length > 0 ? tableBody : [
+      [
+        { content: "1", styles: { halign: "center" as const } },
+        "Order Produce Item",
+        { content: "07099990", styles: { halign: "center" as const } },
+        { content: "KG", styles: { halign: "center" as const } },
+        { content: "1", styles: { halign: "center" as const } },
+        { content: (order.subtotal || order.totalAmount || 0).toFixed(2), styles: { halign: "right" as const } },
+        { content: (order.subtotal || order.totalAmount || 0).toFixed(2), styles: { halign: "right" as const } },
+      ]
+    ],
+    startY: 76,
     theme: "striped",
     styles: {
       font: "helvetica",
@@ -230,7 +240,7 @@ export function generateInvoicePdf(
   doc.setFont("helvetica", "normal");
   doc.text("• All produce harvested & packaged following strict hygiene standards.", 18, finalY + 13);
   doc.text("• Perishable items must be inspected upon doorstep delivery.", 18, finalY + 18);
-  doc.text("• Issues or replacements must be raised within 6 hours of receipt.", 18, finalY + 23);
+  doc.text("• Delivery recipient must verify package contents before signing.", 18, finalY + 23);
   doc.text("• FSSAI Central Registration No: 10123024000456.", 18, finalY + 28);
   doc.text("• E. & O.E. | Thank you for choosing RRV Green Basket!", 18, finalY + 33);
 
@@ -238,12 +248,17 @@ export function generateInvoicePdf(
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(summaryBoxX, finalY, summaryBoxWidth, 38, 2, 2, "FD");
 
+  // Use API values directly!
   const calcSubtotal =
-    order.subtotal ||
-    items.reduce((sum, it) => sum + (it.totalPrice || it.unitPrice * it.quantity), 0);
+    order.subtotal !== undefined
+      ? order.subtotal
+      : order.subtotalAmount !== undefined
+      ? order.subtotalAmount
+      : rawItems.reduce((sum: number, it: any) => sum + (it.totalPrice || (it.unitPrice || 0) * (it.quantity || 1)), 0);
+
   const calcDelivery = order.deliveryCharge ?? 0;
-  const calcDiscount = order.discount ?? 0;
-  const calcGrandTotal = order.amount || calcSubtotal + calcDelivery - calcDiscount;
+  const calcDiscount = order.discountAmount ?? ("discount" in order && order.discount ? order.discount : 0);
+  const calcGrandTotal = order.totalAmount ?? ("amount" in order ? order.amount : calcSubtotal + calcDelivery - calcDiscount);
 
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
@@ -299,7 +314,7 @@ export function generateInvoicePdf(
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text(
-    "For customer queries, write to support@rrvgreenbasket.com or call +91 94401 23456 | Powered by RRV Logistics Hub",
+    "For recipient queries, write to support@rrvgreenbasket.com or call +91 94401 23456 | Powered by RRV Logistics Hub",
     pageWidth / 2,
     pageHeight - 8,
     { align: "center" }

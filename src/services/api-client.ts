@@ -78,26 +78,21 @@ export const removeAuthToken = (): void => {
   }
 };
 
+import { getApiBaseUrl } from "@/config/api.config";
+
 class ApiClient {
   private baseUrl: string;
   private defaultTimeout: number;
   private enableMockFallback: boolean;
 
   constructor() {
-    this.baseUrl = (
-      process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://192.168.0.110:8080"
-    ).replace(/\/$/, "");
+    this.baseUrl = getApiBaseUrl();
     this.defaultTimeout = Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 15000;
     this.enableMockFallback = process.env.NEXT_PUBLIC_ENABLE_MOCK_FALLBACK !== "false";
   }
 
   public getBaseUrl(): string {
-    if (process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL.replace(/\/$/, "");
-    }
-    return this.baseUrl;
+    return this.baseUrl || getApiBaseUrl();
   }
 
   public setBaseUrl(url: string): void {

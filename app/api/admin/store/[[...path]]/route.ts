@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerStoreUrl } from "@/config/api.config";
 
 function getStoreTargetBaseUrl(): string {
-  if (process.env.BACKEND_STORE_URL) {
-    return process.env.BACKEND_STORE_URL.replace(/\/$/, "");
-  }
-  if (process.env.NEXT_PUBLIC_STORE_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_STORE_API_BASE_URL.replace(/\/$/, "");
-  }
-  const apiBase = process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (apiBase) {
-    try {
-      const url = new URL(apiBase);
-      url.port = "8090";
-      return url.origin.replace(/\/$/, "");
-    } catch {
-      // ignore
-    }
-  }
-  return "http://localhost:8090";
+  return getServerStoreUrl();
 }
 
 async function handleAdminStoreProxy(
@@ -61,8 +46,8 @@ async function handleAdminStoreProxy(
     try {
       upstreamResponse = await fetch(targetUrl, init);
     } catch {
-      // Fallback attempt to alternate localhost port 8090 if needed
-      const directUrl = `http://localhost:8090/api/admin/store${subPath ? `/${subPath}` : ""}${search}`;
+      // Fallback attempt to alternate port 8090 if needed
+      const directUrl = `${getServerStoreUrl()}/api/admin/store${subPath ? `/${subPath}` : ""}${search}`;
       upstreamResponse = await fetch(directUrl, init);
     }
 

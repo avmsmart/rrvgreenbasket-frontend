@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AdminLayoutWrapper } from "@/components/layout";
 
 export const metadata = {
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <AdminLayoutWrapper>{children}</AdminLayoutWrapper>;
+  return (
+    <Suspense fallback={null}>
+      <AdminLayoutWrapper>{children}</AdminLayoutWrapper>
+    </Suspense>
+  );
 }

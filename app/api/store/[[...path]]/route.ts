@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerStoreUrl } from "@/config/api.config";
 
 function getStoreTargetBaseUrl(): string {
-  // Routes to API Gateway or Store Service
-  if (process.env.BACKEND_API_URL) {
-    return process.env.BACKEND_API_URL.replace(/\/$/, "");
-  }
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-  }
-  if (process.env.BACKEND_STORE_URL) {
-    return process.env.BACKEND_STORE_URL.replace(/\/$/, "");
-  }
-  if (process.env.NEXT_PUBLIC_STORE_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_STORE_API_BASE_URL.replace(/\/$/, "");
-  }
-  return "http://192.168.0.110:8080";
+  return getServerStoreUrl();
 }
 
 async function handleStoreProxy(

@@ -25,6 +25,7 @@
 
 import { apiClient, ApiError, getAuthToken, removeAuthToken } from "./api-client";
 import { adminProductService } from "./product.service";
+import { getInventoryApiBaseUrl } from "@/config/api.config";
 import {
   InventoryDetailResponse,
   InventoryPageData,
@@ -64,14 +65,7 @@ export class InventoryService {
    * Dedicated base URL resolution for Inventory Microservice
    */
   public getBaseUrl(): string {
-    const envUrl =
-      process.env.NEXT_PUBLIC_INVENTORY_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (envUrl) {
-      return envUrl.replace(/\/$/, "");
-    }
-    return "http://localhost:8080";
+    return getInventoryApiBaseUrl();
   }
 
   /**

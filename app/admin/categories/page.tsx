@@ -12,7 +12,7 @@ import {
 } from "@/components/categories";
 import { Category, CategoryStatusFilter, CategoryStatistics } from "@/types/category";
 import { categoryService } from "@/services/category.service";
-import { CheckCircle2, AlertTriangle, RefreshCw, FolderTree } from "lucide-react";
+import { CheckCircle2, AlertTriangle, RefreshCw, Plus } from "lucide-react";
 
 export default function CategoryManagementPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -223,15 +223,27 @@ export default function CategoryManagementPage() {
           </p>
         </div>
 
-        <button
-          onClick={fetchCategories}
-          disabled={isLoading}
-          title="Refresh categories from database"
-          className="self-start sm:self-auto px-3.5 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-3xs flex items-center gap-2 transition-colors cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-[#00875a] ${isLoading ? "animate-spin" : ""}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={fetchCategories}
+            disabled={isLoading}
+            title="Refresh categories from database"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-[#00875a] ${isLoading ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#00875a] px-4 py-2 text-xs font-extrabold text-white shadow-sm transition-colors hover:bg-[#00734d] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:flex-none"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Category</span>
+          </button>
+        </div>
       </div>
 
       {/* Notification Toast */}

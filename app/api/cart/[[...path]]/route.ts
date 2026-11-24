@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerBackendUrl } from "@/config/api.config";
 
 /**
  * Resolves Backend API Gateway target URL for Spring Boot Cart microservice
  */
 function getBackendUrl(): string {
-  const envUrl =
-    process.env.BACKEND_CART_URL ||
-    process.env.BACKEND_API_URL ||
-    process.env.NEXT_PUBLIC_CART_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
-
-  if (envUrl && !envUrl.includes("192.168.0.107")) {
-    return envUrl.replace(/\/$/, "");
-  }
-  return "http://192.168.0.138:8080";
+  return getServerBackendUrl();
 }
 
 async function handleCartProxy(

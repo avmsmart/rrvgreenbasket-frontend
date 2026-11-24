@@ -9,21 +9,18 @@ import {
   MapPin,
   Plus,
   Phone,
-  UserRound,
   CheckCircle2,
   AlertTriangle,
-  Clock,
-  Truck,
   IndianRupee,
   CreditCard,
   Banknote,
   Loader2,
   ShoppingCart,
   ChevronRight,
-  Info,
   Check,
   AlertCircle,
-  Sparkles,
+  WalletCards,
+  ClipboardList,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useCustomerAuth } from "@/context/CustomerAuthContext";
@@ -45,7 +42,6 @@ import {
   BackendPaymentMethod,
   AddressDto,
 } from "@/types/order";
-import { DeliveryLocationPicker, SelectedLocationData } from "@/components/delivery/DeliveryLocationPicker";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -223,22 +219,6 @@ export default function CheckoutPage() {
       checkAddressDelivery(lat, lng, addrStr);
     }
   }, [selectedAddress, customCoordinates, checkAddressDelivery]);
-
-  // Handle location picker verification
-  const handleLocationPickerVerified = (
-    loc: SelectedLocationData,
-    avail: DeliveryAvailabilityResponse
-  ) => {
-    setCustomCoordinates({ lat: loc.latitude, lng: loc.longitude });
-    setDeliveryAvailability(avail);
-    setNewAddress((prev) => ({
-      ...prev,
-      addressLine1: loc.addressLine || prev.addressLine1,
-      city: loc.city || prev.city,
-      state: loc.state || prev.state,
-      pincode: loc.pincode || prev.pincode,
-    }));
-  };
 
   // 4. Save New Address
   const handleSaveAddress = async (e: React.FormEvent) => {
@@ -426,647 +406,261 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8faf7] text-slate-900 flex flex-col justify-between">
-      {/* =========================================================================
-          1. SECURE CHECKOUT TOP BAR
-         ========================================================================= */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-3xs">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <Link
-              href="/cart"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-emerald-700 transition"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to Cart</span>
+            <Link href="/cart" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-emerald-700">
+              <ArrowLeft className="h-4 w-4" /> Back to cart
             </Link>
-            <div className="h-4 w-px bg-slate-200" />
-            <Link href="/" className="flex items-center gap-2 font-black text-emerald-800">
-              <span className="text-base tracking-tight">RRV GREEN BASKET</span>
-            </Link>
+            <span className="h-5 w-px bg-slate-200" />
+            <Link href="/" className="text-sm font-extrabold tracking-tight text-emerald-800">RRV GREEN BASKET</Link>
           </div>
-
-          <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-            <ShieldCheck className="h-4 w-4 text-emerald-700" />
-            <span>100% Secure Checkout</span>
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+            <ShieldCheck className="h-4 w-4" /> Secure checkout
           </div>
         </div>
       </header>
 
-      {/* =========================================================================
-          2. OPERATING WINDOW PAUSE ALERT BANNER
-         ========================================================================= */}
       {isOrdersPaused && (
-        <div className="bg-amber-500 text-white px-4 py-3 shadow-sm">
-          <div className="mx-auto flex max-w-7xl items-center gap-3 text-xs sm:text-sm font-medium">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <div className="flex-1">
-              <span className="font-bold">Store Notice:</span> Order acceptance is currently paused by store administration.
-              {operatingWindow?.openingTime && operatingWindow?.closingTime && (
-                <span> Operating hours are {operatingWindow.openingTime.slice(0, 5)} to {operatingWindow.closingTime.slice(0, 5)}.</span>
-              )}
-              {" "}You can review your order, but checkout submission will be available once the store resumes acceptance.
-            </div>
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="mx-auto flex max-w-7xl items-start gap-2 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              <strong>Online ordering is currently closed.</strong>{' '}
+              {operatingWindow?.openingTime && operatingWindow?.closingTime
+                ? `Orders are accepted from ${operatingWindow.openingTime.slice(0, 5)} to ${operatingWindow.closingTime.slice(0, 5)}.`
+                : 'Please try again during store operating hours.'}
+            </p>
           </div>
         </div>
       )}
 
-      {/* =========================================================================
-          3. MAIN CHECKOUT CONTENT
-         ========================================================================= */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Delivery Details & Payment */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* Step 1: Delivery Address Selection */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm">
-                    1
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      Delivery Address
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Select where you want your fresh harvest delivered
-                    </p>
-                  </div>
+      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:py-10">
+        <div className="grid grid-cols-1 items-start gap-8 sm:gap-10 lg:grid-cols-12 lg:gap-14">
+          <div className="space-y-8 sm:space-y-10 lg:col-span-7">
+            <section className="border-b border-slate-200 pb-7 sm:pb-8">
+              <div className="mb-5 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                <div>
+                  <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-900 sm:text-xl"><MapPin className="h-5 w-5 text-emerald-700" />Delivery address</h1>
+                  <p className="mt-0.5 text-sm text-slate-500">Choose where your order should be delivered.</p>
                 </div>
-
                 {!isAddingNewAddress && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingNewAddress(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Add New</span>
+                  <button type="button" onClick={() => setIsAddingNewAddress(true)} className="inline-flex shrink-0 items-center gap-1 py-2 text-sm font-semibold text-emerald-700 hover:underline">
+                    <Plus className="h-4 w-4" /> Add new
                   </button>
                 )}
               </div>
 
-              {/* Google Verified Location & Coverage Banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 text-xs">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                    <MapPin className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800/80 block">
-                      Google Maps Verified Location
-                    </span>
-                    <span className="font-bold text-slate-900 truncate block">
-                      {globalLocation?.displayName || "Kurnool Central"}
-                      {globalLocation?.formattedAddress ? ` (${globalLocation.formattedAddress})` : ""}
-                    </span>
-                  </div>
+              <div className="mb-6 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                <div className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
+                  <MapPin className="h-4 w-4 shrink-0 text-emerald-700" />
+                  <span className="truncate font-medium text-slate-800">{globalLocation?.displayName || globalLocation?.formattedAddress || 'Choose your delivery location'}</span>
+                  {globalLocation && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" />}
                 </div>
-                <button
-                  type="button"
-                  onClick={openLocationModal}
-                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-200 transition text-[11px] shrink-0 cursor-pointer shadow-3xs"
-                >
-                  Change on Map
-                </button>
+                <button type="button" onClick={openLocationModal} className="shrink-0 text-xs font-bold text-emerald-800 hover:underline">Change</button>
               </div>
 
-              {/* Saved Addresses List */}
-              {!isAddingNewAddress && addresses.length > 0 && (
-                <div className="space-y-3">
+              {isAddressLoading ? (
+                <div className="flex items-center gap-2 py-5 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading saved addresses...</div>
+              ) : !isAddingNewAddress && addresses.length > 0 ? (
+                <div className="divide-y divide-slate-200 border-y border-slate-200">
                   {addresses.map((addr) => {
-                    const isSelected = addr.id === selectedAddressId;
+                    const selected = addr.id === selectedAddressId;
                     return (
-                      <div
-                        key={addr.id}
-                        onClick={() => setSelectedAddressId(addr.id)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
-                          isSelected
-                            ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600"
-                            : "border-gray-200 hover:border-emerald-200 bg-white"
-                        }`}
-                      >
+                      <button key={addr.id} type="button" onClick={() => setSelectedAddressId(addr.id)} className={`w-full py-4 text-left transition ${selected ? 'bg-emerald-50/40' : 'hover:bg-slate-50'}`}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900 text-sm">
-                                {addr.receiverName}
-                              </span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 uppercase">
-                                {addr.addressType}
-                              </span>
-                              {addr.isDefault && (
-                                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                                  Default
-                                </span>
-                              )}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-slate-900">{addr.receiverName}</span>
+                              <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{addr.addressType}</span>
+                              {addr.isDefault && <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Default</span>}
                             </div>
-                            <p className="text-xs text-slate-600 leading-relaxed">
-                              {addr.addressLine1}
-                              {addr.addressLine2 ? `, ${addr.addressLine2}` : ""}
-                              {addr.landmark ? `, Near ${addr.landmark}` : ""}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {addr.city}, {addr.state} - {addr.pincode}
-                            </p>
-                            <p className="text-xs font-medium text-slate-600 pt-0.5 flex items-center gap-1">
-                              <Phone className="h-3 w-3 text-slate-400" />
-                              <span>{addr.receiverMobile}</span>
-                            </p>
+                            <p className="mt-1 break-words text-sm text-slate-600">{addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}{addr.landmark ? `, Near ${addr.landmark}` : ''}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">{addr.city}, {addr.state} - {addr.pincode}</p>
+                            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Phone className="h-3 w-3" /> {addr.receiverMobile}</p>
                           </div>
-
-                          <div
-                            className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 ${
-                              isSelected
-                                ? "border-emerald-600 bg-emerald-600 text-white"
-                                : "border-gray-300"
-                            }`}
-                          >
-                            {isSelected && <Check className="h-3.5 w-3.5" />}
-                          </div>
+                          <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>{selected && <Check className="h-3 w-3" />}</span>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
-              )}
+              ) : null}
 
-              {/* Add New Address Form */}
               {isAddingNewAddress && (
-                <form onSubmit={handleSaveAddress} className="space-y-4 pt-2">
-                  {addressError && (
-                    <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs border border-red-200 flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{addressError}</span>
-                    </div>
-                  )}
-
-                  {/* Delivery Location Picker with Live Geolocation */}
-                  <div className="mb-4">
-                    <DeliveryLocationPicker
-                      compact={true}
-                      initialLocation={{
-                        city: newAddress.city,
-                        state: newAddress.state,
-                        pincode: newAddress.pincode,
-                      }}
-                      onLocationVerified={handleLocationPickerVerified}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Recipient Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newAddress.receiverName}
-                        onChange={(e) =>
-                          setNewAddress({ ...newAddress, receiverName: e.target.value })
-                        }
-                        placeholder="e.g. John Doe"
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Mobile Number *
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        maxLength={10}
-                        value={newAddress.receiverMobile}
-                        onChange={(e) =>
-                          setNewAddress({
-                            ...newAddress,
-                            receiverMobile: e.target.value.replace(/\D/g, ""),
-                          })
-                        }
-                        placeholder="10-digit mobile"
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
+                <form onSubmit={handleSaveAddress} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Flat / House No. / Building / Street *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newAddress.addressLine1}
-                      onChange={(e) =>
-                        setNewAddress({ ...newAddress, addressLine1: e.target.value })
-                      }
-                      placeholder="e.g. Flat 302, Green Acres"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                    />
+                    <h3 className="text-sm font-bold text-slate-900">Add delivery details</h3>
+                    <p className="mt-1 text-xs text-slate-500">Enter the recipient and address details for this order.</p>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Landmark
-                      </label>
-                      <input
-                        type="text"
-                        value={newAddress.landmark || ""}
-                        onChange={(e) =>
-                          setNewAddress({ ...newAddress, landmark: e.target.value })
-                        }
-                        placeholder="Near Temple / Park"
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={newAddress.city}
-                        onChange={(e) =>
-                          setNewAddress({ ...newAddress, city: e.target.value })
-                        }
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Pincode *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        maxLength={6}
-                        value={newAddress.pincode}
-                        onChange={(e) =>
-                          setNewAddress({ ...newAddress, pincode: e.target.value })
-                        }
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
+                  {addressError && <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-700">{addressError}</p>}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-semibold text-slate-700">Recipient name *<input required value={newAddress.receiverName} onChange={(e) => setNewAddress({ ...newAddress, receiverName: e.target.value })} placeholder="Full name" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+                    <label className="text-xs font-semibold text-slate-700">Mobile number *<input required type="tel" maxLength={10} value={newAddress.receiverMobile} onChange={(e) => setNewAddress({ ...newAddress, receiverMobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile number" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
                   </div>
-
-                  <div className="flex items-center justify-between pt-2">
+                  <label className="block text-xs font-semibold text-slate-700">House / street address *<input required value={newAddress.addressLine1} onChange={(e) => setNewAddress({ ...newAddress, addressLine1: e.target.value })} placeholder="House number, street, area" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="text-xs font-semibold text-slate-700">Landmark<input value={newAddress.landmark || ''} onChange={(e) => setNewAddress({ ...newAddress, landmark: e.target.value })} placeholder="Optional" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" /></label>
+                    <label className="text-xs font-semibold text-slate-700">City<input value={newAddress.city} onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" /></label>
+                    <label className="text-xs font-semibold text-slate-700">Pincode *<input required maxLength={6} value={newAddress.pincode} onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value.replace(/\D/g, '') })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" /></label>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex gap-2">{(['HOME', 'WORK', 'OTHER'] as CustomerAddressType[]).map((type) => <button key={type} type="button" onClick={() => setNewAddress({ ...newAddress, addressType: type })} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${newAddress.addressType === type ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{type}</button>)}</div>
                     <div className="flex gap-2">
-                      {(["HOME", "WORK", "OTHER"] as CustomerAddressType[]).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setNewAddress({ ...newAddress, addressType: t })}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                            newAddress.addressType === t
-                              ? "bg-emerald-700 text-white"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {addresses.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingNewAddress(false)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      <button
-                        type="submit"
-                        disabled={isSavingAddress}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition disabled:opacity-50"
-                      >
-                        {isSavingAddress ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <span>Save Address</span>
-                        )}
-                      </button>
+                      {addresses.length > 0 && <button type="button" onClick={() => setIsAddingNewAddress(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>}
+                      <button type="submit" disabled={isSavingAddress} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{isSavingAddress && <Loader2 className="h-4 w-4 animate-spin" />} Save address</button>
                     </div>
                   </div>
                 </form>
               )}
 
-              {/* Delivery Zone Serviceability Feedback */}
               {selectedAddress && (
-                <div className="pt-2">
-                  {isCheckingDelivery ? (
-                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-                      <Loader2 className="h-4 w-4 animate-spin text-emerald-700" />
-                      <span>Verifying delivery zone serviceability for {selectedAddress.city}...</span>
-                    </div>
-                  ) : deliveryAvailability ? (
-                    deliveryAvailability.available ? (
-                      <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1">
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="flex items-center gap-1.5 text-emerald-800">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                            <span>Serviceable Zone: {deliveryAvailability.zoneName}</span>
-                          </span>
-                          <span className="text-emerald-700">
-                            {actualDeliveryCharge === 0 ? "FREE Delivery" : `₹${actualDeliveryCharge} Delivery Charge`}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-emerald-700">
-                          {deliveryAvailability.estimatedDeliveryTime || deliveryAvailability.estimatedDeliveryWindow || "Fresh morning harvest delivery (6:00 AM - 10:00 AM)"}
-                        </p>
-                        {!meetsMinOrder && (
-                          <div className="mt-2 p-2 rounded-xl bg-amber-100 text-amber-900 text-[11px] font-bold flex items-center gap-1.5">
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                            <span>Minimum order of ₹{minOrderAmount} is required for this delivery zone.</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-                        <div>
-                          <span className="font-bold">Not Serviceable: </span>
-                          <span>We currently do not deliver to this exact location in {selectedAddress.city}. Please select another address within Kurnool city limits.</span>
-                        </div>
-                      </div>
-                    )
-                  ) : null}
+                <div className="mt-4">
+                  {isCheckingDelivery ? <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" /> Checking delivery availability...</div> : deliveryAvailability ? (
+                    deliveryAvailability.available ? <div className="flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200 py-3 text-sm"><span className="flex items-center gap-2 font-semibold text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Delivery available{deliveryAvailability.zoneName ? ` · ${deliveryAvailability.zoneName}` : ''}</span><span className="font-bold text-emerald-800">{actualDeliveryCharge === 0 ? 'Free delivery' : `₹${actualDeliveryCharge} delivery`}</span>{deliveryAvailability.estimatedDeliveryTime && <span className="w-full text-xs text-emerald-700">Estimated delivery: {deliveryAvailability.estimatedDeliveryTime}</span>}{!meetsMinOrder && <span className="w-full text-xs font-medium text-amber-800">Minimum order: ₹{minOrderAmount}</span>}</div> : <div className="border-t border-red-200 py-3 text-sm text-red-700"><AlertCircle className="mr-1 inline h-4 w-4" /> This address is outside the delivery area. Please choose another address.</div>
+                  ) : deliveryError ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{deliveryError}</p> : null}
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Step 2: Morning Harvest Delivery Window Information */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-3">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm">
-                  2
-                </span>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Harvest & Delivery Schedule
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Straight from farm harvest to your doorstep
-                  </p>
-                </div>
+            <section className="border-b border-slate-200 pb-7 sm:pb-8">
+              <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-900"><WalletCards className="h-5 w-5 text-emerald-700" />Payment method</h2>
+              <p className="mb-3 mt-1 text-sm text-slate-500">Choose how you would like to pay.</p>
+              <div className="divide-y divide-slate-200 border-y border-slate-200">
+                {([
+                  { value: 'COD', title: 'Cash on Delivery', detail: 'Pay when your order arrives.', Icon: Banknote },
+                  { value: 'ONLINE_FULL', title: 'Online payment', detail: 'UPI, cards or net banking.', Icon: CreditCard },
+                  { value: 'ONLINE_PARTIAL', title: 'Partial payment', detail: 'Pay an advance online and the balance on delivery.', Icon: IndianRupee },
+                ] as const).map(({ value, title, detail, Icon }) => (
+                  <label key={value} className={`flex cursor-pointer items-start gap-3 px-2 py-4 transition-colors ${paymentMethod === value ? 'bg-emerald-50/60 text-emerald-900' : 'text-slate-700 hover:bg-slate-50'}`}>
+                    <input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} className="h-4 w-4 accent-emerald-700" />
+                    <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${paymentMethod === value ? "text-emerald-700" : "text-slate-400"}`} />
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">{title}</span><span className="block text-xs text-slate-500">{detail}</span></span>
+                  </label>
+                ))}
               </div>
+            </section>
 
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex items-start gap-3">
-                <Truck className="h-5 w-5 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="space-y-1 text-xs text-slate-700">
-                  <p className="font-bold text-emerald-950">
-                    Next Morning Delivery Slot: 6:00 AM – 10:00 AM
-                  </p>
-                  <p className="text-slate-600 text-[11px] leading-relaxed">
-                    All vegetables and fruits are freshly picked at sunrise from our partnered Kurnool farms to ensure 100% natural freshness, crisp texture, and farm aroma.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3: Payment Method Selection */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-4">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm">
-                  3
-                </span>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Payment Method
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Choose how you would like to pay
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {/* Cash on Delivery */}
-                <label
-                  onClick={() => setPaymentMethod("COD")}
-                  className={`flex items-start gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
-                    paymentMethod === "COD"
-                      ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600"
-                      : "border-gray-200 hover:border-emerald-200 bg-white"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={paymentMethod === "COD"}
-                    onChange={() => setPaymentMethod("COD")}
-                    className="mt-1 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Banknote className="h-4 w-4 text-emerald-700" />
-                      <span className="font-bold text-slate-900 text-sm">
-                        Cash on Delivery (COD)
-                      </span>
-                      <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Most Popular
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Pay with cash or scan UPI QR code directly with the delivery partner upon arrival.
-                    </p>
-                  </div>
-                </label>
-
-                {/* Online Full Payment */}
-                <label
-                  onClick={() => setPaymentMethod("ONLINE_FULL")}
-                  className={`flex items-start gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
-                    paymentMethod === "ONLINE_FULL"
-                      ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600"
-                      : "border-gray-200 hover:border-emerald-200 bg-white"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={paymentMethod === "ONLINE_FULL"}
-                    onChange={() => setPaymentMethod("ONLINE_FULL")}
-                    className="mt-1 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-emerald-700" />
-                      <span className="font-bold text-slate-900 text-sm">
-                        UPI / Cards / Net Banking (Online Full)
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Pay 100% online securely through Google Pay, PhonePe, Paytm, or Credit/Debit Card.
-                    </p>
-                  </div>
-                </label>
-
-                {/* Online Partial Payment */}
-                <label
-                  onClick={() => setPaymentMethod("ONLINE_PARTIAL")}
-                  className={`flex items-start gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
-                    paymentMethod === "ONLINE_PARTIAL"
-                      ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600"
-                      : "border-gray-200 hover:border-emerald-200 bg-white"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={paymentMethod === "ONLINE_PARTIAL"}
-                    onChange={() => setPaymentMethod("ONLINE_PARTIAL")}
-                    className="mt-1 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <IndianRupee className="h-4 w-4 text-emerald-700" />
-                      <span className="font-bold text-slate-900 text-sm">
-                        Partial Payment
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Pay a token booking advance online, and clear the remaining balance at doorstep delivery.
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Optional Delivery Notes */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-2">
-              <label className="block text-xs font-bold text-slate-800">
-                Delivery Instructions (Optional)
-              </label>
-              <textarea
-                rows={2}
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="e.g. Ring the bell, leave at front gate, or call when outside..."
-                className="w-full rounded-2xl border border-gray-200 p-3 text-xs focus:border-emerald-500 focus:outline-none"
-              />
-            </div>
+            <section className="border-b border-slate-200 pb-7 sm:pb-8">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ClipboardList className="h-5 w-5 text-amber-600" />Delivery instructions <span className="font-normal text-slate-400">(optional)</span></label>
+              <textarea rows={2} maxLength={300} value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Any instructions for the delivery partner?" className="mt-2 w-full resize-y border-b border-slate-300 bg-transparent px-0 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-emerald-600" />
+            </section>
           </div>
 
-          {/* Right Column: Order Summary & Place Order */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-5 sticky top-24">
-              <h2 className="text-base font-bold text-slate-900 pb-3 border-b border-gray-100">
-                Order Summary ({itemCount} {itemCount === 1 ? "item" : "items"})
-              </h2>
+          <aside className="lg:col-span-5">
+            <section className="border-t border-slate-200 pt-6 lg:sticky lg:top-20 lg:border-t-0 lg:pt-0">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                <h2 className="flex min-w-0 items-center gap-2 text-base font-bold text-slate-900 sm:text-lg">
+                  <ShoppingCart className="h-5 w-5 shrink-0 text-emerald-700" />
+                  <span>Order summary</span>
+                </h2>
+                <span className="shrink-0 text-sm font-medium text-slate-500">
+                  {itemCount} {itemCount === 1 ? "item" : "items"}
+                </span>
+              </div>
 
-              {/* Items Preview List */}
-              <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 pr-1">
+              <div className="max-h-72 overflow-y-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {items.map((item) => (
-                  <div key={item.publicId} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {item.productImageUrl ? (
-                        <img
-                          src={item.productImageUrl}
-                          alt={item.productName}
-                          className="h-10 w-10 rounded-xl object-cover bg-slate-50 border border-gray-100 shrink-0"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0">
-                          <ShoppingCart className="h-4 w-4" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-900 truncate">
-                          {item.productName}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {item.quantityKg} kg x ₹{item.pricePerKg}/kg
-                        </p>
+                  <div
+                    key={item.publicId}
+                    className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-100 py-3.5 sm:gap-4"
+                  >
+                    {item.productImageUrl ? (
+                      <img
+                        src={item.productImageUrl}
+                        alt={item.productName}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                        <ShoppingCart className="h-5 w-5" />
                       </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900 sm:text-[15px]">
+                        {item.productName}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {item.quantityKg} kg <span className="px-1 text-slate-300">×</span> ₹{item.pricePerKg}/kg
+                      </p>
                     </div>
-                    <span className="font-bold text-slate-900 shrink-0">
+
+                    <span className="min-w-[3.75rem] text-right text-sm font-bold tabular-nums text-slate-900">
                       ₹{item.totalPrice}
                     </span>
                   </div>
                 ))}
               </div>
 
-              {/* Cost Calculations */}
-              <div className="space-y-2 pt-2 border-t border-gray-100 text-xs text-slate-600">
-                <div className="flex justify-between">
-                  <span>Basket Subtotal</span>
-                  <span className="font-bold text-slate-900">₹{subtotal}</span>
+              <div className="space-y-3 border-b border-slate-200 py-5 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-slate-500">Subtotal</span>
+                  <span className="font-semibold tabular-nums text-slate-800">₹{subtotal}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Delivery Charges</span>
-                  <span className="font-bold text-slate-900">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-slate-500">Delivery</span>
+                  <span className="font-semibold tabular-nums text-slate-800">
                     {actualDeliveryCharge === 0 ? (
-                      <span className="text-emerald-700">FREE</span>
+                      <span className="font-bold text-emerald-700">FREE</span>
                     ) : (
                       `₹${actualDeliveryCharge}`
                     )}
                   </span>
                 </div>
                 {actualDeliveryCharge === 0 && subtotal >= freeDeliveryThreshold && (
-                  <p className="text-[11px] text-emerald-700 font-medium">
-                    🎉 Free delivery applied on orders above ₹{freeDeliveryThreshold}!
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    Free delivery applied on orders above ₹{freeDeliveryThreshold}.
                   </p>
                 )}
-                <div className="flex justify-between text-sm font-black text-slate-900 pt-3 border-t border-gray-100">
-                  <span>Total Payable</span>
-                  <span className="text-emerald-800 text-base">₹{totalAmount}</span>
-                </div>
               </div>
 
-              {/* Order Error Notification */}
+              <div className="flex items-center justify-between gap-4 py-5">
+                <span className="text-base font-bold text-slate-900">Total</span>
+                <span className="text-xl font-extrabold tabular-nums text-emerald-800">₹{totalAmount}</span>
+              </div>
+
               {orderError && (
-                <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="mb-4 flex items-start gap-2 border-l-2 border-red-500 bg-red-50 px-3 py-3 text-sm text-red-700">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{orderError}</span>
                 </div>
               )}
 
-              {/* Place Order Button */}
               <button
                 type="button"
                 onClick={handlePlaceOrder}
                 disabled={!canPlaceOrder}
-                className="w-full rounded-2xl bg-emerald-700 py-3.5 px-6 text-sm font-bold text-white shadow-md shadow-emerald-700/20 hover:bg-emerald-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-emerald-800 active:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
               >
                 {isSubmittingOrder ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Placing Order with Farm...</span>
+                    Placing order...
                   </>
                 ) : isOrdersPaused ? (
-                  <span>Orders Currently Paused</span>
+                  "Ordering currently closed"
                 ) : !isServiceable ? (
-                  <span>Location Not Serviceable</span>
+                  "Address not serviceable"
                 ) : !meetsMinOrder ? (
-                  <span>Min Order ₹{minOrderAmount} Required</span>
+                  `Minimum order ₹${minOrderAmount}`
                 ) : !selectedAddress ? (
-                  <span>Select Delivery Address</span>
+                  "Select delivery address"
                 ) : (
-                  <>
-                    <span>Confirm & Place Order (₹{totalAmount})</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </>
+                  `Place order · ₹${totalAmount}`
+                )}
+                {!isSubmittingOrder && !isOrdersPaused && isServiceable && meetsMinOrder && selectedAddress && (
+                  <ChevronRight className="h-4 w-4" />
                 )}
               </button>
 
-              <div className="text-center">
-                <p className="text-[11px] text-slate-500">
-                  By placing this order, you agree to RRV Green Basket Terms of Service & Fresh Quality Guarantee.
-                </p>
-              </div>
-            </div>
-          </div>
+              <p className="mt-3 px-2 text-center text-xs leading-relaxed text-slate-400">
+                By placing your order, you agree to the RRV Green Basket terms.
+              </p>
+            </section>
+          </aside>
         </div>
       </main>
     </div>

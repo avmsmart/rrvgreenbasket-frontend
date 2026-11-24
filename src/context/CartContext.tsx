@@ -130,14 +130,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       setCart(response);
       return response;
     } catch (err: unknown) {
-      console.warn("[CartContext] fetchCart using persistent cart:", err);
-      const local = cartService.getLocalCart();
-      setCart(local);
-      return local;
+      const message = err instanceof CartApiError
+        ? err.message
+        : "Unable to load your cart. Please try again.";
+      console.error("[CartContext] Backend cart fetch failed:", err);
+      setError(message);
+      showToast(message, "error");
+      // Keep the last displayed state, but never treat local storage as the server cart.
+      return null;
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, showToast]);
 
   // Sync cart when authentication changes
   useEffect(() => {
@@ -194,17 +198,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
         showToast(`Added ${nameDisplay} to cart! 🛒`, "success");
         return true;
       } catch (err: unknown) {
-        console.warn("[CartContext] addToCart handled error with persistent fallback:", err);
-        const fallbackCart = cartService.applyItemToLocalCart({
-          productPublicId: productPublicId.trim(),
-          quantityKg: Number(quantityKg),
-          productName,
-          ...metadata,
-        });
-        setCart(fallbackCart);
-        const nameDisplay = productName ? `"${productName}"` : "Item";
-        showToast(`Added ${nameDisplay} to cart! 🛒`, "success");
-        return true;
+        const message = err instanceof CartApiError
+          ? err.message
+          : "Unable to add item to cart. Please try again.";
+        console.error("[CartContext] Backend add-to-cart failed:", err);
+        setError(message);
+        showToast(message, "error");
+        return false;
       } finally {
         setIsMutating(false);
       }

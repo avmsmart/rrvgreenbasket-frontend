@@ -1,414 +1,396 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
+import Link from "next/link";
 import {
-  MoreVertical,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Edit2,
-  CheckCircle2,
-  XCircle,
   Copy,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
+  UserCheck,
+  UserX,
+  ShieldAlert,
   ShoppingBag,
+  ExternalLink,
+  MapPin,
+  Mail,
+  Phone,
+  RotateCcw,
 } from "lucide-react";
-import { Customer, CustomerStatus } from "@/types";
-import { SelectionToolbar, IndeterminateCheckbox, PaginationBar } from "@/components/common";
-import { exportToCsv, exportToPdf } from "@/utils";
+import { CustomerListItem, CustomerAccountStatus } from "@/types";
 
 interface CustomerTableProps {
-  customers: Customer[];
-  selectedCustomerIds: string[];
-  onToggleSelectCustomer: (id: string) => void;
-  onToggleSelectAll: () => void;
-  onClearSelection?: () => void;
-  onViewCustomer: (customer: Customer) => void;
-  onEditCustomer: (customer: Customer) => void;
-  onToggleStatus: (id: string) => void;
-  currentPage: number;
+  customers: CustomerListItem[];
+  isLoading?: boolean;
+  totalElements: number;
+  totalPages: number;
+  currentPage: number; // 0-based
   pageSize: number;
-  totalCustomers: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  onViewCustomer: (customer: CustomerListItem) => void;
+  onEditCustomer: (customer: CustomerListItem) => void;
+  onUpdateStatus: (customerId: string, status: CustomerAccountStatus) => void;
+  onResetFilters: () => void;
 }
 
 export const CustomerTable: React.FC<CustomerTableProps> = ({
   customers,
-  selectedCustomerIds,
-  onToggleSelectCustomer,
-  onToggleSelectAll,
-  onClearSelection,
-  onViewCustomer,
-  onEditCustomer,
-  onToggleStatus,
+  isLoading = false,
+  totalElements,
+  totalPages,
   currentPage,
   pageSize,
-  totalCustomers,
   onPageChange,
   onPageSizeChange,
+  onViewCustomer,
+  onEditCustomer,
+  onUpdateStatus,
+  onResetFilters,
 }) => {
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [statusMenuOpenId, setStatusMenuOpenId] = useState<string | null>(null);
 
-  // Close dropdown menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setActiveMenuId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const totalPages = Math.ceil(totalCustomers / pageSize) || 125;
-  const startIdx = (currentPage - 1) * pageSize + 1;
-  const endIdx = Math.min(currentPage * pageSize, totalCustomers);
-
-  const allSelected =
-    customers.length > 0 && customers.every((c) => selectedCustomerIds.includes(c.id));
-  const isIndeterminate =
-    customers.some((c) => selectedCustomerIds.includes(c.id)) && !allSelected;
-
-  const handleExportSelected = () => {
-    const selected = customers.filter((c) => selectedCustomerIds.includes(c.id));
-    if (selected.length === 0) return;
-
-    exportToCsv<Customer>(
-      "selected-customers.csv",
-      [
-        { header: "Customer ID", accessor: (c) => c.id },
-        { header: "Name", accessor: (c) => c.name },
-        { header: "Phone", accessor: (c) => c.phone },
-        { header: "Email", accessor: (c) => c.email },
-        { header: "Location", accessor: (c) => c.location },
-        { header: "Total Orders", accessor: (c) => c.totalOrders },
-        { header: "Total Spent (INR)", accessor: (c) => c.totalSpent },
-        { header: "Status", accessor: (c) => c.status },
-        { header: "Joined On", accessor: (c) => c.joinedOn },
-      ],
-      selected
-    );
-
-    setToastMessage(`Exported ${selected.length} customer(s) to selected-customers.csv`);
-    setTimeout(() => setToastMessage(null), 3500);
+  const handleCopyUuid = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleExportPdf = () => {
-    const selected = customers.filter((c) => selectedCustomerIds.includes(c.id));
-    if (selected.length === 0) return;
-
-    exportToPdf<Customer>(
-      "selected-customers.pdf",
-      "Customers Report",
-      [
-        { header: "Customer ID", accessor: (c) => c.id },
-        { header: "Name", accessor: (c) => c.name },
-        { header: "Phone", accessor: (c) => c.phone },
-        { header: "Email", accessor: (c) => c.email || "-" },
-        { header: "Location", accessor: (c) => c.location },
-        { header: "Total Orders", accessor: (c) => c.totalOrders },
-        { header: "Total Spent", accessor: (c) => `INR ${c.totalSpent}` },
-        { header: "Status", accessor: (c) => c.status },
-        { header: "Joined On", accessor: (c) => c.joinedOn },
-      ],
-      selected
-    );
-
-    setToastMessage(`Exported ${selected.length} customer(s) to selected-customers.pdf`);
-    setTimeout(() => setToastMessage(null), 3500);
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+    }).format(amount);
   };
 
-  const getStatusBadge = (status: CustomerStatus) => {
-    if (status === "Active") {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          Active
-        </span>
-      );
+  const formatDate = (isoString: string) => {
+    try {
+      return new Date(isoString).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return isoString;
     }
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-        Inactive
-      </span>
-    );
   };
 
-  const getAvatarBg = (initial: string) => {
-    switch (initial) {
-      case "P":
-        return "bg-emerald-600 text-white";
-      case "A":
-        return "bg-blue-600 text-white";
-      case "M":
-        return "bg-purple-600 text-white";
-      case "K":
-        return "bg-amber-600 text-white";
-      case "S":
-        return "bg-pink-600 text-white";
-      case "V":
-        return "bg-indigo-600 text-white";
-      case "L":
-        return "bg-teal-600 text-white";
-      case "R":
-        return "bg-orange-600 text-white";
-      case "N":
-        return "bg-rose-600 text-white";
+  const getStatusBadge = (status: CustomerAccountStatus) => {
+    switch (status) {
+      case "ACTIVE":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            ACTIVE
+          </span>
+        );
+      case "INACTIVE":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            INACTIVE
+          </span>
+        );
+      case "SUSPENDED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            SUSPENDED
+          </span>
+        );
       default:
-        return "bg-slate-700 text-white";
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
+            {status}
+          </span>
+        );
     }
   };
+
+  const startEntry = totalElements === 0 ? 0 : currentPage * pageSize + 1;
+  const endEntry = Math.min((currentPage + 1) * pageSize, totalElements);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden flex flex-col">
-      {/* Selection Toolbar */}
-      {selectedCustomerIds.length > 0 && (
-        <div className="p-3 sm:px-4 bg-slate-50 border-b border-slate-200">
-          <SelectionToolbar
-            selectedCount={selectedCustomerIds.length}
-            entityName="customers"
-            onExportSelected={handleExportSelected}
-            onExportPdf={handleExportPdf}
-            onClearSelection={onClearSelection || (() => {})}
-          />
-        </div>
-      )}
-
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div className="mx-4 mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-[#00875a] text-xs font-semibold rounded-xl flex items-center justify-between animate-in fade-in slide-in-from-top-1">
-          <span>{toastMessage}</span>
-          <button
-            onClick={() => setToastMessage(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold ml-2"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden">
+      
+      {/* Table Container */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-600 border-collapse">
+        <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
-              <th className="py-3 px-3.5 w-10 text-center">
-                <IndeterminateCheckbox
-                  checked={allSelected}
-                  indeterminate={isIndeterminate}
-                  onChange={onToggleSelectAll}
-                  ariaLabel="Select all customers on page"
-                />
-              </th>
-              <th className="py-3 px-2 w-8 text-center">#</th>
-              <th className="py-3 px-3.5">Customer</th>
-              <th className="py-3 px-3.5">Phone Number</th>
-              <th className="py-3 px-3.5">Email</th>
-              <th className="py-3 px-3.5">Location</th>
-              <th className="py-3 px-3 text-center">Total Orders</th>
-              <th className="py-3 px-3.5 text-right">Total Spent</th>
-              <th className="py-3 px-3.5 text-center">Status</th>
-              <th className="py-3 px-3.5 text-center">Joined On</th>
-              <th className="py-3 px-3.5 text-center w-28">Actions</th>
+            <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <th className="py-3 px-4">Customer</th>
+              <th className="py-3 px-4">Contact Info</th>
+              <th className="py-3 px-4">Location</th>
+              <th className="py-3 px-4 text-center">Orders</th>
+              <th className="py-3 px-4 text-right">Total Spent</th>
+              <th className="py-3 px-4 text-center">Status</th>
+              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
-
-          <tbody className="divide-y divide-slate-100">
-            {customers.length === 0 ? (
+          <tbody className="divide-y divide-slate-100 text-xs">
+            {isLoading ? (
+              // Loading Skeleton
+              Array.from({ length: pageSize > 10 ? 10 : pageSize }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-200" />
+                      <div className="space-y-1.5">
+                        <div className="h-3.5 w-28 bg-slate-200 rounded" />
+                        <div className="h-2.5 w-20 bg-slate-100 rounded" />
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="space-y-1.5">
+                      <div className="h-3 w-24 bg-slate-200 rounded" />
+                      <div className="h-2.5 w-32 bg-slate-100 rounded" />
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="h-3 w-24 bg-slate-200 rounded" />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <div className="h-4 w-8 bg-slate-200 rounded mx-auto" />
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <div className="h-3.5 w-16 bg-slate-200 rounded ml-auto" />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <div className="h-5 w-16 bg-slate-200 rounded-full mx-auto" />
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <div className="h-7 w-20 bg-slate-200 rounded ml-auto" />
+                  </td>
+                </tr>
+              ))
+            ) : customers.length === 0 ? (
+              // Empty State
               <tr>
-                <td colSpan={11} className="py-12 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center">
-                    <p className="text-sm font-semibold text-slate-600">
-                      No customer accounts found
+                <td colSpan={7} className="py-16 px-4 text-center">
+                  <div className="max-w-sm mx-auto flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                      <ShoppingBag className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800">
+                      No customers found
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 mb-4">
+                      No customer records match your active search filters or status parameters.
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Try adjusting search terms or filters.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={onResetFilters}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-[#00875a] hover:bg-emerald-100/80 font-bold text-xs border border-emerald-200 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reset Filters
+                    </button>
                   </div>
                 </td>
               </tr>
             ) : (
-              customers.map((customer, idx) => {
-                const isSelected = selectedCustomerIds.includes(customer.id);
-                const rowNum = (currentPage - 1) * pageSize + idx + 1;
-                const initial = customer.name.charAt(0).toUpperCase();
+              // Customer Rows
+              customers.map((c) => {
+                const initial = c.fullName.charAt(0).toUpperCase();
+                const isCopied = copiedId === c.id;
+                const isMenuOpen = statusMenuOpenId === c.id;
 
                 return (
                   <tr
-                    key={customer.id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      isSelected ? "bg-emerald-50/40" : ""
-                    }`}
+                    key={c.id}
+                    className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                    onClick={() => onViewCustomer(c)}
                   >
-                    {/* Checkbox */}
-                    <td
-                      className="py-3 px-3.5 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggleSelectCustomer(customer.id)}
-                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        aria-label={`Select customer ${customer.name}`}
-                      />
-                    </td>
-
-                    {/* Row # */}
-                    <td className="py-3 px-2 text-center text-slate-400 font-medium text-[11px]">
-                      {rowNum}
-                    </td>
-
                     {/* Customer Name & Avatar */}
-                    <td className="py-3 px-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-3xs ${getAvatarBg(
-                            initial
-                          )}`}
-                        >
-                          {initial}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onViewCustomer(customer)}
-                          className="font-bold text-slate-800 hover:text-emerald-700 transition-colors text-left truncate max-w-[130px]"
-                        >
-                          {customer.name}
-                        </button>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        {c.profileImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.profileImageUrl}
+                            alt={c.fullName}
+                            className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-3xs shrink-0"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-bold text-sm flex items-center justify-center shadow-3xs shrink-0">
+                            {initial}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 truncate block hover:text-[#00875a] transition-colors">
+                            {c.fullName}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono mt-0.5">
+                            <span>Joined {formatDate(c.createdAt)}</span>
+                            <span>•</span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyUuid(e, c.id)}
+                              className="inline-flex items-center gap-1 hover:text-slate-700 transition-colors text-[10px]"
+                              title={`Customer UUID: ${c.id} (Click to copy)`}
+                            >
+                              {isCopied ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                              )}
+                              <span>{c.id.substring(0, 8)}...</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </td>
 
-                    {/* Phone Number */}
-                    <td className="py-3 px-3.5 font-mono text-slate-600 text-xs">
-                      {customer.phone}
-                    </td>
-
-                    {/* Email */}
-                    <td className="py-3 px-3.5 text-slate-500 truncate max-w-[150px]">
-                      {customer.email}
+                    {/* Contact Info */}
+                    <td className="py-3 px-4">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1 text-slate-800 font-medium">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{c.mobileNumber}</span>
+                        </div>
+                        {c.email ? (
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[160px]">
+                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                            <a
+                              href={`mailto:${c.email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-emerald-700 hover:underline truncate"
+                            >
+                              {c.email}
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No email linked</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Location */}
-                    <td className="py-3 px-3.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
-                        {customer.location}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1 text-slate-700 font-medium">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[140px]">{c.location || "N/A"}</span>
+                      </div>
+                    </td>
+
+                    {/* Orders Count */}
+                    <td className="py-3 px-4 text-center">
+                      <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">
+                        {c.totalOrders}
                       </span>
                     </td>
 
-                    {/* Total Orders */}
-                    <td className="py-3 px-3 text-center font-bold text-slate-800">
-                      {customer.totalOrders}
-                    </td>
-
                     {/* Total Spent */}
-                    <td className="py-3 px-3.5 text-right font-black text-slate-900">
-                      ₹ {customer.totalSpent.toLocaleString()}
+                    <td className="py-3 px-4 text-right">
+                      <span className="font-extrabold text-slate-900 tracking-tight">
+                        {formatCurrency(c.totalSpent)}
+                      </span>
                     </td>
 
-                    {/* Status */}
-                    <td className="py-3 px-3.5 text-center">
-                      {getStatusBadge(customer.status)}
+                    {/* Status Badge */}
+                    <td className="py-3 px-4 text-center">
+                      {getStatusBadge(c.status)}
                     </td>
 
-                    {/* Joined On */}
-                    <td className="py-3 px-3.5 text-center text-slate-500 font-medium text-xs">
-                      {customer.joinedOn}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-3.5 text-center relative">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* Eye: View */}
+                    {/* Actions Column */}
+                    <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        
+                        {/* View Details Button */}
                         <button
                           type="button"
-                          onClick={() => onViewCustomer(customer)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-emerald-700 transition-colors"
-                          title="View customer profile"
+                          onClick={() => onViewCustomer(c)}
+                          className="p-1.5 text-slate-500 hover:text-[#00875a] hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                          title="View customer profile details"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* Edit icon */}
+                        {/* Edit Customer Button */}
                         <button
                           type="button"
-                          onClick={() => onEditCustomer(customer)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-blue-700 transition-colors"
-                          title="Edit customer details"
+                          onClick={() => onEditCustomer(c)}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Edit customer profile"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Edit2 className="w-4 h-4" />
                         </button>
 
-                        {/* Dropdown ⋮ */}
+                        {/* Quick Status Update Dropdown */}
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuId(
-                                activeMenuId === customer.id ? null : customer.id
-                              );
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            onClick={() => setStatusMenuOpenId(isMenuOpen ? null : c.id)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                            title="Update customer status"
                           >
-                            <MoreVertical className="w-3.5 h-3.5" />
+                            <MoreVertical className="w-4 h-4" />
                           </button>
 
-                          {activeMenuId === customer.id && (
-                            <div
-                              ref={menuRef}
-                              className="absolute right-0 top-full mt-1 z-30 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 text-left text-xs animate-in fade-in zoom-in-95 duration-100"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onViewCustomer(customer);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-slate-400" />
-                                View Profile
-                              </button>
+                          {isMenuOpen && (
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 text-left">
+                              <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                Change Status
+                              </div>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onEditCustomer(customer);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
-                              >
-                                <Edit2 className="w-3.5 h-3.5 text-blue-500" />
-                                Edit Customer
-                              </button>
+                              {c.status !== "ACTIVE" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateStatus(c.id, "ACTIVE");
+                                    setStatusMenuOpenId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Mark Active</span>
+                                </button>
+                              )}
 
-                              <div className="my-1 border-t border-slate-100"></div>
+                              {c.status !== "INACTIVE" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateStatus(c.id, "INACTIVE");
+                                    setStatusMenuOpenId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 flex items-center gap-2"
+                                >
+                                  <UserX className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Mark Inactive</span>
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onToggleStatus(customer.id);
-                                  setActiveMenuId(null);
-                                }}
-                                className={`w-full px-3 py-1.5 flex items-center gap-2 font-medium text-xs ${
-                                  customer.status === "Active"
-                                    ? "text-amber-700 hover:bg-amber-50"
-                                    : "text-emerald-700 hover:bg-emerald-50"
-                                }`}
+                              {c.status !== "SUSPENDED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateStatus(c.id, "SUSPENDED");
+                                    setStatusMenuOpenId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2"
+                                >
+                                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Suspend Customer</span>
+                                </button>
+                              )}
+
+                              <div className="border-t border-slate-100 my-1" />
+
+                              <Link
+                                href={`/admin/customers/${c.id}`}
+                                className="w-full px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                               >
-                                {customer.status === "Active" ? (
-                                  <>
-                                    <XCircle className="w-3.5 h-3.5 text-amber-600" />
-                                    Mark Inactive
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                    Mark Active
-                                  </>
-                                )}
-                              </button>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Dedicated Page</span>
+                              </Link>
                             </div>
                           )}
                         </div>
@@ -422,15 +404,59 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
         </table>
       </div>
 
-      {/* Dynamic Pagination Bar (No 'Showing X to Y' text) */}
-      <PaginationBar
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={onPageChange}
-        pageSize={pageSize}
-        pageSizeOptions={[10, 20, 50]}
-        onPageSizeChange={onPageSizeChange}
-      />
+      {/* Pagination Bar */}
+      <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        
+        {/* Showing Entries Info */}
+        <div className="flex items-center gap-2">
+          <span>
+            Showing <strong className="text-slate-900 font-bold">{startEntry}</strong> to{" "}
+            <strong className="text-slate-900 font-bold">{endEntry}</strong> of{" "}
+            <strong className="text-slate-900 font-bold">{totalElements.toLocaleString()}</strong> customers
+          </span>
+
+          {/* Page Size Selector */}
+          <div className="flex items-center gap-1.5 ml-4">
+            <span className="text-slate-400">Rows per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Previous / Next Controls */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 0 || isLoading}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700 text-xs shadow-3xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            Previous
+          </button>
+
+          <span className="px-3 py-1.5 text-slate-700 font-bold">
+            Page {currentPage + 1} of {Math.max(totalPages, 1)}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages - 1 || isLoading}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700 text-xs shadow-3xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Next
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,433 +1,513 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
-  UserPlus,
   RefreshCw,
   CheckCircle2,
-  X,
-  Download,
+  XCircle,
+  AlertTriangle,
+  ShieldAlert,
+  Info,
 } from "lucide-react";
 import {
-  Customer,
-  CustomerSummary,
-  TopSpendingCustomer,
-  NewCustomerActivity,
-  CustomerStatus,
+  CustomerListItem,
+  CustomerDetailResponse,
+  CustomerDashboardSummary,
+  CustomerAccountStatus,
+  CustomerTypeFilter,
 } from "@/types";
 import { customerService } from "@/services/customer.service";
+import { useAuth } from "@/context/AuthContext";
 import {
   CustomerStatsCards,
   CustomerTabsBar,
   CustomerTabType,
   CustomerFiltersBar,
   CustomerTable,
-  CustomerAnalyticsWidgets,
   CustomerDetailsDrawer,
   CustomerFormModal,
 } from "@/components/customers";
 
-export default function CustomersPage() {
-  // --- States ---
+export default function CustomersAdminPage() {
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
+  // --- Filter & Pagination States ---
   const [activeTab, setActiveTab] = useState<CustomerTabType>("All Customers");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("All Status");
+  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedLocation, setSelectedLocation] = useState<string>("All Locations");
-  const [selectedType, setSelectedType] = useState<string>("All Customer Types");
-  const [sortBy, setSortBy] = useState<string>("Sort by: Joined Date");
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
+  const [selectedType, setSelectedType] = useState<CustomerTypeFilter>("ALL");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortDirection, setSortDirection] = useState<"ASC" | "DESC">("DESC");
 
-  // Pagination & Row selection
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  // Spring Data Page (0-indexed)
+  const [currentPage, setCurrentPage] = useState<number>(0);
   const [pageSize, setPageSize] = useState<number>(10);
-  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
-
-  // Modals & Drawers
-  const [selectedDrawerCustomer, setSelectedDrawerCustomer] = useState<Customer | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-
-  const [formCustomer, setFormCustomer] = useState<Customer | null>(null);
-  const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
-
-  const tableSectionRef = useRef<HTMLDivElement>(null);
+  const [totalElements, setTotalElements] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
 
   // Data states
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [summary, setSummary] = useState<CustomerSummary>({
-    totalCustomers: 1248,
-    activeCustomers: 896,
-    inactiveCustomers: 120,
-    newCustomers: 86,
-    repeatCustomers: 312,
-    totalPurchaseValue: 342680,
-  });
-  const [topSpenders, setTopSpenders] = useState<TopSpendingCustomer[]>([]);
-  const [newCustomers, setNewCustomers] = useState<NewCustomerActivity[]>([]);
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  const [summary, setSummary] = useState<CustomerDashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [notification, setNotification] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  // Toast feedback
-  const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3500);
-  }, []);
+  // Drawer & Modal states
+  const [selectedDrawerCustomer, setSelectedDrawerCustomer] =
+    useState<CustomerDetailResponse | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [isDrawerLoading, setIsDrawerLoading] = useState<boolean>(false);
 
-  // --- Load Data ---
-  const loadData = useCallback(async () => {
+  const [formCustomer, setFormCustomer] = useState<CustomerDetailResponse | CustomerListItem | null>(
+    null
+  );
+  const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
+
+  // Toast feedback state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+
+  const showToast = useCallback(
+    (message: string, type: "success" | "error" | "info" = "success") => {
+      setNotification({ message, type });
+      setTimeout(() => setNotification(null), 3500);
+    },
+    []
+  );
+
+  // Check RBAC permissions: user must be ADMIN or SUPER_ADMIN
+  const isAuthorized = useMemo(() => {
+    if (!isAuthenticated || !user) return false;
+    const roleUpper = (user.role || "").toUpperCase();
+    return (
+      roleUpper.includes("ADMIN") ||
+      roleUpper === "SUPER_ADMIN" ||
+      roleUpper === "SUPER ADMIN"
+    );
+  }, [isAuthenticated, user]);
+
+  // --- Fetch Customers Data ---
+  const fetchCustomers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [customersData, summaryData, topSpendersData, newCustData] =
-        await Promise.all([
-          customerService.getCustomers({
-            tab: activeTab,
-            search: searchQuery,
-            status: selectedStatus,
-            location: selectedLocation,
-            customerType: selectedType,
-            sortBy: sortBy,
-          }),
-          customerService.getCustomerSummary(),
-          customerService.getTopSpendingCustomers(),
-          customerService.getNewCustomersActivity(),
-        ]);
+      const pageData = await customerService.getCustomersPage({
+        query: searchQuery.trim() || undefined,
+        status: selectedStatus !== "ALL" ? (selectedStatus as CustomerAccountStatus) : undefined,
+        location:
+          selectedLocation !== "All Locations" && selectedLocation.trim()
+            ? selectedLocation
+            : undefined,
+        customerType: selectedType !== "ALL" ? selectedType : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        page: currentPage,
+        size: pageSize,
+        sortBy,
+        sortDirection,
+      });
 
-      setCustomers(customersData);
-      setSummary(summaryData);
-      setTopSpenders(topSpendersData);
-      setNewCustomers(newCustData);
-
-      // Keep drawer in sync if open
-      if (selectedDrawerCustomer) {
-        const refreshed = customersData.find((c) => c.id === selectedDrawerCustomer.id);
-        if (refreshed) setSelectedDrawerCustomer(refreshed);
-      }
-    } catch (err) {
-      console.error("Failed to load customer data:", err);
+      setCustomers(pageData.content);
+      setTotalElements(pageData.totalElements);
+      setTotalPages(pageData.totalPages);
+    } catch (err: any) {
+      console.error("Failed to fetch customer list:", err);
+      showToast("Error loading customers. Using offline cache.", "error");
     } finally {
       setIsLoading(false);
     }
   }, [
-    activeTab,
     searchQuery,
     selectedStatus,
     selectedLocation,
     selectedType,
+    fromDate,
+    toDate,
+    currentPage,
+    pageSize,
     sortBy,
-    selectedDrawerCustomer,
+    sortDirection,
+    showToast,
   ]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const s = new URLSearchParams(window.location.search).get("search");
-      if (s) {
-        setSearchQuery(s);
-        setActiveTab("All Customers");
-      }
+  // --- Fetch Summary Metrics ---
+  const fetchSummary = useCallback(async () => {
+    try {
+      const summaryData = await customerService.getDashboardSummary();
+      setSummary(summaryData);
+    } catch (err) {
+      console.error("Failed to load dashboard summary:", err);
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchQuery, selectedStatus, selectedLocation, selectedType]);
+    fetchSummary();
+  }, [fetchSummary]);
 
-  // --- Handlers ---
-  const handleToggleSelectCustomer = (id: string) => {
-    setSelectedCustomerIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
-  const handleToggleSelectAll = () => {
-    const pageIds = paginatedCustomers.map((c) => c.id);
-    const allSelected = pageIds.every((id) => selectedCustomerIds.includes(id));
-    if (allSelected) {
-      setSelectedCustomerIds((prev) => prev.filter((id) => !pageIds.includes(id)));
-    } else {
-      setSelectedCustomerIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+  // Tab change handler (updates status or customerType and resets page to 0)
+  const handleTabChange = (tab: CustomerTabType) => {
+    setActiveTab(tab);
+    setCurrentPage(0);
+
+    switch (tab) {
+      case "All Customers":
+        setSelectedStatus("ALL");
+        setSelectedType("ALL");
+        break;
+      case "Active":
+        setSelectedStatus("ACTIVE");
+        setSelectedType("ALL");
+        break;
+      case "Inactive":
+        setSelectedStatus("INACTIVE");
+        setSelectedType("ALL");
+        break;
+      case "Suspended":
+        setSelectedStatus("SUSPENDED");
+        setSelectedType("ALL");
+        break;
+      case "New Customers":
+        setSelectedStatus("ALL");
+        setSelectedType("FIRST_TIME");
+        break;
+      case "Repeat Customers":
+        setSelectedStatus("ALL");
+        setSelectedType("REPEAT");
+        break;
+      case "Top Customers":
+        setSelectedStatus("ALL");
+        setSelectedType("TOP_CUSTOMER");
+        break;
     }
   };
 
-  const handleViewCustomer = (customer: Customer) => {
-    setSelectedDrawerCustomer(customer);
-    setIsDrawerOpen(true);
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedStatus("ALL");
+    setSelectedLocation("All Locations");
+    setSelectedType("ALL");
+    setFromDate("");
+    setToDate("");
+    setSortBy("createdAt");
+    setSortDirection("DESC");
+    setActiveTab("All Customers");
+    setCurrentPage(0);
+    showToast("Filters reset to default", "info");
   };
 
-  const handleEditCustomer = (customer: Customer) => {
+  // View Customer Details
+  const handleViewCustomer = async (customer: CustomerListItem) => {
+    setIsDrawerOpen(true);
+    setIsDrawerLoading(true);
+    try {
+      const detail = await customerService.getCustomerDetail(customer.id);
+      setSelectedDrawerCustomer(detail);
+    } catch (err) {
+      console.error("Failed to load customer details:", err);
+      showToast("Failed to fetch full customer details", "error");
+    } finally {
+      setIsDrawerLoading(false);
+    }
+  };
+
+  // Edit Customer Profile
+  const handleEditCustomer = async (customer: CustomerListItem | CustomerDetailResponse) => {
     setFormCustomer(customer);
     setIsFormModalOpen(true);
   };
 
-  const handleCreateCustomerClick = () => {
-    setFormCustomer(null);
-    setIsFormModalOpen(true);
-  };
-
+  // Save Customer Profile Changes
   const handleSaveCustomer = async (data: {
-    name: string;
-    phone: string;
-    email: string;
-    location: string;
-    address?: string;
-    status: CustomerStatus;
+    fullName: string;
+    email: string | null;
+    profileImageUrl: string | null;
   }) => {
-    if (formCustomer) {
-      await customerService.updateCustomer(formCustomer.id, data);
-      showToast(`Customer ${data.name} updated successfully`);
-    } else {
-      await customerService.addCustomer(data);
-      showToast(`New customer ${data.name} created successfully`);
+    if (!formCustomer) return;
+    try {
+      const updated = await customerService.updateCustomerProfile(formCustomer.id, data);
+      showToast(`Customer profile for ${data.fullName} updated successfully`);
+
+      // Refresh drawer if open
+      if (selectedDrawerCustomer && selectedDrawerCustomer.id === formCustomer.id) {
+        setSelectedDrawerCustomer(updated);
+      }
+
+      await fetchCustomers();
+      await fetchSummary();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update profile", "error");
+      throw err;
     }
-    await loadData();
   };
 
-  const handleToggleStatus = async (id: string) => {
-    const updated = await customerService.toggleCustomerStatus(id);
-    showToast(`Customer status updated to ${updated.status}`);
-    await loadData();
+  // Status Patch Update
+  const handleUpdateStatus = async (
+    customerId: string,
+    newStatus: CustomerAccountStatus
+  ) => {
+    try {
+      await customerService.updateCustomerStatus(customerId, newStatus);
+      showToast(`Customer status updated to ${newStatus}`);
+
+      // Refresh drawer if open
+      if (selectedDrawerCustomer && selectedDrawerCustomer.id === customerId) {
+        setSelectedDrawerCustomer((prev) =>
+          prev ? { ...prev, status: newStatus } : null
+        );
+      }
+
+      await fetchCustomers();
+      await fetchSummary();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update status", "error");
+    }
   };
 
-  const handleExportCSV = () => {
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      ["ID,Name,Phone,Email,Location,Total Orders,Total Spent,Status,Joined On"]
-        .concat(
-          customers.map(
-            (c) =>
-              `"${c.id}","${c.name}","${c.phone}","${c.email}","${c.location}",${c.totalOrders},${c.totalSpent},"${c.status}","${c.joinedOn}"`
-          )
-        )
-        .join("\n");
+  // Export CSV
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const blob = await customerService.exportCustomersCsv({
+        query: searchQuery.trim() || undefined,
+        status: selectedStatus !== "ALL" ? (selectedStatus as CustomerAccountStatus) : undefined,
+        location:
+          selectedLocation !== "All Locations" && selectedLocation.trim()
+            ? selectedLocation
+            : undefined,
+        customerType: selectedType !== "ALL" ? selectedType : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `rrv_customers_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rrv_customers_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
-    showToast("Customers list exported to CSV successfully");
+      showToast("Customers CSV exported successfully");
+    } catch (err) {
+      console.error("Export failed:", err);
+      showToast("Failed to export customers CSV", "error");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  const handleResetFilters = () => {
-    setSearchQuery("");
-    setSelectedStatus("All Status");
-    setSelectedLocation("All Locations");
-    setSelectedType("All Customer Types");
-    setSortBy("Sort by: Joined Date");
-    setActiveTab("All Customers");
-    showToast("Filters reset to default", "info");
-  };
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    selectedStatus !== "ALL" ||
+    (selectedLocation !== "All Locations" && selectedLocation.trim().length > 0) ||
+    selectedType !== "ALL" ||
+    fromDate.length > 0 ||
+    toDate.length > 0;
 
-  // Paginated slice
-  const paginatedCustomers = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return customers.slice(startIndex, startIndex + pageSize);
-  }, [customers, currentPage, pageSize]);
-
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (selectedStatus !== "All Status") count++;
-    if (selectedLocation !== "All Locations") count++;
-    if (selectedType !== "All Customer Types") count++;
-    if (sortBy !== "Sort by: Joined Date") count++;
-    if (searchQuery.trim().length > 0) count++;
-    return count;
-  }, [selectedStatus, selectedLocation, selectedType, sortBy, searchQuery]);
+  // Render Unauthorized state if authenticated user lacks ADMIN or SUPER_ADMIN role
+  if (!isAuthLoading && isAuthenticated && !isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-rose-200 shadow-xl text-center">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">
+            Access Restricted
+          </h2>
+          <p className="text-xs text-slate-500 mt-2 mb-6 leading-relaxed">
+            Customer management is restricted to authorized <strong>ADMIN</strong> and{" "}
+            <strong>SUPER_ADMIN</strong> roles. Your account ({user?.email}) does not have permission
+            to view or modify customer records.
+          </p>
+          <Link
+            href="/admin/dashboard"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-bold transition-colors"
+          >
+            Return to Admin Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 pb-16">
       
-      {/* Toast Notification */}
+      {/* Toast Notification Banner */}
       {notification && (
-        <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top duration-300">
+        <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           <div
-            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-semibold ${
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold ${
               notification.type === "success"
-                ? "bg-emerald-50 text-emerald-900 border-emerald-200"
-                : "bg-blue-50 text-blue-900 border-blue-200"
+                ? "bg-emerald-900 text-white border-emerald-800"
+                : notification.type === "error"
+                ? "bg-rose-900 text-white border-rose-800"
+                : "bg-slate-900 text-white border-slate-800"
             }`}
           >
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            {notification.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+            {notification.type === "error" && <XCircle className="w-4 h-4 text-rose-400" />}
+            {notification.type === "info" && <Info className="w-4 h-4 text-blue-400" />}
             <span>{notification.message}</span>
-            <button
-              onClick={() => setNotification(null)}
-              className="ml-2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       )}
 
-      {/* Main Container */}
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-
-        {/* 1. Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-3">
-          <Link href="/admin/dashboard" className="hover:text-emerald-700 transition-colors">
-            Admin
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-slate-700">Customers Management</span>
-        </nav>
-
-        {/* 2. Header (Matching Page 17 of PDF) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      {/* Main Content Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        
+        {/* Breadcrumb & Screen Title */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Customers Management
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Link href="/admin/dashboard" className="hover:text-emerald-700">
+                Dashboard
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-slate-700 font-bold">Customer Management</span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
+              Customer Management & Analytics
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              View, manage and analyze your customers. Track orders, spending, and engagement.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Monitor customer accounts, delivery addresses, order frequencies, and profile details.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          {/* Quick Refresh Button */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleCreateCustomerClick}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-bold shadow-3xs transition-colors"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ Add Customer</span>
-            </button>
-
-            <button
               onClick={() => {
-                loadData();
+                fetchSummary();
+                fetchCustomers();
                 showToast("Refreshed customer data", "info");
               }}
-              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-3xs transition-colors"
-              title="Refresh"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-3xs transition-colors cursor-pointer"
+              title="Refresh customer data"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+              <span>Refresh</span>
             </button>
           </div>
         </div>
 
-        {/* 3. Five KPI Summary Cards (Page 17) */}
-        <CustomerStatsCards summary={summary} />
+        {/* 1. Top Summary Cards (4-8 Metric Cards) */}
+        <CustomerStatsCards summary={summary} isLoading={isLoading && !summary} />
 
-        {/* 4. Tabs Bar with Export, Filter & Reset (Page 17) */}
-        <div className="mt-6">
-          <CustomerTabsBar
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onOpenFilter={() => setIsFilterModalOpen(true)}
-            onReset={handleResetFilters}
-            onExport={handleExportCSV}
-            isFiltered={activeFiltersCount > 0}
-            activeFiltersCount={activeFiltersCount}
-            tabCounts={{
-              all: summary.totalCustomers,
-              active: summary.activeCustomers,
-              inactive: summary.inactiveCustomers,
-              new: summary.newCustomers,
-              repeat: summary.repeatCustomers,
-            }}
-          />
-        </div>
-
-        {/* 5. Filters Bar (Page 17) */}
-        <div className="mt-4">
-          <CustomerFiltersBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedStatus={selectedStatus}
-            onStatusChange={setSelectedStatus}
-            selectedLocation={selectedLocation}
-            onLocationChange={setSelectedLocation}
-            selectedType={selectedType}
-            onTypeChange={setSelectedType}
-            sortBy={sortBy}
-            onSortByChange={setSortBy}
-            isFilterModalOpen={isFilterModalOpen}
-            onCloseFilterModal={() => setIsFilterModalOpen(false)}
-            onApplyFilters={() => {
-              setIsFilterModalOpen(false);
-              loadData();
-              showToast("Filters applied successfully");
-            }}
-            onResetFilters={() => {
-              handleResetFilters();
-              setIsFilterModalOpen(false);
-            }}
-          />
-        </div>
-
-        {/* 6. Customers Table (Page 17) */}
-        <div ref={tableSectionRef} className="mt-4">
-          <CustomerTable
-            customers={paginatedCustomers}
-            selectedCustomerIds={selectedCustomerIds}
-            onToggleSelectCustomer={handleToggleSelectCustomer}
-            onToggleSelectAll={handleToggleSelectAll}
-            onClearSelection={() => setSelectedCustomerIds([])}
-            onViewCustomer={handleViewCustomer}
-            onEditCustomer={handleEditCustomer}
-            onToggleStatus={handleToggleStatus}
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalCustomers={summary.totalCustomers}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setCurrentPage(1);
-            }}
-          />
-        </div>
-
-        {/* 7. Bottom 3 Analytics Widgets (Page 17) */}
-        <CustomerAnalyticsWidgets
-          summary={summary}
-          topSpenders={topSpenders}
-          newCustomers={newCustomers}
-          onCustomerClick={(id) => {
-            const found = customers.find((c) => c.id === id);
-            if (found) handleViewCustomer(found);
-          }}
-          onViewAllTop={() => {
-            setActiveTab("Top Customers");
-            tableSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-            showToast("Showing top spenders list in table", "info");
-          }}
-          onViewAllNew={() => {
-            setActiveTab("New");
-            tableSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-            showToast("Showing new customer signups in table", "info");
+        {/* 2. Status & Segmentation Tabs Bar */}
+        <CustomerTabsBar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onExport={handleExportCSV}
+          isExporting={isExporting}
+          onReset={handleResetFilters}
+          hasActiveFilters={hasActiveFilters}
+          tabCounts={{
+            all: summary?.totalCustomers,
+            active: summary?.activeCustomers,
+            inactive: summary?.inactiveCustomers,
+            suspended: summary?.suspendedCustomers,
+            new: summary?.newCustomersThisMonth,
+            repeat: summary?.repeatCustomers,
           }}
         />
 
+        {/* 3. Filter & Action Bar */}
+        <CustomerFiltersBar
+          searchQuery={searchQuery}
+          onSearchChange={(q) => {
+            setSearchQuery(q);
+            setCurrentPage(0);
+          }}
+          selectedStatus={selectedStatus}
+          onStatusChange={(s) => {
+            setSelectedStatus(s);
+            setCurrentPage(0);
+          }}
+          selectedLocation={selectedLocation}
+          onLocationChange={(l) => {
+            setSelectedLocation(l);
+            setCurrentPage(0);
+          }}
+          selectedType={selectedType}
+          onTypeChange={(t) => {
+            setSelectedType(t);
+            setCurrentPage(0);
+          }}
+          fromDate={fromDate}
+          onFromDateChange={(d) => {
+            setFromDate(d);
+            setCurrentPage(0);
+          }}
+          toDate={toDate}
+          onToDateChange={(d) => {
+            setToDate(d);
+            setCurrentPage(0);
+          }}
+          sortBy={sortBy}
+          onSortByChange={(s) => {
+            setSortBy(s);
+            setCurrentPage(0);
+          }}
+          sortDirection={sortDirection}
+          onSortDirectionChange={(dir) => {
+            setSortDirection(dir);
+            setCurrentPage(0);
+          }}
+          onResetFilters={handleResetFilters}
+        />
+
+        {/* 4. Customer Data Table */}
+        <CustomerTable
+          customers={customers}
+          isLoading={isLoading}
+          totalElements={totalElements}
+          totalPages={totalPages}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={(p) => setCurrentPage(p)}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setCurrentPage(0);
+          }}
+          onViewCustomer={handleViewCustomer}
+          onEditCustomer={handleEditCustomer}
+          onUpdateStatus={handleUpdateStatus}
+          onResetFilters={handleResetFilters}
+        />
       </div>
 
-      {/* 8. Modals & Drawers */}
-      {/* Customer Details Drawer */}
+      {/* Screen 2: Slide-Over Customer Details Drawer */}
       <CustomerDetailsDrawer
         customer={selectedDrawerCustomer}
         isOpen={isDrawerOpen}
+        isLoading={isDrawerLoading}
         onClose={() => setIsDrawerOpen(false)}
-        onEdit={(customer) => {
-          setIsDrawerOpen(false);
-          handleEditCustomer(customer);
-        }}
-        onToggleStatus={handleToggleStatus}
+        onEdit={handleEditCustomer}
+        onUpdateStatus={handleUpdateStatus}
       />
 
-      {/* Add / Edit Customer Modal */}
+      {/* Customer Profile Edit Modal */}
       <CustomerFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         customer={formCustomer}
         onSave={handleSaveCustomer}
       />
-
     </div>
   );
 }

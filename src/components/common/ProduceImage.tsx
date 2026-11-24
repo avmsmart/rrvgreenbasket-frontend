@@ -6,6 +6,7 @@ interface ProduceImageProps {
   name: string;
   src?: string;
   imageUrl?: string;
+  productImage?: string | null;
   size?: number;
   className?: string;
 }
@@ -14,12 +15,13 @@ export const ProduceImage: React.FC<ProduceImageProps> = ({
   name,
   src,
   imageUrl,
+  productImage,
   size = 40,
   className = "",
 }) => {
   const [imgError, setImgError] = useState(false);
   const lower = (name || "").toLowerCase();
-  const customSrc = (src || imageUrl || "").trim();
+  const customSrc = (productImage || src || imageUrl || "").trim();
 
   // 1. If backend S3/CloudFront image URL is provided, display it directly
   if (customSrc && !imgError) {

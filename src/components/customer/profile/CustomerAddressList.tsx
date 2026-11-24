@@ -166,7 +166,7 @@ export const CustomerAddressList: React.FC = () => {
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="text-gray-400 hover:text-gray-600 font-bold ml-2"
+            className="text-slate-500 hover:text-gray-600 font-bold ml-2"
           >
             ✕
           </button>
@@ -174,7 +174,7 @@ export const CustomerAddressList: React.FC = () => {
       )}
 
       {/* Header Card */}
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="border-y border-slate-200 bg-white px-4 py-6 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
           <div>
             <div className="flex items-center gap-2">
@@ -281,7 +281,7 @@ export const CustomerAddressList: React.FC = () => {
         {!isLoading && !error && addresses.length === 0 && (
           <div className="mt-6 py-16 text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-50 text-gray-300 border border-gray-100">
-              <MapPinOff className="w-8 h-8 text-gray-400" />
+              <MapPinOff className="w-8 h-8 text-slate-500" />
             </div>
             <h3 className="mt-4 text-base font-bold text-gray-900">
               No addresses saved yet

@@ -26,6 +26,7 @@ import {
   CustomerLogoutData,
   OtpDispatchData,
 } from "@/types/customer-auth";
+import { getCustomerAuthApiBaseUrl } from "@/config/api.config";
 
 const CUSTOMER_ACCESS_TOKEN_KEY = "rrv_customer_access_token";
 const CUSTOMER_REFRESH_TOKEN_KEY = "rrv_customer_refresh_token";
@@ -343,11 +344,7 @@ let refreshPromise: Promise<CustomerAuthData> | null = null;
 
 class CustomerAuthService {
   public getBaseUrl(): string {
-    return (
-      process.env.NEXT_PUBLIC_CUSTOMER_AUTH_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://localhost:8080"
-    ).replace(/\/$/, "");
+    return getCustomerAuthApiBaseUrl();
   }
 
   private async request<T>(

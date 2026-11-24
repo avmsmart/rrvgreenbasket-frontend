@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerBackendUrl } from "@/config/api.config";
 
 /**
  * Backend API Gateway target URL for Spring Boot microservices
  */
-const BACKEND_URL = (
-  process.env.BACKEND_API_URL ||
-  process.env.NEXT_PUBLIC_WISHLIST_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://192.168.0.138:8080"
-).replace(/\/$/, "");
+const BACKEND_URL = getServerBackendUrl();
 
 /**
  * Cached product map to enrich wishlist items without redundant network requests

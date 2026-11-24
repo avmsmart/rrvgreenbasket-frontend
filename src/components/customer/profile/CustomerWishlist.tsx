@@ -140,7 +140,7 @@ export const CustomerWishlist: React.FC = () => {
 
       {/* Empty State */}
       {!isLoading && wishlistItems.length === 0 && (
-        <div className="rounded-3xl border border-dashed border-emerald-200 bg-white p-12 text-center max-w-md mx-auto my-6">
+        <div className="rounded-2xl border border-dashed border-emerald-300 bg-white p-8 sm:p-10 text-center max-w-md mx-auto my-6">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 border border-rose-100">
             <Heart className="w-7 h-7" />
           </div>

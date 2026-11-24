@@ -1,7 +1,16 @@
 "use client";
 
-import React from "react";
-import { Search, X, Filter } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import {
+  Search,
+  X,
+  MapPin,
+  Calendar,
+  ArrowUpDown,
+  Filter,
+  Users,
+} from "lucide-react";
+import { CustomerTypeFilter } from "@/types";
 
 interface CustomerFiltersBarProps {
   searchQuery: string;
@@ -10,13 +19,16 @@ interface CustomerFiltersBarProps {
   onStatusChange: (status: string) => void;
   selectedLocation: string;
   onLocationChange: (loc: string) => void;
-  selectedType: string;
-  onTypeChange: (type: string) => void;
+  selectedType: CustomerTypeFilter;
+  onTypeChange: (type: CustomerTypeFilter) => void;
+  fromDate: string;
+  onFromDateChange: (date: string) => void;
+  toDate: string;
+  onToDateChange: (date: string) => void;
   sortBy: string;
   onSortByChange: (sort: string) => void;
-  isFilterModalOpen: boolean;
-  onCloseFilterModal: () => void;
-  onApplyFilters: () => void;
+  sortDirection: "ASC" | "DESC";
+  onSortDirectionChange: (dir: "ASC" | "DESC") => void;
   onResetFilters: () => void;
 }
 
@@ -29,54 +41,100 @@ export const CustomerFiltersBar: React.FC<CustomerFiltersBarProps> = ({
   onLocationChange,
   selectedType,
   onTypeChange,
+  fromDate,
+  onFromDateChange,
+  toDate,
+  onToDateChange,
   sortBy,
   onSortByChange,
-  isFilterModalOpen,
-  onCloseFilterModal,
-  onApplyFilters,
+  sortDirection,
+  onSortDirectionChange,
   onResetFilters,
 }) => {
-  const statuses = ["All Status", "Active", "Inactive"];
+  // Local debounced search input state (300ms)
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== searchQuery) {
+        onSearchChange(localSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, searchQuery, onSearchChange]);
+
+  const statuses = [
+    { label: "All Statuses", value: "ALL" },
+    { label: "Active", value: "ACTIVE" },
+    { label: "Inactive", value: "INACTIVE" },
+    { label: "Suspended", value: "SUSPENDED" },
+  ];
 
   const locations = [
     "All Locations",
+    "Kurnool",
     "Anna Nagar",
     "RTC Colony",
     "Nandyal Road",
-    "Kurnool Town",
     "Venkata Ramana Colony",
     "Bellary Road",
     "Autonagar",
     "Pragathi Nagar",
     "Bangalore Road",
+    "518001",
+    "518002",
+    "518003",
+    "518004",
   ];
 
-  const types = ["All Customer Types", "New", "Repeat", "Regular"];
+  const customerTypes: { label: string; value: CustomerTypeFilter }[] = [
+    { label: "All Customer Types", value: "ALL" },
+    { label: "First-Time", value: "FIRST_TIME" },
+    { label: "Repeat Customers", value: "REPEAT" },
+    { label: "Top Customers", value: "TOP_CUSTOMER" },
+  ];
 
   const sortOptions = [
-    "Sort by: Joined Date",
-    "Sort by: Total Spent (High to Low)",
-    "Sort by: Total Orders (High to Low)",
-    "Sort by: Name (A-Z)",
+    { label: "Joined Date", value: "createdAt" },
+    { label: "Total Spent", value: "totalSpent" },
+    { label: "Total Orders", value: "totalOrders" },
+    { label: "Customer Name", value: "fullName" },
   ];
 
+  const hasFilters =
+    searchQuery.trim().length > 0 ||
+    selectedStatus !== "ALL" ||
+    (selectedLocation !== "All Locations" && selectedLocation.trim().length > 0) ||
+    selectedType !== "ALL" ||
+    fromDate.length > 0 ||
+    toDate.length > 0;
+
   return (
-    <>
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-3xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Search Input */}
+    <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-3xs space-y-3">
+      {/* Top Row: Search & Dropdowns */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+        
+        {/* Debounced Search Input */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search customers by name, phone number, email, location..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            placeholder="Search by customer name, mobile number (+91...), or email..."
             className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 hover:bg-slate-100/70 focus:bg-white rounded-xl border border-slate-200/80 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium text-slate-800 placeholder:text-slate-400"
           />
-          {searchQuery && (
+          {localSearch && (
             <button
               type="button"
-              onClick={() => onSearchChange("")}
+              onClick={() => {
+                setLocalSearch("");
+                onSearchChange("");
+              }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
             >
               <X className="w-3.5 h-3.5" />
@@ -84,170 +142,113 @@ export const CustomerFiltersBar: React.FC<CustomerFiltersBarProps> = ({
           )}
         </div>
 
-        {/* Dropdowns */}
+        {/* Filter Dropdowns */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Status */}
+          {/* Status Select */}
           <select
             value={selectedStatus}
             onChange={(e) => onStatusChange(e.target.value)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
           >
             {statuses.map((s) => (
-              <option key={s} value={s}>
-                {s}
+              <option key={s.value} value={s.value}>
+                {s.label}
               </option>
             ))}
           </select>
 
-          {/* Location */}
-          <select
-            value={selectedLocation}
-            onChange={(e) => onLocationChange(e.target.value)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-          >
-            {locations.map((loc) => (
-              <option key={loc} value={loc}>
-                {loc}
-              </option>
-            ))}
-          </select>
+          {/* Location Select */}
+          <div className="relative">
+            <select
+              value={selectedLocation}
+              onChange={(e) => onLocationChange(e.target.value)}
+              className="pl-7 pr-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+            >
+              {locations.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </select>
+            <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
 
-          {/* Customer Type */}
-          <select
-            value={selectedType}
-            onChange={(e) => onTypeChange(e.target.value)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-          >
-            {types.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          {/* Customer Type Select */}
+          <div className="relative">
+            <select
+              value={selectedType}
+              onChange={(e) => onTypeChange(e.target.value as CustomerTypeFilter)}
+              className="pl-7 pr-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+            >
+              {customerTypes.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
 
-          {/* Sort By */}
-          <select
-            value={sortBy}
-            onChange={(e) => onSortByChange(e.target.value)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-          >
-            {sortOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
+          {/* Sort By Select */}
+          <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5">
+            <select
+              value={sortBy}
+              onChange={(e) => onSortByChange(e.target.value)}
+              className="pl-2.5 pr-2 py-1.5 text-xs font-semibold bg-transparent text-slate-700 focus:outline-none cursor-pointer"
+            >
+              {sortOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => onSortDirectionChange(sortDirection === "ASC" ? "DESC" : "ASC")}
+              className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title={`Sort direction: ${sortDirection} (Click to toggle)`}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filter Modal Dialog */}
-      {isFilterModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-900">
-                  Filter Customers
-                </h3>
-              </div>
-              <button
-                onClick={onCloseFilterModal}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Customer Status
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => onStatusChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 text-slate-800"
-                >
-                  {statuses.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Location / Sector
-                </label>
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => onLocationChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 text-slate-800"
-                >
-                  {locations.map((loc) => (
-                    <option key={loc} value={loc}>
-                      {loc}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Customer Segment
-                </label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => onTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 text-slate-800"
-                >
-                  {types.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Sort Order
-                </label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => onSortByChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 text-slate-800"
-                >
-                  {sortOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={onResetFilters}
-                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
-              >
-                Reset All
-              </button>
-              <button
-                type="button"
-                onClick={onApplyFilters}
-                className="flex-1 px-4 py-2 rounded-xl bg-[#00875a] text-white text-xs font-bold hover:bg-[#00704a] shadow-3xs"
-              >
-                Apply Filters
-              </button>
-            </div>
-          </div>
+      {/* Bottom Row: Date Range & Active Filter Badges */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100 text-xs">
+        {/* Date Range Inputs */}
+        <div className="flex items-center gap-2 text-slate-600">
+          <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5" /> Registered:
+          </span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => onFromDateChange(e.target.value)}
+            className="px-2 py-1 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            title="Registration start date"
+          />
+          <span className="text-slate-400 text-xs">to</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => onToDateChange(e.target.value)}
+            className="px-2 py-1 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            title="Registration end date"
+          />
         </div>
-      )}
-    </>
+
+        {/* Clear Filters indicator */}
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            Clear all active filters
+          </button>
+        )}
+      </div>
+    </div>
   );
 };

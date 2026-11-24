@@ -55,7 +55,7 @@ export const CustomerHelpSupport: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header & Contact Channels */}
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
+      <div className="border-y border-slate-200 bg-white px-4 py-6 sm:px-6">
         <div className="pb-6 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -72,11 +72,11 @@ export const CustomerHelpSupport: React.FC = () => {
 
         {/* 3 Contact Cards */}
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 transition hover:shadow-sm">
+          <div className="border-y border-emerald-200 bg-emerald-50/60 px-4 py-5 transition">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
               <MessageSquare className="w-5 h-5" />
             </div>
-            <h3 className="mt-3 text-xs font-bold text-gray-900">WhatsApp Support</h3>
+            <h3 className="mt-3 text-sm font-bold text-slate-900">WhatsApp Support</h3>
             <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
               Instant response from our farm care team
             </p>
@@ -90,11 +90,11 @@ export const CustomerHelpSupport: React.FC = () => {
             </a>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-sm">
+          <div className="border-b border-slate-200 bg-white px-2 py-5 transition hover:bg-emerald-50/40">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
               <Phone className="w-5 h-5" />
             </div>
-            <h3 className="mt-3 text-xs font-bold text-gray-900">Customer Helpline</h3>
+            <h3 className="mt-3 text-sm font-bold text-slate-900">Customer Helpline</h3>
             <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
               Helpline • 6:00 AM – 10:00 PM IST
             </p>
@@ -106,11 +106,11 @@ export const CustomerHelpSupport: React.FC = () => {
             </a>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:shadow-sm">
+          <div className="border-b border-slate-200 bg-white px-2 py-5 transition hover:bg-emerald-50/40">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700">
               <Mail className="w-5 h-5" />
             </div>
-            <h3 className="mt-3 text-xs font-bold text-gray-900">Email Assistance</h3>
+            <h3 className="mt-3 text-sm font-bold text-slate-900">Email Assistance</h3>
             <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
               For billing, partnerships, and bulk orders
             </p>
@@ -139,7 +139,7 @@ export const CustomerHelpSupport: React.FC = () => {
       </div>
 
       {/* Frequently Asked Questions */}
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
+      <div className="border-y border-slate-200 bg-white px-4 py-6 sm:px-6">
         <h2 className="text-base font-bold text-gray-900 mb-1">
           Frequently Asked Questions
         </h2>
@@ -174,13 +174,13 @@ export const CustomerHelpSupport: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                  className="flex w-full items-center justify-between text-left text-xs font-bold text-gray-900 hover:text-emerald-800 transition"
+                  className="flex w-full items-center justify-between text-left text-sm font-bold text-slate-900 hover:text-emerald-900 transition-colors"
                 >
                   <span>{faq.question}</span>
                   {isOpen ? (
                     <ChevronUp className="w-4 h-4 text-emerald-700 shrink-0 ml-2" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
+                    <ChevronDown className="w-4 h-4 text-slate-500 shrink-0 ml-2" />
                   )}
                 </button>
                 {isOpen && (
@@ -195,7 +195,7 @@ export const CustomerHelpSupport: React.FC = () => {
       </div>
 
       {/* Submit Ticket Form */}
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
+      <div className="border-y border-slate-200 bg-white px-4 py-6 sm:px-6">
         <h2 className="text-base font-bold text-gray-900 mb-1">
           Need More Help? Submit a Query
         </h2>

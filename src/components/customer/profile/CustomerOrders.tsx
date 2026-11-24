@@ -96,7 +96,7 @@ export const CustomerOrders: React.FC = () => {
     return true;
   });
 
-  const getStatusBadge = (status: BackendOrderStatus) => {
+  const getStatusBadge = (status?: BackendOrderStatus | string) => {
     switch (status) {
       case "DELIVERED":
         return (
@@ -188,7 +188,7 @@ export const CustomerOrders: React.FC = () => {
       )}
 
       {/* Header & Filter Tabs */}
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-xs">
+      <div className="border-y border-slate-200 bg-white px-4 py-6 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
           <div>
             <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export const CustomerOrders: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-1.5 bg-gray-50 p-1.5 rounded-2xl border border-gray-200">
+          <div className="flex max-w-full gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-1.5 whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {(
               [
                 ["ALL", "All Orders"],
@@ -218,7 +218,7 @@ export const CustomerOrders: React.FC = () => {
                 key={tabKey}
                 type="button"
                 onClick={() => setFilter(tabKey as FilterTab)}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold transition sm:px-3.5 ${
                   filter === tabKey
                     ? "bg-emerald-700 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -272,115 +272,139 @@ export const CustomerOrders: React.FC = () => {
           </div>
         ) : (
           /* Real Orders List */
-          <div className="divide-y divide-gray-100 pt-3">
+          <div className="space-y-3 pt-4">
             {filteredOrders.map((order) => {
               const canCancel =
                 order.orderStatus === "PLACED" || order.orderStatus === "CONFIRMED";
+              const orderItems = order.items || [];
 
               return (
-                <div
+                <article
                   key={order.orderPublicId}
-                  className="py-5 space-y-4 transition hover:bg-slate-50/50 rounded-2xl px-2"
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-200 hover:shadow-md"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-sm text-slate-900">
-                          Order #{order.orderNumber || order.orderPublicId.slice(0, 8)}
-                        </span>
-                        {getStatusBadge(order.orderStatus)}
-                      </div>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>
-                          {new Date(order.orderPlacedAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        <span>•</span>
-                        <span className="uppercase text-[11px] font-bold text-slate-600">
-                          {order.paymentMethod === "COD"
-                            ? "Cash on Delivery"
-                            : order.paymentMethod === "ONLINE_FULL"
-                            ? "Online Paid"
-                            : "Partial Paid"}
-                        </span>
-                      </p>
+                  {/* Order reference row */}
+                  <div className="flex flex-col gap-2 border-b border-dashed border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span className="font-bold text-slate-800">
+                        Order #{order.orderNumber || order.orderPublicId.slice(0, 8)}
+                      </span>
+                      <span className="text-slate-500">
+                        {new Date(order.orderPlacedAt || Date.now()).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
                     </div>
-
-                    <div className="text-left sm:text-right">
-                      <p className="text-base font-black text-emerald-800">
-                        ₹{order.totalAmount}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {order.items?.length || 0} {(order.items?.length || 0) === 1 ? "item" : "items"}
-                      </p>
+                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                      {getStatusBadge(order.orderStatus)}
+                      <span className="text-[11px] font-medium text-slate-500">
+                        {order.paymentMethod === "COD"
+                          ? "Cash on Delivery"
+                          : order.paymentMethod === "ONLINE_FULL"
+                          ? "Online Paid"
+                          : "Partial Paid"}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Items Preview */}
-                  {order.items && order.items.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {order.items.slice(0, 4).map((it) => (
-                        <div
-                          key={it.orderItemPublicId}
-                          className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-100 p-2 text-xs"
-                        >
+                  {/* Products */}
+                  <div className="divide-y divide-slate-100">
+                    {orderItems.slice(0, 3).map((it) => (
+                      <div
+                        key={it.orderItemPublicId}
+                        className="flex items-center gap-3 px-3 py-3 sm:px-4"
+                      >
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
                           {it.productImageUrl ? (
                             <img
                               src={it.productImageUrl}
                               alt={it.productName}
-                              className="h-7 w-7 rounded-lg object-cover bg-white"
+                              className="h-full w-full object-cover"
                             />
                           ) : (
-                            <div className="h-7 w-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800">
-                              <ShoppingBag className="h-3.5 w-3.5" />
-                            </div>
+                            <ShoppingBag className="h-5 w-5 text-emerald-700" />
                           )}
-                          <span className="font-medium text-slate-800 truncate max-w-[120px]">
-                            {it.productName}
-                          </span>
-                          <span className="text-slate-500 text-[11px]">
-                            ({it.quantityKg} kg)
-                          </span>
                         </div>
-                      ))}
-                      {order.items.length > 4 && (
-                        <span className="self-center text-xs font-bold text-slate-500">
-                          +{order.items.length - 4} more
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-900">
+                            {it.productName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Quantity: {it.quantityKg} kg
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-bold text-slate-900">
+                            ₹{Number(it.totalPrice || 0).toFixed(2)}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            ₹{Number(it.pricePerKg || 0).toFixed(2)} / kg
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {orderItems.length > 3 && (
+                      <p className="px-4 py-2 text-xs font-semibold text-emerald-700">
+                        +{orderItems.length - 3} more {orderItems.length - 3 === 1 ? "item" : "items"}
+                      </p>
+                    )}
+                    {orderItems.length === 0 && (
+                      <div className="px-4 py-4 text-xs text-slate-500">
+                        Product details are not available for this order.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Amount and delivery information */}
+                  <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        <Package className="h-3.5 w-3.5 text-slate-400" />
+                        {orderItems.length} {orderItems.length === 1 ? "item" : "items"}
+                      </span>
+                      {order.promisedDeliveryDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <Truck className="h-3.5 w-3.5 text-slate-400" />
+                          Delivery: {new Date(order.promisedDeliveryDate).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </span>
                       )}
                     </div>
-                  )}
-
-                  {/* Actions Bar */}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <div className="flex items-center gap-2">
-                      {canCancel && (
-                        <button
-                          type="button"
-                          onClick={() => setCancelTargetOrder(order)}
-                          className="text-xs font-bold text-red-600 hover:text-red-700 transition px-2.5 py-1.5 rounded-lg hover:bg-red-50"
-                        >
-                          Cancel Order
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                      <span className="text-xs font-medium text-slate-500">Order total</span>
+                      <span className="text-lg font-extrabold text-emerald-800">
+                        ₹{Number(order.totalAmount || 0).toFixed(2)}
+                      </span>
                     </div>
+                  </div>
 
+                  {/* Actions: full-width friendly controls on small screens */}
+                  <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/70 p-3 sm:flex sm:items-center sm:justify-end sm:px-4">
+                    {canCancel && (
+                      <button
+                        type="button"
+                        onClick={() => setCancelTargetOrder(order)}
+                        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 active:scale-[0.99] sm:w-auto"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Cancel Order
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setSelectedOrder(order)}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition"
+                      className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.99] sm:w-auto"
                     >
                       <span>Track & View Details</span>
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
@@ -399,7 +423,7 @@ export const CustomerOrders: React.FC = () => {
                   Order Details #{selectedOrder.orderNumber || selectedOrder.orderPublicId.slice(0, 8)}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Placed on {new Date(selectedOrder.orderPlacedAt).toLocaleString("en-IN")}
+                  Placed on {new Date(selectedOrder.orderPlacedAt || Date.now()).toLocaleString("en-IN")}
                 </p>
               </div>
               <button
@@ -479,10 +503,10 @@ export const CustomerOrders: React.FC = () => {
                     <div key={idx} className="relative pl-4 space-y-0.5">
                       <div className="absolute -left-[17px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-600 ring-4 ring-white" />
                       <p className="font-bold text-slate-900">
-                        {step.status.replace(/_/g, " ")}
+                        {(step.status || step.newStatus || "CONFIRMED").replace(/_/g, " ")}
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        {new Date(step.changedAt).toLocaleString("en-IN")}
+                        {new Date(step.changedAt || step.timestamp || Date.now()).toLocaleString("en-IN")}
                         {step.reason ? ` • ${step.reason}` : ""}
                       </p>
                     </div>

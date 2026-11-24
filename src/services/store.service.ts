@@ -12,6 +12,7 @@ import {
   StoreAssetUploadResponse,
 } from "@/types";
 import { getAuthToken } from "./api-client";
+import { getStoreApiBaseUrl } from "@/config/api.config";
 
 export class StoreApiError extends Error {
   public statusCode: number;
@@ -40,16 +41,7 @@ export class StoreService {
     if (typeof window !== "undefined") {
       return "";
     }
-    if (process.env.NEXT_PUBLIC_STORE_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_STORE_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-    return "http://localhost:8090";
+    return getStoreApiBaseUrl();
   }
 
   /**

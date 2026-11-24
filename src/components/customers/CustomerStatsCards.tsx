@@ -4,111 +4,178 @@ import React from "react";
 import {
   Users,
   UserCheck,
+  UserX,
+  ShieldAlert,
   UserPlus,
+  Repeat,
+  ShoppingBag,
   IndianRupee,
-  Star,
   TrendingUp,
 } from "lucide-react";
-import { CustomerSummary } from "@/types";
+import { CustomerDashboardSummary } from "@/types";
 
 interface CustomerStatsCardsProps {
-  summary: CustomerSummary;
+  summary: CustomerDashboardSummary | null;
+  isLoading?: boolean;
 }
 
-export const CustomerStatsCards: React.FC<CustomerStatsCardsProps> = ({ summary }) => {
+export const CustomerStatsCards: React.FC<CustomerStatsCardsProps> = ({
+  summary,
+  isLoading = false,
+}) => {
+  if (isLoading || !summary) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-3xs animate-pulse"
+          >
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-24 bg-slate-200 rounded" />
+              <div className="w-8 h-8 rounded-xl bg-slate-100" />
+            </div>
+            <div className="mt-3 h-7 w-20 bg-slate-200 rounded" />
+            <div className="mt-2 h-2.5 w-16 bg-slate-100 rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
+
+  const cards = [
+    {
+      title: "Total Customers",
+      value: summary.totalCustomers.toLocaleString(),
+      subtext: "↑ 12% from last month",
+      icon: Users,
+      iconBg: "bg-slate-100 text-slate-700",
+      borderColor: "border-slate-200/90",
+      textColor: "text-slate-900",
+      trendColor: "text-emerald-600",
+    },
+    {
+      title: "Active Customers",
+      value: summary.activeCustomers.toLocaleString(),
+      subtext: `${Math.round((summary.activeCustomers / (summary.totalCustomers || 1)) * 100)}% of total`,
+      icon: UserCheck,
+      iconBg: "bg-emerald-50 text-emerald-600",
+      borderColor: "border-emerald-200/80",
+      textColor: "text-emerald-700",
+      badge: "ACTIVE",
+      badgeColor: "bg-emerald-100 text-emerald-800",
+    },
+    {
+      title: "Inactive Customers",
+      value: summary.inactiveCustomers.toLocaleString(),
+      subtext: "Dormant 30+ days",
+      icon: UserX,
+      iconBg: "bg-amber-50 text-amber-600",
+      borderColor: "border-amber-200/80",
+      textColor: "text-amber-700",
+      badge: "INACTIVE",
+      badgeColor: "bg-amber-100 text-amber-800",
+    },
+    {
+      title: "Suspended Customers",
+      value: summary.suspendedCustomers.toLocaleString(),
+      subtext: "Account flagged",
+      icon: ShieldAlert,
+      iconBg: "bg-rose-50 text-rose-600",
+      borderColor: "border-rose-200/80",
+      textColor: "text-rose-700",
+      badge: "SUSPENDED",
+      badgeColor: "bg-rose-100 text-rose-800",
+    },
+    {
+      title: "New Customers",
+      value: summary.newCustomersThisMonth.toLocaleString(),
+      subtext: "Joined this month",
+      icon: UserPlus,
+      iconBg: "bg-blue-50 text-blue-600",
+      borderColor: "border-blue-200/80",
+      textColor: "text-blue-700",
+    },
+    {
+      title: "Repeat Customers",
+      value: summary.repeatCustomers.toLocaleString(),
+      subtext: "> 5 completed orders",
+      icon: Repeat,
+      iconBg: "bg-indigo-50 text-indigo-600",
+      borderColor: "border-indigo-200/80",
+      textColor: "text-indigo-700",
+    },
+    {
+      title: "Total Orders",
+      value: summary.totalOrders.toLocaleString(),
+      subtext: "Across all customers",
+      icon: ShoppingBag,
+      iconBg: "bg-violet-50 text-violet-600",
+      borderColor: "border-violet-200/80",
+      textColor: "text-violet-700",
+    },
+    {
+      title: "Total Revenue",
+      value: formatCurrency(summary.totalPurchaseValue),
+      subtext: "↑ 18% overall GMV",
+      icon: IndianRupee,
+      iconBg: "bg-emerald-50 text-emerald-700",
+      borderColor: "border-emerald-200/80",
+      textColor: "text-emerald-800",
+      trendColor: "text-emerald-600",
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-      {/* 1. Total Customers */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-3xs hover:shadow-xs transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-500">Total Customers</span>
-          <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
-            <Users className="w-4 h-4" />
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      {cards.map((card, idx) => {
+        const Icon = card.icon;
+        return (
+          <div
+            key={idx}
+            className={`bg-white rounded-2xl border ${card.borderColor} p-4 shadow-3xs hover:shadow-xs transition-shadow`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">
+                {card.title}
+              </span>
+              <div
+                className={`w-8 h-8 rounded-xl ${card.iconBg} flex items-center justify-center shrink-0`}
+              >
+                <Icon className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className={`text-2xl font-black ${card.textColor} tracking-tight`}>
+                {card.value}
+              </span>
+              {card.badge && (
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${card.badgeColor}`}
+                >
+                  {card.badge}
+                </span>
+              )}
+            </div>
+            <p
+              className={`text-[11px] font-semibold ${
+                card.trendColor || "text-slate-500"
+              } flex items-center gap-1 mt-1`}
+            >
+              {card.subtext.startsWith("↑") && <TrendingUp className="w-3 h-3" />}
+              {card.subtext}
+            </p>
           </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black text-slate-900 tracking-tight">
-            {summary.totalCustomers.toLocaleString()}
-          </span>
-        </div>
-        <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
-          <TrendingUp className="w-3 h-3" />
-          ↑ 12% from last month
-        </p>
-      </div>
-
-      {/* 2. Active Customers */}
-      <div className="bg-white rounded-2xl border border-emerald-200/80 p-4 shadow-3xs hover:shadow-xs transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-emerald-900">Active Customers</span>
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <UserCheck className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black text-emerald-600 tracking-tight">
-            {summary.activeCustomers.toLocaleString()}
-          </span>
-        </div>
-        <p className="text-[11px] font-medium text-emerald-700/80 mt-0.5">
-          72% of total
-        </p>
-      </div>
-
-      {/* 3. New Customers */}
-      <div className="bg-white rounded-2xl border border-blue-200/80 p-4 shadow-3xs hover:shadow-xs transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-blue-900">New Customers</span>
-          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <UserPlus className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black text-blue-600 tracking-tight">
-            {summary.newCustomers}
-          </span>
-        </div>
-        <p className="text-[11px] font-medium text-blue-500 mt-0.5">
-          This month
-        </p>
-      </div>
-
-      {/* 4. Total Purchase Value */}
-      <div className="bg-white rounded-2xl border border-emerald-200/80 p-4 shadow-3xs hover:shadow-xs transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-700">Total Purchase Value</span>
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-            <IndianRupee className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-1">
-          <span className="text-2xl font-black text-emerald-700 tracking-tight">
-            ₹ 3,42,680
-          </span>
-        </div>
-        <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
-          <TrendingUp className="w-3 h-3" />
-          ↑ 18% from last month
-        </p>
-      </div>
-
-      {/* 5. Repeat Customers */}
-      <div className="bg-white rounded-2xl border border-amber-200/80 p-4 shadow-3xs hover:shadow-xs transition-shadow col-span-2 sm:col-span-1">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-amber-900">Repeat Customers</span>
-          <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Star className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black text-amber-600 tracking-tight">
-            {summary.repeatCustomers}
-          </span>
-        </div>
-        <p className="text-[11px] font-medium text-amber-600/80 mt-0.5">
-          25% of total
-        </p>
-      </div>
+        );
+      })}
     </div>
   );
 };

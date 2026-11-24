@@ -14,6 +14,7 @@ import {
   customerAuthService,
   customerTokenStorage,
 } from "./customer-auth.service";
+import { getCustomerAddressApiBaseUrl } from "@/config/api.config";
 
 export class CustomerAddressError extends Error {
   public statusCode: number;
@@ -40,34 +41,7 @@ export class CustomerAddressService {
    * Kept separate from the customer authentication service.
    */
   public getBaseUrl(): string {
-    // 1. Explicit address service URL
-    if (process.env.NEXT_PUBLIC_CUSTOMER_ADDRESS_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_CUSTOMER_ADDRESS_API_BASE_URL.replace(/\/$/, "");
-    }
-
-    // 2. Customer service URL
-    if (process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_CUSTOMER_API_BASE_URL.replace(/\/$/, "");
-    }
-
-    // 3. Fallback: derive from standard NEXT_PUBLIC_API_BASE_URL, ensuring port 8082
-    const baseApi = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (baseApi) {
-      try {
-        const url = new URL(baseApi);
-        if (url.port === "8080" || url.port === "8081") {
-          url.port = "8082";
-          return url.origin;
-        }
-      } catch {
-        // Fallback string replacement
-        return baseApi.replace(/:\d+$/, ":8082").replace(/\/$/, "");
-      }
-      return baseApi.replace(/\/$/, "");
-    }
-
-    // 4. Default address service fallback
-    return "http://192.168.0.142:8082";
+    return getCustomerAddressApiBaseUrl();
   }
 
   /**

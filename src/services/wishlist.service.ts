@@ -15,6 +15,7 @@ import {
   customerAuthService,
   customerTokenStorage,
 } from "./customer-auth.service";
+import { getWishlistApiBaseUrl } from "@/config/api.config";
 
 export class WishlistApiError extends Error {
   public statusCode: number;
@@ -40,19 +41,10 @@ export class WishlistService {
    * Resolves the API Gateway base URL for Wishlist operations
    */
   public getBaseUrl(): string {
-    // In client-side browser execution, use same-origin relative path "" so requests
-    // route through the Next.js API proxy (/api/wishlist/...)
-    // This completely eliminates CORS errors and duplicate upstream Access-Control-Allow-Origin headers
     if (typeof window !== "undefined") {
       return "";
     }
-    if (process.env.NEXT_PUBLIC_WISHLIST_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_WISHLIST_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-    return "http://localhost:8080";
+    return getWishlistApiBaseUrl();
   }
 
   /**
