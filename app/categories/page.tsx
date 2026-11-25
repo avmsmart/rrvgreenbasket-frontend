@@ -1,44 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import Link from "next/link";
-import CustomerNavAuth from "@/components/customer/CustomerNavAuth";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import HomeFooter from "@/components/HomeFooter";
-import { ImageSlider, MarqueeBar, CategoryGrid } from "@/components/home";
-import { LocationNavbar } from "@/components/location";
-
 import {
-  Search,
-  MapPin,
-  LocateFixed,
-  Loader2,
-  CheckCircle2,
-  Heart,
-  ShoppingCart,
-  Leaf,
-  ChevronDown,
-  Home as HomeIcon,
-  LayoutGrid,
-  UserRound,
-  Sparkles,
-  AlertTriangle,
-  RefreshCw,
-  Plus,
-  Minus,
-  X,
-  Tag,
-} from "lucide-react";
+  CategoriesTopBar,
+  CategoryBanner,
+  CategoryProductGrid,
+  CategoryRail,
+  CustomerBottomNav,
+} from "@/components/categories/storefront";
 import {
-  productService,
   getCategoryId,
   mapBackendToStoreProduct,
+  productService,
 } from "@/services/product.service";
-import { BackendCategory, StoreProduct, ProductWeightVariant } from "@/types";
-import { ProductCard } from "@/components/customer";
-import { resolveImageUrl } from "@/utils/image-utils";
-import { useWishlist } from "@/context/WishlistContext";
-import { useStoreSettings } from "@/context/StoreSettingsContext";
+import { BackendCategory, StoreProduct } from "@/types";
+import { getCategorySlug } from "@/utils/category-visuals";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
+
+const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 
 // Category image fallbacks for storefront visual badges
 const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
@@ -125,32 +108,90 @@ export default function Home() {
 
   // Category state (driven dynamically from backend API)
   const [categories, setCategories] = useState<BackendCategory[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [activeCategoryName, setActiveCategoryName] = useState<string>("All Products");
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  // undefined = the shopper hasn't picked anything yet (fall back to ?category=)
+  const [pickedId, setPickedId] = useState<string | null | undefined>(undefined);
 
-  // Product state (fetched dynamically from backend API)
-  const [products, setProducts] = useState<StoreProduct[]>([]);
-  const [allProducts, setAllProducts] = useState<StoreProduct[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isCategoriesLoading, setIsCategoriesLoading] = useState<boolean>(true);
-  const [apiError, setApiError] = useState<string | null>(null);
+  // ---- Search -------------------------------------------------------------
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Wishlist state from centralized context
-  const { wishlistCount, isWishlisted, toggleWishlist, checkBulkWishlistStatus } = useWishlist();
+  // ---- Products -----------------------------------------------------------
+  const [list, setList] = useState<ProductListState>(EMPTY_LIST);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Cart state from centralized CartContext (connected to Spring Boot Cart Service)
-  const { itemCount: cartCount, totalAmount: cartTotal, addToCart } = useCart();
+  const cacheRef = useRef<Map<string, ProductListState>>(new Map());
+  const requestIdRef = useRef(0);
+  const paneRef = useRef<HTMLElement>(null);
 
-  // Search state
-  const [search, setSearch] = useState<string>("");
-  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  // Load categories once. Categories without a publicId cannot be queried,
+  // so they are dropped here instead of crashing the rail.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await productService.getCategories();
+        if (cancelled) return;
+        const usable = (Array.isArray(data) ? data : []).filter(
+          (c) => c && c.publicId && c.isActive !== false
+        );
+        usable.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        setCategories(usable);
+      } catch (err) {
+        console.error("[Categories] Failed to load categories:", err);
+        if (!cancelled) setCategories([]);
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Favorites (Wishlist) state
-  const [showFavorites, setShowFavorites] = useState<boolean>(false);
+  // Category named in the URL (?category=<slug|publicId>), once categories are known
+  const urlCategoryId = useMemo(() => {
+    if (!urlCategory) return null;
+    const match = categories.find(
+      (c) => getCategorySlug(c) === urlCategory || c.publicId === urlCategory
+    );
+    return match ? getCategoryId(match) : null;
+  }, [categories, urlCategory]);
 
-  // UI state
-  const [notice, setNotice] = useState<string>("");
-  const [scrolling, setScrolling] = useState<boolean>(false);
+  const selectedId = pickedId !== undefined ? pickedId : urlCategoryId;
+  const ready = !categoriesLoading; // wait for categories so a deep link loads only once
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const activeCategory = useMemo(
+    () => categories.find((c) => getCategoryId(c) === selectedId) ?? null,
+    [categories, selectedId]
+  );
+
+  // ---- Fetching -----------------------------------------------------------
+  const fetchPage = useCallback(
+    async (categoryId: string | null, query: string, page: number) => {
+      const res = await productService.getStorefrontProducts({
+        page,
+        size: PAGE_SIZE,
+        ...(categoryId ? { categoryId } : {}),
+        ...(query ? { search: query } : {}),
+      });
+
+      // The API normally returns a Spring page; tolerate a bare array too.
+      const rawList = ((res as unknown as { content?: unknown[] })?.content ??
+        (Array.isArray(res) ? res : [])) as Record<string, unknown>[];
+
+      let items = rawList.map((raw) => ({
+        product: mapBackendToStoreProduct(raw as unknown as Parameters<typeof mapBackendToStoreProduct>[0]),
+        discount: realDiscountPercent(raw),
+      }));
 
   // Fetch categories from backend API
   const loadCategories = useCallback(async () => {
@@ -205,191 +246,133 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch products from backend API sending categoryId and search
-  const loadProducts = useCallback(
-    async (catId: string | null, searchStr: string) => {
-      setIsLoading(true);
-      setApiError(null);
+      const last = (res as unknown as { last?: boolean })?.last;
+      const hasMore = typeof last === "boolean" ? !last : rawList.length === PAGE_SIZE;
 
-      try {
-        const params: {
-          categoryId?: string;
-          search?: string;
-          page?: number;
-          size?: number;
-        } = {
-          page: 0,
-          size: 50,
-        };
-
-        // If specific category selected, send categoryId
-        if (catId && catId !== "All") {
-          params.categoryId = catId;
-        }
-
-        // If search entered, send search query parameter
-        if (searchStr.trim()) {
-          params.search = searchStr.trim();
-        }
-
-        const res = await productService.getStorefrontProducts(params);
-        const rawItems = res?.content || (Array.isArray(res) ? res : []);
-        const mapped = rawItems.map(mapBackendToStoreProduct);
-        setProducts(mapped);
-        if (mapped.length > 0) {
-          setAllProducts((prev) => {
-            const map = new Map<string, StoreProduct>();
-            prev.forEach((p) => map.set(String(p.id), p));
-            mapped.forEach((p) => map.set(String(p.id), p));
-            return Array.from(map.values());
-          });
-        }
-      } catch (err: unknown) {
-        console.error("[Storefront] Failed to load products:", err);
-        setApiError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load products from server. Please check your backend connection."
-        );
-      } finally {
-        setIsLoading(false);
-      }
+      return {
+        products: items.map((i) => i.product),
+        hasMore,
+        maxDiscount: items.reduce((best, i) => Math.max(best, i.discount), 0),
+      };
     },
-    []
+    [categories]
   );
 
-  // Debounce search input by 300ms to prevent spamming backend requests
+  const loadFirstPage = useCallback(
+    async (categoryId: string | null, query: string) => {
+      const cacheKey = `${categoryId ?? "all"}|${query}`;
+      const requestId = ++requestIdRef.current;
+
+      // Show cached results instantly, then refresh quietly in the background
+      const cached = cacheRef.current.get(cacheKey);
+      if (cached) {
+        setList(cached);
+        setIsLoading(false);
+      } else {
+        // Don't leave the previous category's products on screen while loading
+        setList(EMPTY_LIST);
+        setIsLoading(true);
+      }
+      setError(null);
+
+      try {
+        const { products, hasMore, maxDiscount } = await fetchPage(categoryId, query, 0);
+        if (requestId !== requestIdRef.current) return; // a newer request won
+        const next = { products, page: 0, hasMore, maxDiscount };
+        cacheRef.current.set(cacheKey, next);
+        setList(next);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        console.error("[Categories] Failed to load products:", err);
+        if (!cached) {
+          setList(EMPTY_LIST);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Please check your connection and try again."
+          );
+        }
+      } finally {
+        if (requestId === requestIdRef.current) setIsLoading(false);
+      }
+    },
+    [fetchPage]
+  );
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+    if (!ready) return;
+    loadFirstPage(selectedId, debouncedSearch);
+  }, [ready, selectedId, debouncedSearch, loadFirstPage]);
 
-  // Initial categories fetch on mount
-  useEffect(() => {
-    loadCategories();
-  }, [loadCategories]);
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !list.hasMore) return;
+    const requestId = requestIdRef.current;
+    setIsLoadingMore(true);
+    try {
+      const nextPage = list.page + 1;
+      const { products, hasMore, maxDiscount } = await fetchPage(selectedId, debouncedSearch, nextPage);
+      if (requestId !== requestIdRef.current) return;
 
-  // Re-fetch products whenever activeCategoryId or debouncedSearch changes
-  useEffect(() => {
-    loadProducts(activeCategoryId, debouncedSearch);
-  }, [activeCategoryId, debouncedSearch, loadProducts]);
-
-  // Bulk check wishlist status for displayed products
-  useEffect(() => {
-    if (products.length > 0) {
-      const ids = products.map((p) => p.publicId || String(p.id)).filter(Boolean);
-      checkBulkWishlistStatus(ids);
-    }
-  }, [products, checkBulkWishlistStatus]);
-
-  // Scroll listener for mobile strip hiding/revealing
-  useEffect(() => {
-    let idleTimer: ReturnType<typeof setTimeout> | undefined;
-    const onScroll = () => {
-      setScrolling(true);
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => setScrolling(false), 220);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (idleTimer) clearTimeout(idleTimer);
-    };
-  }, []);
-
-  // Filter products by search, category, and favorites
-  const displayedProducts = useMemo(() => {
-    const source = products.length > 0 ? products : allProducts;
-    let list = [...source];
-    
-    // 0. Best-Sellers filter — on the home view (no category selected, no search, no favorites),
-    //    show only featured OR discounted products. Falls back to all if none match.
-    if (!activeCategoryId && !search && !showFavorites) {
-      const best = list.filter(
-        (p) =>
-          p.badge === "Featured" ||
-          (typeof p.originalPrice === "number" &&
-            typeof p.price === "number" &&
-            p.originalPrice > p.price)
-      );
-      if (best.length > 0) list = best;
-    }
-
-    // 1. Favorites Filter
-    if (showFavorites) {
-      list = list.filter((p) => isWishlisted(p.publicId || String(p.id)));
-    }
-
-    // 2. Category Filter (by categoryId or case-insensitive category name)
-    if (activeCategoryId && activeCategoryId !== "All") {
-      const activeNameLower = (activeCategoryName || "").toLowerCase().trim();
-      list = list.filter((p) => {
-        const matchesId = p.categoryId && String(p.categoryId) === String(activeCategoryId);
-        const pCatLower = (p.category || "").toLowerCase().trim();
-        const matchesName =
-          activeNameLower &&
-          activeNameLower !== "all products" &&
-          (pCatLower === activeNameLower ||
-            pCatLower.includes(activeNameLower) ||
-            activeNameLower.includes(pCatLower));
-        return Boolean(matchesId || matchesName);
+      setList((prev) => {
+        const seen = new Set(prev.products.map((p) => String(p.publicId || p.id)));
+        const merged = [
+          ...prev.products,
+          ...products.filter((p) => !seen.has(String(p.publicId || p.id))),
+        ];
+        const next = {
+          products: merged,
+          page: nextPage,
+          hasMore,
+          maxDiscount: Math.max(prev.maxDiscount, maxDiscount),
+        };
+        cacheRef.current.set(`${selectedId ?? "all"}|${debouncedSearch}`, next);
+        return next;
       });
+    } catch (err) {
+      console.error("[Categories] Failed to load more products:", err);
+    } finally {
+      setIsLoadingMore(false);
     }
+  }, [fetchPage, isLoadingMore, list.hasMore, list.page, selectedId, debouncedSearch]);
 
-    // 3. Search Filter (matches search substring in product name or category)
-    const query = (search || debouncedSearch).trim().toLowerCase();
-    if (query) {
-      list = list.filter((p) => {
-        const nameMatch = p.name && p.name.toLowerCase().includes(query);
-        const catMatch = p.category && p.category.toLowerCase().includes(query);
-        return Boolean(nameMatch || catMatch);
-      });
-    }
+  // Wishlist hearts for whatever is on screen
+  useEffect(() => {
+    if (list.products.length === 0) return;
+    const ids = list.products.map((p) => p.publicId || String(p.id)).filter(Boolean);
+    checkBulkWishlistStatus(ids);
+  }, [list.products, checkBulkWishlistStatus]);
 
-    return list;
-  }, [showFavorites, isWishlisted, products, allProducts, activeCategoryId, activeCategoryName, search, debouncedSearch]);
+  // ---- Actions ------------------------------------------------------------
+  const selectCategory = useCallback(
+    (cat: BackendCategory | null) => {
+      setPickedId(cat ? getCategoryId(cat) : null);
+      setSearch("");
+      setDebouncedSearch("");
+      paneRef.current?.scrollTo({ top: 0 });
 
-  // Handle category selection using actual categoryId
-  function selectCategory(cat: BackendCategory | null) {
-    if (cat === null) {
-      setActiveCategoryId(null);
-      setActiveCategoryName("All Products");
-    } else {
-      const catId = getCategoryId(cat);
-      setActiveCategoryId(catId);
-      setActiveCategoryName(cat.name);
-    }
-    setSearch("");
-    setShowFavorites(false);
-    document.getElementById("products")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }
+      // Keep the URL in sync without adding a history entry
+      const url = cat
+        ? `${pathname}?category=${encodeURIComponent(getCategorySlug(cat))}`
+        : pathname;
+      window.history.replaceState(null, "", url);
+    },
+    [pathname]
+  );
 
-  // Cart modification handler connecting to Spring Boot Cart Service
-  async function handleAddToCart(p: StoreProduct, variant: ProductWeightVariant, qty: number = 1) {
-    const pPublicId = p.publicId || String(p.id);
-    const multiplier =
-      Number.isFinite(Number(variant.multiplier)) && variant.multiplier > 0
-        ? variant.multiplier
-        : 1;
-    const quantityKg = Number((qty * multiplier).toFixed(3));
-    const sellingPrice = Math.round((p.price || 0) * multiplier);
-    await addToCart(pPublicId, quantityKg, p.name, {
-      productImageUrl: p.image,
-      pricePerKg: sellingPrice,
-      unitOfMeasure: variant.unit || p.unit || "KG",
-    });
-  }
+  // ---- Derived values -----------------------------------------------------
+  const title = activeCategory ? activeCategory.name : "All";
+  const isSearching = debouncedSearch.length > 0;
 
-  // Wishlist toggle handler
-  function toggleFavorite(p: StoreProduct) {
-    const publicId = p.publicId || String(p.id);
-    toggleWishlist(publicId, p.name);
-  }
+  const heading = isSearching ? `Results for “${debouncedSearch}”` : title === "All" ? "All products" : title;
+  const countLabel = isLoading
+    ? ""
+    : `${list.products.length}${list.hasMore ? "+" : ""} ${list.products.length === 1 ? "item" : "items"}`;
+
+  const emptyMessage = isSearching
+    ? `We couldn’t find anything for “${debouncedSearch}”${activeCategory ? ` in ${activeCategory.name}` : ""}. Try a different word.`
+    : activeCategory
+    ? `${activeCategory.name} has no products right now. Check back soon.`
+    : "No products are available right now. Check back soon.";
 
   return (
     <main className="min-h-screen bg-[#f6f9f3] pb-24 text-[#20392a] md:pb-0">
@@ -674,43 +657,27 @@ export default function Home() {
       <div className="block sm:hidden px-1 pt-2">
         <CategoryGrid
           categories={categories}
+          activeId={selectedId}
           onSelect={selectCategory}
-          selectedCategoryId={activeCategoryId}
-          title="All Categories"
-          showSeeAll={false}
+          isLoading={categoriesLoading}
         />
-      </div>
 
-      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-1.5 px-1.5 py-2 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4 sm:px-5 sm:py-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6 lg:py-5">
-        {/* Sidebar: Shop Categories — visible on tablet/desktop, replaced by 4-col grid on mobile */}
-        <aside
-          id="categories"
-          className="sticky top-2 hidden max-h-[calc(100vh-110px)] overflow-y-auto bg-white p-1 sm:top-4 sm:block sm:p-2.5 lg:top-[88px]"
+        <section
+          ref={paneRef}
+          aria-label={`${title} products`}
+          className="min-w-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-28 pt-3 [scrollbar-color:#cbd5e1_transparent] [scrollbar-width:thin] md:px-5 md:pb-8 md:pt-4"
         >
-          {/* Header — hidden on mobile */}
-          <h2 className="mb-2 hidden px-1 text-sm font-extrabold tracking-tight text-slate-900 sm:mb-3 sm:block">
-            Shop Categories
-          </h2>
+          {!isSearching && (
+            <CategoryBanner category={activeCategory} maxDiscountPercent={list.maxDiscount} />
+          )}
 
-          <div className="flex flex-col gap-2 sm:gap-3">
-            {/* All Products option */}
-            <button
-              onClick={() => selectCategory(null)}
-              className={`flex w-full flex-col items-center gap-2 rounded-xl pb-2 pt-0.5 px-0.5 transition-all cursor-pointer sm:pb-2.5 sm:pt-1 sm:px-1 lg:flex-row lg:items-center lg:gap-2.5 lg:px-2 lg:py-2 ${
-                activeCategoryId === null && !showFavorites
-                  ? "bg-emerald-50 ring-2 ring-emerald-600"
-                  : "hover:bg-gray-50"
-              }`}
-            >
-              {/* Image tile */}
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base sm:h-12 sm:w-12 sm:text-lg lg:h-10 lg:w-10 lg:text-base ${
-                  activeCategoryId === null && !showFavorites
-                    ? "bg-emerald-600 text-white"
-                    : "bg-gray-100 text-emerald-700"
-                }`}
-              >
-                ▦
+          <div className="mb-2.5 mt-4 flex items-baseline justify-between gap-3">
+            <h2 className="min-w-0 truncate text-base font-extrabold tracking-tight text-slate-900 sm:text-xl">
+              {heading}
+            </h2>
+            {countLabel && (
+              <span className="shrink-0 text-xs font-semibold text-slate-500" aria-live="polite">
+                {countLabel}
               </span>
               {/* Text — below image on mobile, beside image on desktop */}
               <span
@@ -893,130 +860,36 @@ export default function Home() {
                 })}
               </div>
             )}
-          </section>
+          </div>
 
-         <HomeFooter />
+          <CategoryProductGrid
+            products={list.products}
+            isLoading={isLoading}
+            error={error}
+            onRetry={() => loadFirstPage(selectedId, debouncedSearch)}
+            emptyMessage={emptyMessage}
+            onResetFilters={activeCategory || isSearching ? () => selectCategory(null) : undefined}
+            hasMore={list.hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={loadMore}
+          />
+
+          <div className="mt-8 hidden md:block">
+            <HomeFooter />
+          </div>
         </section>
       </div>
 
-      {/* =========================================================================
-          4. FIXED MOBILE BOTTOM NAVIGATION
-         ========================================================================= */}
-      <nav
-        className={`fixed inset-x-3 bottom-2 z-[100] rounded-[26px] border border-white/70 bg-white/75 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_8px_32px_rgba(22,55,35,0.18)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden ${
-          scrolling ? "pointer-events-none translate-y-[130%] opacity-0" : "translate-y-0 opacity-100"
-        }`}
-      >
-        <div className="mx-auto flex h-[64px] max-w-md items-center justify-around">
-          <button
-            type="button"
-            onClick={() => {
-              selectCategory(null);
-              setSearch("");
-              setShowFavorites(false);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className={`flex flex-1 flex-col items-center justify-center gap-1 cursor-pointer ${
-              !showFavorites && activeCategoryId === null && !search
-                ? "text-green-700 font-bold"
-                : "text-gray-400 hover:text-green-700"
-            }`}
-          >
-            <HomeIcon size={21} strokeWidth={2} />
-            <span className="text-[10px] font-semibold">Home</span>
-          </button>
-
-          <Link
-            href="/wishlist"
-            data-nav-wishlist-mobile
-            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 hover:text-green-700"
-            aria-label="Wishlist"
-          >
-            <span className="relative">
-              <Heart
-                size={21}
-                strokeWidth={1.8}
-                className={wishlistCount > 0 ? "fill-rose-500 text-rose-500" : ""}
-              />
-              {wishlistCount > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-bold text-white shadow-xs">
-                  {wishlistCount}
-                </span>
-              )}
-            </span>
-            <span className="text-[10px] font-semibold">Wishlist</span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowFavorites(false);
-              setSearch("");
-              document.getElementById("categories")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700 cursor-pointer"
-          >
-            <LayoutGrid size={21} strokeWidth={1.8} />
-            <span className="text-[10px] font-semibold">Categories</span>
-          </button>
-
-          <Link
-            href="/cart"
-            data-nav-cart-mobile
-            className="relative flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
-          >
-            <span className="relative">
-              <ShoppingCart size={21} strokeWidth={1.8} />
-              {cartCount > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-orange-500 px-1 text-[8px] font-bold text-white">
-                  {cartCount}
-                </span>
-              )}
-            </span>
-            <span className="text-[10px] font-semibold">Cart</span>
-          </Link>
-
-          <Link
-            href="/customer/profile?tab=profile"
-            aria-label="My Account"
-            className="flex flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition hover:text-green-700"
-          >
-            <UserRound size={21} strokeWidth={1.8} />
-            <span className="text-[10px] font-semibold">Account</span>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Toast Notification */}
-      {notice && (
-        <div
-          role="status"
-          className="fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-2xl bg-slate-900/90 backdrop-blur-md px-5 py-3 text-center text-xs font-bold text-white shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3"
-        >
-          <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
-          <span>{notice}</span>
-          <button
-            onClick={() => setNotice("")}
-            className="ml-3 text-slate-400 hover:text-white"
-            aria-label="Dismiss notification"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Desktop Floating Cart Pill */}
-      {cartCount > 0 && (
-        <Link
-          href="/cart"
-          className="fixed bottom-6 right-6 z-30 hidden rounded-2xl bg-[#00875a] hover:bg-[#00734d] px-6 py-4 font-black text-white shadow-2xl shadow-emerald-700/30 md:flex items-center gap-3 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-        >
-          <ShoppingCart size={20} />
-          <span>{cartCount} items · ₹{cartTotal}</span>
-        </Link>
-      )}
+      <CustomerBottomNav wishlistCount={wishlistCount} cartCount={cartCount} />
     </main>
-    
   );
-  
+}
+
+export default function CategoriesPage() {
+  // useSearchParams() must sit under a Suspense boundary in the App Router
+  return (
+    <Suspense fallback={<div className="h-dvh bg-[#f6f9f3]" />}>
+      <CategoriesContent />
+    </Suspense>
+  );
 }

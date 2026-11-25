@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useRef } from "react";
@@ -23,6 +22,11 @@ export interface ZeptoProductCardProps {
   ) => void;
   rating?: number;
   reviewsCount?: number;
+  /**
+   * When true the card fills its grid cell instead of using the fixed
+   * carousel widths. Default (false) keeps the existing carousel look.
+   */
+  fluid?: boolean;
 }
 
 export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
@@ -33,6 +37,7 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
   onAddToCart,
   rating,
   reviewsCount,
+  fluid = false,
 }) => {
   const { isWishlisted: checkIsWishlisted, toggleWishlist } = useWishlist();
   const { addToCart, updateQuantity, removeItem, getCartItemForProduct } =
@@ -213,7 +218,11 @@ export const ZeptoProductCard: React.FC<ZeptoProductCardProps> = ({
   return (
     <div
       ref={cardRef}
-      className="group relative flex w-[114px] min-w-[114px] sm:w-[136px] sm:min-w-[136px] lg:w-[170px] shrink-0 flex-col rounded-xl bg-white p-1.5 transition-all select-none border border-slate-100/90 shadow-2xs hover:shadow-xs"
+      className={`group relative flex flex-col rounded-xl bg-white p-1.5 transition-all select-none border border-slate-100/90 shadow-2xs hover:shadow-xs ${
+        fluid
+          ? "w-full min-w-0"
+          : "w-[114px] min-w-[114px] sm:w-[136px] sm:min-w-[136px] lg:w-[170px] shrink-0"
+      }`}
     >
       {/* Product image container */}
       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[#f8f9fa] p-1 flex items-center justify-center">
