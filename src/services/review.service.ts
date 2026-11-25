@@ -14,6 +14,7 @@ import {
   ReviewSortOption,
 } from "@/types";
 import { customerTokenStorage } from "./customer-auth.service";
+import { getReviewApiBaseUrl } from "@/config/api.config";
 
 export class ReviewApiError extends Error {
   public statusCode: number;
@@ -42,13 +43,7 @@ export class ReviewService {
     if (typeof window !== "undefined") {
       return "";
     }
-    if (process.env.NEXT_PUBLIC_REVIEW_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_REVIEW_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-    return "http://localhost:8088";
+    return getReviewApiBaseUrl();
   }
 
   /**

@@ -26,6 +26,7 @@ import {
 } from "@/types";
 import { getAuthToken } from "./api-client";
 import { customerTokenStorage } from "./customer-auth.service";
+import { getDeliveryApiBaseUrl } from "@/config/api.config";
 
 export class DeliveryApiError extends Error {
   public statusCode: number;
@@ -51,13 +52,7 @@ class DeliveryService {
     if (typeof window !== "undefined") {
       return "";
     }
-    if (process.env.NEXT_PUBLIC_DELIVERY_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_DELIVERY_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-    return "http://192.168.0.135:8080";
+    return getDeliveryApiBaseUrl();
   }
 
   private async request<T>(

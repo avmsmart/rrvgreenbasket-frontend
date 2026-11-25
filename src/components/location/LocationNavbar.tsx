@@ -1,8 +1,7 @@
-
 "use client";
 
 import React from "react";
-import { MapPin, ChevronDown, Clock } from "lucide-react";
+import { ChevronDown, Clock } from "lucide-react";
 import { useLocation } from "@/context/LocationContext";
 
 interface LocationNavbarProps {
@@ -28,24 +27,25 @@ export const LocationNavbar: React.FC<LocationNavbarProps> = ({
     <button
       type="button"
       onClick={openLocationModal}
-      className={`group flex min-w-0 items-center gap-2 text-left ${className}`}
+      className={`group flex min-w-0 max-w-full items-center gap-2 text-left ${className}`}
       aria-label={`Delivery location: ${locationLabel}. Click to change.`}
     >
-      <MapPin
-        className={`shrink-0 text-emerald-700 ${
-          isMobile ? "h-4 w-4" : "h-5 w-5"
-        }`}
-      />
-
-      <span className="min-w-0 leading-tight">
-        <span className="block text-[10px] font-medium text-slate-500">
-          Delivering to
+      <span className="min-w-0 text-center leading-tight">
+        {/* Line 1: big */}
+        <span
+          className={`flex items-center justify-center gap-1.5 font-extrabold text-emerald-800 ${
+            isMobile ? "text-[17px]" : "text-lg"
+          }`}
+        >
+          <Clock className="h-[18px] w-[18px] shrink-0" />
+          <span className="truncate">Delivery by 10:00 AM</span>
         </span>
 
-        <span className="flex min-w-0 items-center gap-1">
+        {/* Line 2: medium (current location) */}
+        <span className="mt-0.5 flex min-w-0 items-center justify-center gap-1.5">
           <span
-            className={`truncate font-bold text-slate-900 ${
-              isMobile ? "text-xs" : "text-sm"
+            className={`truncate font-semibold text-slate-700 ${
+              isMobile ? "text-[13px]" : "text-sm"
             }`}
           >
             {locationLabel}
@@ -60,11 +60,6 @@ export const LocationNavbar: React.FC<LocationNavbarProps> = ({
           )}
 
           <ChevronDown className="h-3 w-3 shrink-0 text-slate-400 transition-transform group-hover:translate-y-0.5" />
-        </span>
-
-        <span className="mt-1 flex items-center gap-1 text-[10px] font-medium text-emerald-700">
-          <Clock className="h-3 w-3 shrink-0" />
-          Delivery by 10:00 AM
         </span>
       </span>
 

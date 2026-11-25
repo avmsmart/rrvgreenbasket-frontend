@@ -120,11 +120,31 @@ export default function OrdersManagementPage() {
     let result = [...orders];
 
     if (statusFilter && statusFilter !== "All") {
-      result = result.filter((o) => o.status === statusFilter);
+      const sf = statusFilter.toUpperCase().replace(/\s+/g, "_");
+      result = result.filter((o) => {
+        const os = String(o.status).toUpperCase().replace(/\s+/g, "_");
+        if (sf === "PENDING") {
+          return os === "PENDING" || os === "CONFIRMED" || os === "PLACED";
+        }
+        if (sf === "PROCESSING") {
+          return os === "PROCESSING" || os === "PACKED" || os === "IN_PACKING";
+        }
+        return os === sf;
+      });
     }
 
     if (paymentFilter && paymentFilter !== "All") {
-      result = result.filter((o) => o.paymentStatus === paymentFilter);
+      const pf = paymentFilter.toUpperCase().replace(/\s+/g, "_");
+      result = result.filter((o) => {
+        const ps = String(o.paymentStatus).toUpperCase().replace(/\s+/g, "_");
+        if (pf === "PENDING") {
+          return ps === "PENDING" || ps === "COD_PENDING";
+        }
+        if (pf === "PAID") {
+          return ps === "PAID" || ps === "COMPLETED";
+        }
+        return ps === pf;
+      });
     }
 
     if (paymentMethodFilter && paymentMethodFilter !== "All") {
@@ -134,11 +154,11 @@ export default function OrdersManagementPage() {
 
     if (amountFilter && amountFilter !== "All") {
       if (amountFilter === "Under ₹200") {
-        result = result.filter((o) => o.amount < 200);
+        result = result.filter((o) => (o.totalAmount || o.amount) < 200);
       } else if (amountFilter === "₹200 - ₹500") {
-        result = result.filter((o) => o.amount >= 200 && o.amount <= 500);
+        result = result.filter((o) => (o.totalAmount || o.amount) >= 200 && (o.totalAmount || o.amount) <= 500);
       } else if (amountFilter === "Above ₹500") {
-        result = result.filter((o) => o.amount > 500);
+        result = result.filter((o) => (o.totalAmount || o.amount) > 500);
       }
     }
 
@@ -147,6 +167,11 @@ export default function OrdersManagementPage() {
       result = result.filter(
         (o) =>
           o.id.toLowerCase().includes(q) ||
+          (o.orderNumber && o.orderNumber.toLowerCase().includes(q)) ||
+          (o.registeredCustomerName && o.registeredCustomerName.toLowerCase().includes(q)) ||
+          (o.registeredCustomerMobile && o.registeredCustomerMobile.includes(q)) ||
+          (o.recipientName && o.recipientName.toLowerCase().includes(q)) ||
+          (o.recipientMobile && o.recipientMobile.includes(q)) ||
           o.customerName.toLowerCase().includes(q) ||
           o.customerPhone.includes(q) ||
           (o.customerAddress && o.customerAddress.toLowerCase().includes(q))
@@ -155,11 +180,16 @@ export default function OrdersManagementPage() {
 
     result.sort((a, b) => {
       const order = sortOrder === "desc" ? -1 : 1;
+      const amtA = a.totalAmount ?? a.amount ?? 0;
+      const amtB = b.totalAmount ?? b.amount ?? 0;
+      const countA = a.itemsCount ?? a.items?.length ?? 0;
+      const countB = b.itemsCount ?? b.items?.length ?? 0;
+
       if (sortBy === "amount") {
-        return (a.amount - b.amount) * order;
+        return (amtA - amtB) * order;
       }
       if (sortBy === "itemsCount") {
-        return (a.itemsCount - b.itemsCount) * order;
+        return (countA - countB) * order;
       }
       if (sortBy === "customerName") {
         return a.customerName.localeCompare(b.customerName) * order;

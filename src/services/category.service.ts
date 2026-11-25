@@ -15,6 +15,7 @@
  */
 
 import { ApiError, getAuthToken, removeAuthToken } from "./api-client";
+import { getProductApiBaseUrl } from "@/config/api.config";
 import {
   Category,
   ApiResponse,
@@ -31,14 +32,7 @@ export class CategoryService {
    * Resolves the API base URL from project environment configuration
    */
   public getBaseUrl(): string {
-    const envUrl =
-      process.env.NEXT_PUBLIC_ADMIN_PRODUCT_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (envUrl) {
-      return envUrl.replace(/\/$/, "");
-    }
-    return "http://localhost:8080";
+    return getProductApiBaseUrl();
   }
 
   /**

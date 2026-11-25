@@ -8,6 +8,7 @@
 
 import { getAuthToken, removeAuthToken, ApiError } from "./api-client";
 import { categoryService } from "./category.service";
+import { getProductApiBaseUrl } from "@/config/api.config";
 import {
   AdminProduct,
   AdminProductPageData,
@@ -34,14 +35,7 @@ export class AdminProductService {
    * Resolves dedicated base URL for Product Management backend
    */
   public getBaseUrl(): string {
-    const envUrl =
-      process.env.NEXT_PUBLIC_ADMIN_PRODUCT_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (envUrl) {
-      return envUrl.replace(/\/$/, "");
-    }
-    return "http://localhost:8080";
+    return getProductApiBaseUrl();
   }
 
   /**

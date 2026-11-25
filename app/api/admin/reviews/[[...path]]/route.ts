@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerReviewUrl } from "@/config/api.config";
 
-const TARGET_URL = (
-  process.env.BACKEND_REVIEW_URL ||
-  process.env.NEXT_PUBLIC_REVIEW_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://localhost:8088"
-).replace(/\/$/, "");
+const TARGET_URL = getServerReviewUrl();
 
 async function handleAdminReviewsProxy(
   request: NextRequest,

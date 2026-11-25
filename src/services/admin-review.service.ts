@@ -12,6 +12,7 @@ import {
   AdminReviewStatistics,
 } from "@/types";
 import { getAuthToken } from "./api-client";
+import { getReviewApiBaseUrl } from "@/config/api.config";
 
 export class AdminReviewApiError extends Error {
   public statusCode: number;
@@ -40,16 +41,7 @@ export class AdminReviewService {
     if (typeof window !== "undefined") {
       return "";
     }
-    if (process.env.NEXT_PUBLIC_REVIEW_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_REVIEW_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL.replace(/\/$/, "");
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-    return "http://localhost:8088";
+    return getReviewApiBaseUrl();
   }
 
   /**

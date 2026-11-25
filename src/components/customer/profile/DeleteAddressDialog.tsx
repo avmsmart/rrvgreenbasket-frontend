@@ -50,7 +50,7 @@ export const DeleteAddressDialog: React.FC<DeleteAddressDialogProps> = ({
 
         {/* Address Preview Box */}
         <div className="mt-4 rounded-2xl bg-gray-50 p-3.5 border border-gray-100 text-left">
-          <p className="text-xs font-bold text-gray-900">
+          <p className="text-sm font-bold text-slate-900">
             {address.receiverName} •{" "}
             <span className="text-[11px] font-semibold text-gray-500 uppercase">
               {address.addressType}

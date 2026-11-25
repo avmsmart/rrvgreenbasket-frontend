@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { MapPin } from "lucide-react";
+import {
+  MapPin,
+  Home,
+  BriefcaseBusiness,
+  Phone,
+  Pencil,
+  Trash2,
+  Plus,
+  CheckCircle2,
+  ChevronRight,
+} from "lucide-react";
 import { useLocation } from "@/context/LocationContext";
 import {
   CustomerAddress,
@@ -148,95 +158,162 @@ export const CustomerAddresses: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Saved Delivery Addresses</h1>
-            <p className="mt-1 text-xs text-gray-500">
-              Manage locations where your organic vegetables and groceries are delivered
-            </p>
+    <div className="w-full bg-white px-4 py-5 text-slate-900 sm:px-6 sm:py-6">
+      <div className="mx-auto w-full max-w-5xl">
+        {/* Heading and add action */}
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <MapPin className="h-5 w-5" />
+            </span>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                My Addresses
+              </h1>
+              <p className="mt-1 max-w-xl text-sm leading-5 text-slate-500">
+                Manage your delivery locations for faster checkout and scheduled farm deliveries
+              </p>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-green-800 transition active:scale-95"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100"
           >
-            <span>+</span> Add New Address
+            <Plus className="h-4 w-4" />
+            Add New Address
           </button>
         </div>
 
-        {/* Addresses Grid */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {addresses.map((addr) => (
-            <div
-              key={addr.id}
-              className={`rounded-2xl border p-5 transition flex flex-col justify-between ${
-                addr.isDefault
-                  ? "border-green-600 bg-green-50/30 ring-1 ring-green-600 shadow-sm"
-                  : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700 uppercase">
-                      {addr.type}
-                    </span>
-                    {addr.isDefault && (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-800">
-                        ✓ Default
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(addr)}
-                      className="text-green-700 hover:underline font-semibold"
-                    >
-                      Edit
-                    </button>
-                    <span className="text-gray-300">•</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAddress(addr.id)}
-                      className="text-red-600 hover:underline font-semibold"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
+        {/* Saved addresses */}
+        <section className="pt-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-slate-900">Saved Addresses</h2>
+            <span className="text-xs text-slate-500">
+              {addresses.length} {addresses.length === 1 ? "address" : "addresses"}
+            </span>
+          </div>
 
-                <h3 className="mt-3 text-sm font-bold text-gray-900">
-                  {addr.fullName}
-                </h3>
-                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                  {addr.flatHouse}, {addr.streetArea}
-                  {addr.landmark ? `, Near ${addr.landmark}` : ""}
-                  <br />
-                  {addr.city}, {addr.state} – {addr.pin}
-                </p>
-                <p className="mt-2 text-xs text-gray-500 font-mono">
-                  📞 {addr.phone}
-                </p>
-              </div>
-
-              {!addr.isDefault && (
-                <div className="mt-4 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => handleSetDefault(addr.id)}
-                    className="text-xs font-semibold text-green-700 hover:underline"
-                  >
-                    Set as Default Delivery Address
-                  </button>
-                </div>
-              )}
+          {addresses.length === 0 ? (
+            <div className="border-y border-slate-100 py-10 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <MapPin className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-sm font-semibold text-slate-800">
+                No saved addresses yet
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Add an address to make your next delivery easier.
+              </p>
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-orange-600"
+              >
+                <Plus className="h-4 w-4" />
+                Add your first address
+              </button>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="!block !w-full !max-w-full divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              {addresses.map((addr, index) => {
+                const AddressIcon =
+                  addr.type === "HOME"
+                    ? Home
+                    : addr.type === "WORK"
+                      ? BriefcaseBusiness
+                      : MapPin;
+
+                return (
+                  <article
+                    key={addr.id}
+                    className={`!block !w-full !max-w-full px-4 py-4 sm:px-5 ${
+                      addr.isDefault ? "bg-emerald-50/40" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex w-full min-w-0 items-start gap-3">
+                      <span
+                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                          addr.isDefault
+                            ? "bg-emerald-100 text-emerald-700"
+                            : addr.type === "WORK"
+                              ? "bg-blue-50 text-blue-700"
+                              : addr.type === "OTHER"
+                                ? "bg-orange-50 text-orange-600"
+                                : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        <AddressIcon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900">
+                            {addr.fullName}
+                          </span>
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                            {addr.type}
+                          </span>
+                          {addr.isDefault && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Default address
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-1.5 break-words text-xs leading-5 text-slate-600">
+                          {addr.flatHouse}, {addr.streetArea}
+                          {addr.landmark ? `, Near ${addr.landmark}` : ""}
+                        </p>
+                        <p className="break-words text-xs leading-5 text-slate-600">
+                          {addr.city}, {addr.state} – {addr.pin}
+                        </p>
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                          <Phone className="h-3.5 w-3.5 text-blue-600" />
+                          {addr.phone}
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                          {!addr.isDefault && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefault(addr.id)}
+                              className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-emerald-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-emerald-800"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Set as default
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(addr)}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="mt-1 hidden h-4 w-4 shrink-0 text-slate-300 sm:block" />
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
 
       {/* Add / Edit Address Modal */}
@@ -256,7 +333,7 @@ export const CustomerAddresses: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="rounded-lg p-1 text-slate-500 hover:bg-gray-100 hover:text-gray-700"
               >
                 ✕
               </button>

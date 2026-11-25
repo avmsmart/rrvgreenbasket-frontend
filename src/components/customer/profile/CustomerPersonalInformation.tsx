@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Mail,
   Phone,
+  Lock,
   AlertCircle,
   Info,
 } from "lucide-react";
@@ -27,14 +28,12 @@ export const CustomerPersonalInformation: React.FC<CustomerPersonalInformationPr
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState(customer?.fullName || "");
-  const [email, setEmail] = useState(customer?.email || "");
   const [selectedAvatar, setSelectedAvatar] = useState(customer?.avatarUrl || "🧺");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleEditClick = () => {
     setFullName(customer?.fullName || "");
-    setEmail(customer?.email || "");
     setSelectedAvatar(customer?.avatarUrl || "🧺");
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -43,12 +42,13 @@ export const CustomerPersonalInformation: React.FC<CustomerPersonalInformationPr
 
   const handleCancelClick = () => {
     setFullName(customer?.fullName || "");
-    setEmail(customer?.email || "");
     setSelectedAvatar(customer?.avatarUrl || "🧺");
     setErrorMessage(null);
     setIsEditing(false);
   };
 
+  // Customers can only change their name and profile icon.
+  // Mobile number and email are never sent in the update.
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -58,14 +58,8 @@ export const CustomerPersonalInformation: React.FC<CustomerPersonalInformationPr
       return;
     }
 
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setErrorMessage("Please enter a valid email address.");
-      return;
-    }
-
     onUpdate({
       fullName: fullName.trim(),
-      email: email.trim(),
       avatarUrl: selectedAvatar,
     });
 
@@ -74,205 +68,221 @@ export const CustomerPersonalInformation: React.FC<CustomerPersonalInformationPr
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
+  const displayAvatar = isEditing ? selectedAvatar : customer?.avatarUrl;
+  const initial = (customer?.fullName || "?").trim().charAt(0).toUpperCase();
+
+  const editButtonClass =
+    "inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-100 active:scale-[0.98]";
+
+  const detailRows = [
+    {
+      label: "Full name",
+      value: customer?.fullName || "Not provided",
+      icon: User,
+      iconClass: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: "Mobile number",
+      value: customer?.mobileNumber || "Not available",
+      icon: Phone,
+      iconClass: "bg-orange-50 text-orange-600",
+      verified: true,
+    },
+    {
+      label: "Email address",
+      value: customer?.email || "No email address linked",
+      icon: Mail,
+      iconClass: "bg-blue-50 text-blue-700",
+    },
+  ];
+
   return (
-    <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
-      {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-100 gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-              <User className="w-4 h-4" />
-            </span>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              Personal Information
-            </h1>
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            Manage your personal profile details and contact preferences
-          </p>
-        </div>
-
-        {!isEditing ? (
-          <button
-            type="button"
-            onClick={handleEditClick}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-800 transition active:scale-95"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            <span>Edit Profile</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCancelClick}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Cancel</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow hover:bg-emerald-800 transition active:scale-95"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>Save Changes</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Success Notification */}
-      {successMessage && (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-in fade-in">
-          <Check className="w-4 h-4 text-emerald-700 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {/* Error Notification */}
-      {errorMessage && (
-        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800 flex items-center gap-2 animate-in fade-in">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* View Mode */}
-      {!isEditing ? (
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Full Name
-            </span>
-            <p className="mt-1.5 text-sm font-bold text-gray-900">
-              {customer?.fullName || "Not provided"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                Mobile Number
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                <span>Verified</span>
-              </span>
+    <div className="w-full bg-white px-4 py-5 text-slate-900 sm:px-6 sm:py-7">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+              {displayAvatar || initial}
             </div>
-            <p className="mt-1.5 text-sm font-mono font-bold text-gray-900">
-              {customer?.mobileNumber || "Not available"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Email Address
-            </span>
-            <p className="mt-1.5 text-sm font-semibold text-gray-900">
-              {customer?.email || "No email address linked"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Account Status &amp; ID
-            </span>
-            <div className="mt-1.5 flex items-center justify-between">
-              <p className="text-xs text-gray-600 font-mono truncate max-w-[180px]">
-                {customer?.publicId || "CUST-RRV-LIVE"}
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                Customer account
               </p>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                Active Member
-              </span>
+              <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                Personal Information
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Manage your name and contact details
+              </p>
             </div>
           </div>
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={handleEditClick}
+              className={`${editButtonClass} bg-orange-500 text-white hover:bg-orange-600`}
+            >
+              <Pencil className="h-4 w-4" />
+              <span>Edit Profile</span>
+            </button>
+          )}
         </div>
-      ) : (
-        /* Edit Mode */
-        <form onSubmit={handleSave} className="mt-6 space-y-6">
-          {/* Avatar Picker */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-2">
-              Choose Profile Icon
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {AVATAR_OPTIONS.map((icon) => (
+
+        <div className="pt-5">
+          {successMessage && (
+            <div className="mb-4 flex items-center gap-2 border-l-4 border-emerald-500 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="mb-4 flex items-center gap-2 border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {!isEditing ? (
+            <div className="divide-y divide-slate-100">
+              {detailRows.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="flex items-center gap-3 py-5 sm:gap-4">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${item.iconClass}`}>
+                      <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 break-words text-sm font-semibold text-slate-900 sm:text-base">
+                        {item.value}
+                      </p>
+                    </div>
+                    {item.verified && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Verified
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <form onSubmit={handleSave} className="max-w-3xl space-y-6">
+              <div>
+                <span className="block text-sm font-semibold text-slate-800">
+                  Choose profile icon
+                </span>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {AVATAR_OPTIONS.map((icon) => (
+                    <button
+                      key={icon}
+                      type="button"
+                      aria-label={`Select ${icon} icon`}
+                      aria-pressed={selectedAvatar === icon}
+                      onClick={() => setSelectedAvatar(icon)}
+                      className={`flex h-11 w-11 items-center justify-center rounded-lg text-xl transition ${
+                        selectedAvatar === icon
+                          ? "bg-emerald-50 ring-2 ring-emerald-600"
+                          : "bg-slate-50 hover:bg-orange-50"
+                      }`}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="cpi-name" className="block text-sm font-semibold text-slate-800">
+                    Full name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="cpi-name"
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Mahendra Kumar"
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-50"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="cpi-mobile" className="block text-sm font-semibold text-slate-800">
+                    Mobile number
+                  </label>
+                  <div className="relative mt-1.5">
+                    <input
+                      id="cpi-mobile"
+                      type="text"
+                      value={customer?.mobileNumber || ""}
+                      readOnly
+                      disabled
+                      className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 pr-10 text-sm text-slate-500"
+                    />
+                    <Lock className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-orange-500" />
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label htmlFor="cpi-email" className="block text-sm font-semibold text-slate-800">
+                    Email address
+                  </label>
+                  <div className="relative mt-1.5">
+                    <input
+                      id="cpi-email"
+                      type="email"
+                      value={customer?.email || ""}
+                      readOnly
+                      disabled
+                      className="w-full cursor-not-allowed truncate rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 pr-10 text-sm text-slate-500"
+                    />
+                    <Lock className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 border-l-4 border-blue-500 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+                <div>
+                  <p className="font-bold">You can only change your name and profile icon</p>
+                  <p className="mt-1 leading-5 text-blue-800">
+                    Your mobile number and email are linked to your account and can&apos;t be
+                    edited. To update them, please contact customer support.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
                 <button
-                  key={icon}
                   type="button"
-                  onClick={() => setSelectedAvatar(icon)}
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl text-xl transition ${
-                    selectedAvatar === icon
-                      ? "bg-emerald-700 text-white ring-2 ring-emerald-600 scale-105 shadow-md"
-                      : "bg-gray-100 hover:bg-gray-200"
-                  }`}
+                  onClick={handleCancelClick}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-w-32"
                 >
-                  {icon}
+                  <X className="h-4 w-4" />
+                  <span>Cancel</span>
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-bold text-gray-700">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Mahendra Kumar"
-                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 flex items-start gap-3">
-            <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-            <div>
-              <p className="font-bold">Mobile Number Security</p>
-              <p className="mt-0.5 text-amber-800">
-                Your registered mobile number ({customer?.mobileNumber}) is used for OTP logins. To update your mobile number, please contact customer support.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-5 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={handleCancelClick}
-              className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-800"
-            >
-              Save Profile
-            </button>
-          </div>
-        </form>
-      )}
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 sm:min-w-36"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>Save changes</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
+
 };
 
 export default CustomerPersonalInformation;

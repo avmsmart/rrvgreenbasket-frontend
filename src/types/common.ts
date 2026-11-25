@@ -32,9 +32,9 @@ export interface StatusTabItem {
  */
 export interface ApiResponse<T> {
   success: boolean;
+  message: string;
   data: T;
-  message?: string;
-  timestamp?: string;
+  timestamp: string;
   errorCode?: string;
 }
 

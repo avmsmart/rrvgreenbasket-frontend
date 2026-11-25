@@ -17,6 +17,7 @@ import {
   customerAuthService,
   customerTokenStorage,
 } from "./customer-auth.service";
+import { getCartApiBaseUrl } from "@/config/api.config";
 
 const CUSTOMER_CART_KEY = "rrv_customer_active_cart";
 
@@ -42,16 +43,7 @@ export class CartApiError extends Error {
 export class CartService {
   public getBaseUrl(): string {
     if (typeof window !== "undefined") return "";
-
-    if (process.env.NEXT_PUBLIC_CART_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_CART_API_BASE_URL.replace(/\/$/, "");
-    }
-
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-    }
-
-    return "http://192.168.0.142:8080";
+    return getCartApiBaseUrl();
   }
 
   private normalizeToken(value?: string | null): string {
@@ -61,17 +53,75 @@ export class CartService {
       .trim();
   }
 
+  private parseJsonPayload(input: string): unknown {
+    const text = input.trim();
+    if (!text) return null;
+
+    // First try the complete response. Also decode JSON encoded as a string.
+    try {
+      let value: unknown = JSON.parse(text);
+      for (let i = 0; i < 3 && typeof value === "string"; i++) {
+        const nested = value.trim();
+        try {
+          value = JSON.parse(nested);
+        } catch {
+          // A JSON string may contain concatenated JSON documents.
+          return this.parseFirstJsonDocument(nested);
+        }
+      }
+      return value;
+    } catch {
+      return this.parseFirstJsonDocument(text);
+    }
+  }
+
+  private parseFirstJsonDocument(text: string): unknown {
+    const start = text.search(/[\[{]/);
+    if (start < 0) return text;
+
+    const opening = text[start];
+    const closing = opening === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < text.length; i++) {
+      const char = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === opening) depth++;
+      else if (char === closing) {
+        depth--;
+        if (depth === 0) {
+          const firstDocument = text.slice(start, i + 1);
+          const trailing = text.slice(i + 1).trim();
+          if (trailing) {
+            console.warn(
+              "[CartService] API response contains extra content after its first JSON document.",
+              trailing.slice(0, 200)
+            );
+          }
+          try {
+            return JSON.parse(firstDocument);
+          } catch {
+            return text;
+          }
+        }
+      }
+    }
+    return text;
+  }
+
   private async readResponseBody(response: Response): Promise<unknown> {
     if (response.status === 204) return null;
-
     const text = await response.text();
     if (!text.trim()) return null;
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
+    return this.parseJsonPayload(text);
   }
 
   private unwrapResponse<T>(body: unknown): T {
@@ -377,116 +427,136 @@ export class CartService {
 
   /** GET /api/cart - Retrieve the authenticated customer's cart. */
   async getCart(): Promise<CartResponse> {
-    const token = customerTokenStorage.getAccessToken();
+    const token = this.normalizeToken(customerTokenStorage.getAccessToken());
+
+    // Guest cart only. Authenticated carts must come from Spring Boot.
     if (!token) {
       return this.getLocalCart();
     }
 
-    try {
-      const remote = await this.request<CartResponse>("/api/cart", {
-        method: "GET",
-        cache: "no-store",
-      });
-      if (remote && Array.isArray(remote.items)) {
-        this.saveLocalCart(remote);
-        return remote;
-      }
-      return this.getLocalCart();
-    } catch (err: unknown) {
-      console.warn("[CartService] Backend getCart fallback to persistent cart:", err);
-      return this.getLocalCart();
-    }
-  }
+    const remote = await this.request<CartResponse>("/api/cart", {
+      method: "GET",
+      cache: "no-store",
+    });
 
+    if (!remote || !Array.isArray(remote.items)) {
+      throw new CartApiError(
+        "The backend returned an invalid cart response.",
+        500,
+        "/api/cart",
+        remote
+      );
+    }
+
+    this.saveLocalCart(remote);
+    return remote;
+  }
   /** POST /api/cart/items - Add a product quantity in KG. */
   async addItem(payload: AddCartItemRequest): Promise<CartResponse> {
-    const pId = payload.productPublicId.trim();
-    const qty = Number(payload.quantityKg) || 1;
+    const pId = payload.productPublicId?.trim();
+    const qty = Number(payload.quantityKg);
 
-    try {
-      const response = await this.request<CartResponse>("/api/cart/items", {
-        method: "POST",
-        body: JSON.stringify({
-          productPublicId: pId,
-          quantityKg: qty,
-        }),
-      });
+    if (!pId || !Number.isFinite(qty) || qty <= 0) {
+      throw new CartApiError("Invalid product or quantity.", 400, "/api/cart/items");
+    }
 
-      if (response && Array.isArray(response.items)) {
-        this.saveLocalCart(response);
-        return response;
-      }
-      return this.applyItemToLocalCart(payload);
-    } catch (err: unknown) {
-      console.warn("[CartService] Backend addItem fallback to persistent cart:", err);
+    const token = this.normalizeToken(customerTokenStorage.getAccessToken());
+    if (!token) {
       return this.applyItemToLocalCart(payload);
     }
-  }
 
+    const response = await this.request<CartResponse>("/api/cart/items", {
+      method: "POST",
+      body: JSON.stringify({ productPublicId: pId, quantityKg: qty }),
+    });
+
+    if (!response || !Array.isArray(response.items)) {
+      throw new CartApiError(
+        "The backend did not return the updated cart.",
+        500,
+        "/api/cart/items",
+        response
+      );
+    }
+
+    this.saveLocalCart(response);
+    return response;
+  }
   /** PUT /api/cart/items/{cartItemPublicId} - Update cart quantity. */
   async updateQuantity(
     cartItemPublicId: string,
     payload: UpdateCartItemRequest
   ): Promise<CartResponse> {
     const qty = Number(payload.quantityKg);
+    if (!cartItemPublicId || !Number.isFinite(qty) || qty < 0) {
+      throw new CartApiError("Invalid cart item or quantity.", 400);
+    }
 
-    try {
-      const response = await this.request<CartResponse>(
-        `/api/cart/items/${encodeURIComponent(cartItemPublicId)}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            quantityKg: qty,
-          }),
-        }
-      );
-
-      if (response && Array.isArray(response.items)) {
-        this.saveLocalCart(response);
-        return response;
-      }
-      return this.updateQuantityInLocalCart(cartItemPublicId, qty);
-    } catch (err: unknown) {
-      console.warn("[CartService] Backend updateQuantity fallback to persistent cart:", err);
+    const token = this.normalizeToken(customerTokenStorage.getAccessToken());
+    if (!token) {
       return this.updateQuantityInLocalCart(cartItemPublicId, qty);
     }
-  }
 
+    const response = await this.request<CartResponse>(
+      `/api/cart/items/${encodeURIComponent(cartItemPublicId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ quantityKg: qty }),
+      }
+    );
+
+    if (!response || !Array.isArray(response.items)) {
+      throw new CartApiError("The backend did not return the updated cart.", 500);
+    }
+
+    this.saveLocalCart(response);
+    return response;
+  }
   /** DELETE /api/cart/items/{cartItemPublicId} - Remove one cart item. */
   async removeItem(cartItemPublicId: string): Promise<CartResponse> {
-    try {
-      const response = await this.request<CartResponse>(
-        `/api/cart/items/${encodeURIComponent(cartItemPublicId)}`,
-        { method: "DELETE" }
-      );
+    if (!cartItemPublicId) {
+      throw new CartApiError("Cart item ID is required.", 400);
+    }
 
-      if (response && Array.isArray(response.items)) {
-        this.saveLocalCart(response);
-        return response;
-      }
-      return this.removeItemFromLocalCart(cartItemPublicId);
-    } catch (err: unknown) {
-      console.warn("[CartService] Backend removeItem fallback to persistent cart:", err);
+    const token = this.normalizeToken(customerTokenStorage.getAccessToken());
+    if (!token) {
       return this.removeItemFromLocalCart(cartItemPublicId);
     }
-  }
 
+    const response = await this.request<CartResponse>(
+      `/api/cart/items/${encodeURIComponent(cartItemPublicId)}`,
+      { method: "DELETE" }
+    );
+
+    if (!response || !Array.isArray(response.items)) {
+      throw new CartApiError("The backend did not return the updated cart.", 500);
+    }
+
+    this.saveLocalCart(response);
+    return response;
+  }
   /** DELETE /api/cart/items - Clear the customer's cart. */
   async clearCart(): Promise<CartResponse> {
-    try {
-      const response = await this.request<CartResponse>("/api/cart/items", {
-        method: "DELETE",
-      });
-
-      if (response && Array.isArray(response.items)) {
-        this.saveLocalCart(response);
-        return response;
-      }
-      return this.clearLocalCart();
-    } catch (err: unknown) {
-      console.warn("[CartService] Backend clearCart fallback to persistent cart:", err);
+    const token = this.normalizeToken(customerTokenStorage.getAccessToken());
+    if (!token) {
       return this.clearLocalCart();
     }
+
+    const response = await this.request<CartResponse>("/api/cart/items", {
+      method: "DELETE",
+    });
+
+    if (!response || !Array.isArray(response.items)) {
+      throw new CartApiError(
+        "The backend did not confirm that the cart was cleared.",
+        500,
+        "/api/cart/items",
+        response
+      );
+    }
+
+    this.saveLocalCart(response);
+    return response;
   }
 }
 

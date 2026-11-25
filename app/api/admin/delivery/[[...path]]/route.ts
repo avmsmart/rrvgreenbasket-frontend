@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerBackendUrl } from "@/config/api.config";
 
 /**
  * Backend API Gateway target URL for Spring Boot Admin Delivery Microservice
  */
-const BACKEND_URL = (
-  process.env.BACKEND_API_URL ||
-  process.env.NEXT_PUBLIC_DELIVERY_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://192.168.0.138:8080"
-).replace(/\/$/, "");
+const BACKEND_URL = getServerBackendUrl();
 
 async function handleAdminDeliveryProxy(
   request: NextRequest,

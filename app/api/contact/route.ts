@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerStoreUrl, getServerBackendUrl } from "@/config/api.config";
 
-const TARGET_URL = (
-  process.env.BACKEND_STORE_URL ||
-  process.env.NEXT_PUBLIC_STORE_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://192.168.0.138:8080"
-).replace(/\/$/, "");
+const TARGET_URL = getServerStoreUrl();
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +23,7 @@ export async function POST(request: NextRequest) {
       const endpoints = [
         `${TARGET_URL}/api/contact`,
         `${TARGET_URL}/api/store/contact`,
-        "http://localhost:8090/api/contact",
+        `${getServerBackendUrl()}/api/contact`,
       ];
 
       for (const endpoint of endpoints) {

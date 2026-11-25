@@ -57,10 +57,8 @@ export const CustomerAddressCard: React.FC<CustomerAddressCardProps> = ({
 
   return (
     <div
-      className={`relative flex flex-col justify-between rounded-2xl p-5 transition-all duration-200 border ${
-        address.isDefault
-          ? "border-emerald-600 bg-white shadow-md ring-1 ring-emerald-600/30"
-          : "border-gray-200 bg-white hover:border-emerald-300 hover:shadow-md"
+      className={`relative flex flex-col justify-between border-b border-slate-200 bg-white px-2 py-5 transition-colors duration-200 sm:px-4 ${
+        address.isDefault ? "border-l-4 border-l-emerald-600 bg-emerald-50/35" : "hover:bg-slate-50/70"
       }`}
     >
       <div>
@@ -104,8 +102,8 @@ export const CustomerAddressCard: React.FC<CustomerAddressCardProps> = ({
         </div>
 
         {/* Contact Mobile */}
-        <div className="mt-3.5 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-700 border border-gray-100">
-          <Phone className="w-3.5 h-3.5 text-gray-400" />
+        <div className="mt-3.5 flex items-center gap-2 text-xs text-gray-700">
+          <Phone className="w-3.5 h-3.5 text-slate-500" />
           <span className="font-medium text-gray-500">Mobile:</span>
           <span className="font-mono font-bold text-gray-900">
             {address.receiverMobile}
@@ -119,7 +117,7 @@ export const CustomerAddressCard: React.FC<CustomerAddressCardProps> = ({
           <button
             type="button"
             onClick={() => onEdit(address)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-emerald-600 hover:text-emerald-800 transition active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-emerald-600 hover:text-emerald-900 transition-colors active:scale-95"
           >
             <Pencil className="w-3.5 h-3.5" />
             <span>Edit</span>

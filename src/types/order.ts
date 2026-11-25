@@ -17,32 +17,67 @@ export type BackendPaymentStatus =
   | "PENDING"
   | "COMPLETED"
   | "FAILED"
-  | "REFUNDED";
+  | "REFUNDED"
+  | "COD_PENDING";
 
 export type BackendPaymentMethod =
   | "COD"
   | "ONLINE_FULL"
-  | "ONLINE_PARTIAL";
+  | "ONLINE_PARTIAL"
+  | "UPI";
 
 export interface AddressDto {
-  addressLine: string;
+  recipientName?: string;
+  recipientMobile?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  addressLine?: string;
   landmark?: string;
   city: string;
   state: string;
   pincode: string;
+  country?: string;
   latitude: number;
   longitude: number;
+  addressPublicId?: string;
 }
 
-export interface OrderItemResponse {
+export type AdminDeliveryAddress = AddressDto;
+
+export interface AdminOrderItem {
+  id?: string;
+  publicId?: string;
+  orderItemPublicId?: string;
+  productPublicId?: string;
+  productName: string;
+  productImage?: string | null;
+  productImageUrl?: string | null;
+  unitOfMeasure: string;
+  quantity: number;
+  quantityKg?: number;
+  unitPrice: number;
+  pricePerKg?: number;
+  totalPrice: number;
+}
+
+export interface OrderItemResponse extends AdminOrderItem {
   orderItemPublicId: string;
   productPublicId: string;
   productName: string;
-  productImageUrl?: string;
   quantityKg: number;
-  unitOfMeasure?: string;
   pricePerKg: number;
   totalPrice: number;
+}
+
+export interface AdminOrderStatusHistory {
+  id?: number | string;
+  publicId?: string;
+  newStatus?: string;
+  status?: string;
+  changedBy?: string;
+  reason?: string;
+  timestamp?: string;
+  changedAt?: string;
 }
 
 export interface OrderStatusHistoryResponse {
@@ -50,29 +85,91 @@ export interface OrderStatusHistoryResponse {
   reason?: string;
   changedAt: string;
   changedBy?: string;
+  newStatus?: string;
+  timestamp?: string;
 }
 
-export interface OrderResponse {
+export interface RegisteredCustomerDto {
+  registeredName?: string;
+  registeredMobile?: string;
+  customerPublicId?: string;
+}
+
+export interface AdminOrder {
+  id?: string;
   orderPublicId: string;
   orderNumber: string;
   customerPublicId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  orderStatus: BackendOrderStatus;
-  paymentMethod: BackendPaymentMethod;
-  paymentStatus: BackendPaymentStatus;
-  subtotalAmount: number;
-  deliveryCharge: number;
+
+  registeredCustomerName?: string;
+  registeredCustomerMobile?: string;
+
+  customer?: RegisteredCustomerDto;
+
+  recipientName?: string;
+  recipientMobile?: string;
+
+  deliveryZonePublicId?: string;
+  deliveryZoneName?: string;
+
+  orderStatus: BackendOrderStatus | string;
+  paymentStatus: BackendPaymentStatus | string;
+  paymentMethod: BackendPaymentMethod | string;
+
+  subtotal: number;
+  subtotalAmount?: number;
   discountAmount: number;
+  deliveryCharge: number;
   totalAmount: number;
-  deliveryAddress: AddressDto;
-  statusHistory?: OrderStatusHistoryResponse[];
-  items?: OrderItemResponse[];
-  deliveryDate?: string;
-  orderPlacedAt: string;
+  minimumOrderAmountSnapshot?: number;
+
+  deliveryAddress?: AdminDeliveryAddress;
+
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+
+  promisedDeliveryDate?: string;
+  orderPlacedAt?: string;
+  cancellationAllowed?: boolean;
+  cancellationDeadline?: string;
+  orderDate?: string;
+  currentStoreOpeningTime?: string;
+  currentStoreClosingTime?: string;
+
+  items: AdminOrderItem[];
+
+  statusHistory?: AdminOrderStatusHistory[];
+
+  // Optional extra metadata
+  notes?: string;
   cancelledAt?: string;
   cancellationReason?: string;
-  notes?: string;
+  deliveryDate?: string;
+}
+
+export interface AdminOrderPageResponse<T = AdminOrder> {
+  content: T[];
+  pageNumber: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  number?: number;
+  size?: number;
+  numberOfElements?: number;
+  empty?: boolean;
+}
+
+export interface OrderResponse extends AdminOrder {
+  orderStatus: BackendOrderStatus;
+  paymentStatus: BackendPaymentStatus;
+  paymentMethod: BackendPaymentMethod;
+  orderPlacedAt: string;
+  subtotalAmount: number;
+  customerName?: string;
+  customerPhone?: string;
+  statusHistory?: OrderStatusHistoryResponse[];
 }
 
 export interface CreateOrderRequest {
@@ -138,6 +235,7 @@ export interface AdminOrderQueryParams {
   fromDate?: string;
   toDate?: string;
   deliveryDate?: string;
+  date?: string;
   page?: number;
   size?: number;
   sort?: string;
@@ -154,6 +252,8 @@ export type OrderStatus =
   | "Out for Delivery"
   | "Delivered"
   | "Cancelled"
+  | "Confirmed"
+  | "CONFIRMED"
   | BackendOrderStatus;
 
 export type PaymentMethod =
@@ -162,6 +262,7 @@ export type PaymentMethod =
   | "Card"
   | "Net Banking"
   | "Wallet"
+  | "Cash on Delivery"
   | BackendPaymentMethod;
 
 export type PaymentStatus =
@@ -169,6 +270,8 @@ export type PaymentStatus =
   | "Pending"
   | "Failed"
   | "Refunded"
+  | "COD_PENDING"
+  | "COD Pending"
   | BackendPaymentStatus;
 
 export interface OrderItem {
@@ -176,10 +279,12 @@ export interface OrderItem {
   productId: string;
   productName: string;
   unit: string;
+  unitOfMeasure?: string;
   unitPrice: number;
   quantity: number;
   totalPrice: number;
   imageUrl?: string;
+  productImage?: string | null;
   hsnCode?: string;
 }
 
@@ -190,11 +295,39 @@ export interface OrderTimelineEvent {
 }
 
 export interface Order {
-  id: string; // e.g. "#ORD001234"
+  id: string; // e.g. "RRV-20261121-55506" or "#ORD001234"
+  orderPublicId?: string;
+  orderNumber?: string;
+  customerPublicId?: string;
+
+  // Registered Customer / Account Owner
+  registeredCustomerName?: string;
+  registeredCustomerMobile?: string;
+  customer?: RegisteredCustomerDto;
+
+  // Delivery Recipient
+  recipientName?: string;
+  recipientMobile?: string;
+
+  deliveryZonePublicId?: string;
+  deliveryZoneName?: string;
+
+  deliveryAddressObj?: AdminDeliveryAddress;
+  deliveryAddress?: any; // String or AdminDeliveryAddress
+
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+
+  promisedDeliveryDate?: string;
+  orderPlacedAt?: string;
+  cancellationAllowed?: boolean;
+  cancellationDeadline?: string;
+
+  // Standard Order Management properties
   customerName: string;
   customerPhone: string;
   customerAddress: string;
-  itemsCount: number;
+  itemsCount?: number;
   amount: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
@@ -206,10 +339,14 @@ export interface Order {
   transactionId?: string;
   items?: OrderItem[];
   subtotal?: number;
+  subtotalAmount?: number;
   deliveryCharge?: number;
   discount?: number;
+  discountAmount?: number;
+  totalAmount?: number;
   couponCode?: string;
   timeline?: OrderTimelineEvent[];
+  statusHistory?: AdminOrderStatusHistory[];
 }
 
 export interface OrderStatsSummary {
